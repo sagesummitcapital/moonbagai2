@@ -18,6 +18,7 @@ export function WaitlistForm({
   compact?: boolean;
 }) {
   const [email, setEmail] = useState("");
+  const [company, setCompany] = useState(""); // honeypot — real users leave this empty
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
 
@@ -30,20 +31,16 @@ export function WaitlistForm({
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source }),
+        body: JSON.stringify({ email, source, company }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         setStatus("error");
         setMessage(data?.error ?? "Something went wrong.");
         return;
       }
       setStatus("success");
-      setMessage(
-        data.duplicate
-          ? "You're already on the list — welcome back."
-          : "You're in. Check your inbox."
-      );
+      setMessage("You're in. Check your inbox.");
       setEmail("");
     } catch {
       setStatus("error");
@@ -57,6 +54,20 @@ export function WaitlistForm({
       className={`w-full ${compact ? "max-w-md" : "max-w-xl"}`}
       noValidate
     >
+      {/* Honeypot — hidden from people, catnip for bots. */}
+      <div aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 overflow-hidden">
+        <label htmlFor="company-website">Company website</label>
+        <input
+          id="company-website"
+          name="company"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+        />
+      </div>
+
       <motion.div
         animate={
           status === "success"

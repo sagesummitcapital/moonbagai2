@@ -2,59 +2,48 @@
 
 Premium, AI-native landing page for Moonbag.ai, an AI market intelligence & execution layer for traders.
 
-**Stack:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Framer Motion · Supabase (optional) · Resend (optional) · Vercel
+**Stack:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Framer Motion · Resend · Vercel
 
 ---
 
-## Deploy now, wire credentials later
+## Waitlist signups
 
-The site is built to **deploy immediately with zero env vars**. Signups still work — they're logged to the platform console. When you're ready, add Supabase + Resend credentials and the same form automatically starts storing to your database and sending confirmation emails.
+The waitlist form posts to `/api/waitlist`, which uses **Resend** to:
 
-### Zero-config deploy (takes 2 minutes)
+1. **Notify you** at `WAITLIST_NOTIFY_EMAIL` with the address, source, timestamp and IP — `Reply-To` is set to the signup, so hitting reply emails them directly.
+2. **Confirm to the subscriber** with the branded "You're in" email.
 
-```bash
-# 1. Push to GitHub
-git init && git add . && git commit -m "initial"
-git remote add origin <your-repo>
-git push -u origin main
+There is no database. Every signup is also written to the platform log as
+`[waitlist] signup: user@domain.com · source=hero · ip=...`, so signups stay
+recoverable from **Vercel → Your Project → Logs** even if an email bounces.
 
-# 2. Import the repo on Vercel → click Deploy
-# That's it. The site is live.
-```
-
-Signups hit `/api/waitlist` and appear in **Vercel → Your Project → Logs** as:
-```
-[waitlist] (no storage configured) signup: user@domain.com · source=hero
-```
-
-You can scrape those lines later if you want to recover pre-launch signups.
+The form has a hidden honeypot field and a best-effort per-IP rate limit
+(10 requests/minute) to keep bots out of your inbox.
 
 ---
 
-## Add credentials (when ready)
+## Setup
 
-### 1. Supabase (waitlist storage)
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** → paste `supabase/schema.sql` → Run.
-3. Go to **Project Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
-
-> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` must **never** be prefixed with `NEXT_PUBLIC_`. It's only read inside `app/api/waitlist/route.ts`.
-
-### 2. Resend (confirmation emails)
+### 1. Resend
 
 1. Sign up at [resend.com](https://resend.com).
-2. Verify your sending domain (e.g. `moonbag.ai`).
+2. Verify your sending domain (e.g. `moonbag.ai`) — required for both emails to deliver.
 3. Create an API key → `RESEND_API_KEY`.
-4. Set `RESEND_FROM_EMAIL="Moonbag.ai <hello@moonbag.ai>"`.
 
-### 3. Push env vars to Vercel
+### 2. Environment variables
 
-**Vercel dashboard → Settings → Environment Variables**. Add all four. Redeploy.
+**Vercel dashboard → Settings → Environment Variables** (all three, every environment):
 
-No code changes needed. The waitlist route automatically detects the vars and switches on storage + email.
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `RESEND_API_KEY` | `re_xxxxxxxx` | From Resend → API Keys. |
+| `RESEND_FROM_EMAIL` | `Moonbag.ai <hello@moonbag.ai>` | Must be on a domain verified in Resend. |
+| `WAITLIST_NOTIFY_EMAIL` | `you@yourdomain.com` | Where signup alerts land. Comma-separate for several. |
+
+Redeploy after adding them. Until they're set the form returns a 503 and the
+signup is only written to the logs.
+
+Locally: `cp .env.example .env.local` and fill the same three in.
 
 ---
 
@@ -121,9 +110,8 @@ app/
 ├── layout.tsx                 # fonts + BackgroundFX + metadata
 └── page.tsx                   # landing page composition
 lib/
-└── email.ts                   # Resend confirmation (lazy-init so missing key is safe)
+└── email.ts                   # Resend notification + confirmation (lazy-init so missing key is safe)
 public/logos/                  # 4 brand files (from your brand kit)
-supabase/schema.sql            # one-shot schema for the waitlist table
 tailwind.config.js
 tsconfig.json
 next.config.js

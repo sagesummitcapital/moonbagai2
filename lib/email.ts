@@ -1,6 +1,5 @@
 // Resend client — instantiated lazily so a missing API key doesn't crash
-// the module at import time. This file is only imported from the API route
-// when creds are actually present.
+// the module at import time.
 
 import { Resend } from "resend";
 
@@ -14,6 +13,112 @@ function getFrom() {
   return process.env.RESEND_FROM_EMAIL ?? "Moonbag.ai <hello@moonbag.ai>";
 }
 
+/** Who gets notified when someone joins the waitlist. Supports a comma-separated list. */
+function getNotifyRecipients(): string[] {
+  const raw = process.env.WAITLIST_NOTIFY_EMAIL ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function isEmailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY) && getNotifyRecipients().length > 0;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Notifies the Moonbag.ai team that someone signed up.
+ * This is the email that must succeed — there is no database behind the form,
+ * so a failure here means a lost signup.
+ */
+export async function sendWaitlistNotification(opts: {
+  email: string;
+  source?: string;
+  userAgent?: string;
+  ip?: string;
+}) {
+  const resend = getClient();
+  const to = getNotifyRecipients();
+  if (to.length === 0) throw new Error("WAITLIST_NOTIFY_EMAIL not set");
+
+  const { email, source = "landing", userAgent = "", ip = "" } = opts;
+  const when = new Date().toISOString();
+
+  const rows: Array<[string, string]> = [
+    ["Email", email],
+    ["Source", source],
+    ["Time (UTC)", when],
+  ];
+  if (ip) rows.push(["IP", ip]);
+  if (userAgent) rows.push(["User agent", userAgent]);
+
+  const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
+
+  const html = `
+<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f6f7f8;font-family:Inter,Arial,sans-serif;color:#111;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e6e8eb;border-radius:12px;padding:28px;">
+            <tr>
+              <td>
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#6b7280;font-weight:600;">
+                  moonbag.ai
+                </div>
+                <h1 style="margin:10px 0 20px 0;font-size:20px;line-height:1.3;font-weight:700;color:#111;">
+                  New waitlist signup
+                </h1>
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+                  ${rows
+                    .map(
+                      ([k, v]) => `<tr>
+                    <td style="padding:6px 0;color:#6b7280;width:120px;vertical-align:top;">${escapeHtml(
+                      k
+                    )}</td>
+                    <td style="padding:6px 0;color:#111;word-break:break-all;">${escapeHtml(
+                      v
+                    )}</td>
+                  </tr>`
+                    )
+                    .join("")}
+                </table>
+                <div style="height:1px;background:#e6e8eb;margin:22px 0 16px 0;"></div>
+                <a href="mailto:${escapeHtml(email)}" style="font-size:13px;color:#0b7;text-decoration:none;">
+                  Reply to ${escapeHtml(email)} →
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`.trim();
+
+  const { data, error } = await resend.emails.send({
+    from: getFrom(),
+    to,
+    replyTo: email,
+    subject: `New Moonbag.ai waitlist signup: ${email}`,
+    html,
+    text,
+  });
+
+  if (error) throw new Error(error.message ?? "Resend notification failed");
+  return data;
+}
+
+/** Confirmation sent to the person who signed up. Best-effort. */
 export async function sendWaitlistConfirmation(email: string) {
   const resend = getClient();
   const from = getFrom();
@@ -78,11 +183,14 @@ You'll be first to know when early access opens.
   </body>
 </html>`.trim();
 
-  return resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from,
     to: email,
     subject,
     html,
     text: plain,
   });
+
+  if (error) throw new Error(error.message ?? "Resend confirmation failed");
+  return data;
 }

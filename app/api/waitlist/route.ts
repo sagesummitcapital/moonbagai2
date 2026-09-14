@@ -1,58 +1,36 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Lazy imports so the route boots even when env vars are missing.
-// This lets you deploy the site immediately and wire creds later.
-async function tryStoreInSupabase(email: string, source: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return { skipped: true as const };
+// Best-effort in-memory rate limit (per serverless instance).
+// Keeps a bot from hammering the inbox without adding infrastructure.
+const WINDOW_MS = 60_000;
+const MAX_PER_WINDOW = 10;
+const hits = new Map<string, number[]>();
 
-  try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const admin = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { error } = await admin.from("waitlist").insert({ email, source });
-    if (error) {
-      const dup =
-        error.code === "23505" || /duplicate key/i.test(error.message ?? "");
-      if (dup) return { stored: false as const, duplicate: true as const };
-      console.error("[waitlist] supabase error:", error);
-      return { stored: false as const, error: error.message };
-    }
-    return { stored: true as const };
-  } catch (e) {
-    console.error("[waitlist] supabase import failed:", e);
-    return { stored: false as const, error: "storage_unavailable" };
-  }
-}
-
-async function trySendEmail(email: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from) return { skipped: true };
-
-  try {
-    const { sendWaitlistConfirmation } = await import("@/lib/email");
-    await sendWaitlistConfirmation(email);
-    return { sent: true };
-  } catch (e) {
-    console.error("[waitlist] resend error:", e);
-    return { sent: false };
-  }
+function rateLimited(ip: string) {
+  if (!ip) return false;
+  const now = Date.now();
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
+  recent.push(now);
+  hits.set(ip, recent);
+  if (hits.size > 5_000) hits.clear();
+  return recent.length > MAX_PER_WINDOW;
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
+
     const email =
       typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const source =
       typeof body?.source === "string" ? body.source.slice(0, 64) : "landing";
+    // Honeypot: real users never fill this, bots usually do.
+    const trap = typeof body?.company === "string" ? body.company.trim() : "";
 
     if (!email || !EMAIL_RE.test(email) || email.length > 254) {
       return NextResponse.json(
@@ -61,24 +39,59 @@ export async function POST(req: Request) {
       );
     }
 
-    const storeResult = await tryStoreInSupabase(email, source);
+    // Silently accept and drop bot submissions.
+    if (trap) return NextResponse.json({ ok: true });
 
-    // If storage is fully unavailable (no creds yet), log it so you can
-    // recover signups from platform logs later.
-    if ("skipped" in storeResult && storeResult.skipped) {
-      console.log(
-        `[waitlist] (no storage configured) signup: ${email} · source=${source}`
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      req.headers.get("x-real-ip") ??
+      "";
+    const userAgent = req.headers.get("user-agent")?.slice(0, 200) ?? "";
+
+    if (rateLimited(ip)) {
+      return NextResponse.json(
+        { ok: false, error: "Too many attempts. Try again in a minute." },
+        { status: 429 }
       );
     }
 
-    // Fire-and-forget email — never blocks or fails the signup.
-    const duplicate =
-      "duplicate" in storeResult ? !!storeResult.duplicate : false;
-    if (!duplicate) {
-      await trySendEmail(email).catch(() => {});
+    // Always log the signup so it is recoverable from platform logs
+    // even if the email provider has a bad day.
+    console.log(`[waitlist] signup: ${email} · source=${source} · ip=${ip}`);
+
+    const { isEmailConfigured, sendWaitlistNotification, sendWaitlistConfirmation } =
+      await import("@/lib/email");
+
+    if (!isEmailConfigured()) {
+      console.error(
+        "[waitlist] RESEND_API_KEY or WAITLIST_NOTIFY_EMAIL missing — signup only logged."
+      );
+      return NextResponse.json(
+        { ok: false, error: "Signups are temporarily unavailable." },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ ok: true, duplicate });
+    // The notification is the one that matters — there's no database behind
+    // this form, so if it fails we tell the visitor to try again.
+    try {
+      await sendWaitlistNotification({ email, source, ip, userAgent });
+    } catch (e) {
+      console.error("[waitlist] notification failed:", e);
+      return NextResponse.json(
+        { ok: false, error: "Couldn't submit right now. Please try again." },
+        { status: 502 }
+      );
+    }
+
+    // Confirmation to the subscriber is best-effort — never fails the signup.
+    try {
+      await sendWaitlistConfirmation(email);
+    } catch (e) {
+      console.error("[waitlist] confirmation failed:", e);
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[waitlist] unhandled:", err);
     return NextResponse.json(
