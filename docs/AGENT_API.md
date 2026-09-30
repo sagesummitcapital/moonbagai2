@@ -24,7 +24,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /handoffs?status=pending` | both | Grok's inbox |
 | `POST /handoffs` | Claude | Create a Robinhood handoff for Grok |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
-| `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood only) |
+| `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
 | `POST /size` | Claude | Position sizing (leverage last) → `TRADE_PLAN` or `NO_TRADE` |
@@ -72,4 +72,16 @@ Base URL: https://moonbag.ai/api/moonbag   Header: Authorization: Bearer <MOONBA
    "holding_period","status":"closed","execution_notes"}.
 6. Never change entry, stop or targets after they are recorded. Use "current_stop" for stop moves.
 7. Flag thesis conflicts in grok_response instead of creating your own thesis.
+
+BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
+8. Find the thesis: GET /theses?status=active&asset=BTC (or ETH) → use its thesis_id.
+9. When he opens: POST /trades {"thesis_id","venue":"blofin","symbol":"BTC" or "ETH","direction",
+   "account_equity","entry","stop","tp1","tp2","tp3","quantity","position_notional","margin",
+   "leverage","risk_dollars","risk_percent","status":"open"}. Ask him for any value he didn't give;
+   never guess entry or stop.
+10. When he moves his stop: PATCH /trades/{trade_id} {"current_stop": X}. Never change "stop".
+11. When he closes (fully): PATCH /trades/{trade_id} {"exit_price","realized_pnl","fees","status":"closed",
+   "execution_notes"}. If he only took partial profit, put it in execution_notes and keep status "open".
+12. Moonbag watches open BloFin trades and switches his TradingView alerts from entry triggers to
+    next-level alerts (next target / stop) at its next check.
 ```
