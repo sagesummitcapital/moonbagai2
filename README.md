@@ -1,8 +1,29 @@
-# Moonbag.ai — Landing Page
+# Moonbag.ai
 
-Premium, AI-native landing page for Moonbag.ai, an AI market intelligence & execution layer for traders.
+Public landing page **plus** the private Moonbag trading desk (the canonical thesis → grading →
+confidence → execution loop from *Moonbag Master Trading System v1.1*).
 
-**Stack:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Framer Motion · Resend · Vercel
+**Stack:** Next.js 14 (App Router) · TypeScript · Tailwind CSS · Clerk (login) · Supabase (records) · Resend · Vercel
+
+> **First-time setup:** follow [`SETUP.md`](./SETUP.md) (plain English, ~20 min).
+> **Claude / Grok integration:** see [`docs/AGENT_API.md`](./docs/AGENT_API.md).
+
+## Moonbag desk (private)
+
+| Route | What |
+| --- | --- |
+| `/dashboard` | Today — System Confidence, regime, Master/BTC/ETH/equity theses, yesterday's review, daily report |
+| `/dashboard/opportunities` | Setups by score, Grok handoffs, TradingView alerts |
+| `/dashboard/positions` | Open/pending positions by venue (Robinhood, BloFin, other) |
+| `/dashboard/performance` | P&L, win rate, R multiples, forecast vs execution accuracy |
+| `/dashboard/intelligence` | 30-day confidence, component accuracy, accuracy by asset/regime/setup/direction, lessons |
+| `/dashboard/history` | Every thesis & version, evaluation, trade, alert |
+| `/sign-in` | Clerk login · `/setup` shows which settings are missing |
+| `/api/moonbag/*` | Agent API for Claude and Grok (API-key auth) |
+
+Code map: `middleware.ts` (login gate) · `lib/auth/owner.ts` (owner allowlist) ·
+`lib/supabase/admin.ts` (server-only client) · `lib/moonbag/{types,db,scoring,risk,apiAuth}.ts` ·
+`supabase/migrations/20260930000000_moonbag_core.sql` (schema, immutability triggers, RLS).
 
 ---
 
@@ -13,7 +34,7 @@ The waitlist form posts to `/api/waitlist`, which uses **Resend** to:
 1. **Notify you** at `WAITLIST_NOTIFY_EMAIL` with the address, source, timestamp and IP — `Reply-To` is set to the signup, so hitting reply emails them directly.
 2. **Confirm to the subscriber** with the branded "You're in" email.
 
-There is no database. Every signup is also written to the platform log as
+Waitlist signups are not stored in the database. Every signup is also written to the platform log as
 `[waitlist] signup: user@domain.com · source=hero · ip=...`, so signups stay
 recoverable from **Vercel → Your Project → Logs** even if an email bounces.
 

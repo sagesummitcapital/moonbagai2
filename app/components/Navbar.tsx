@@ -66,6 +66,12 @@ export function Navbar() {
 
           <div className="flex items-center gap-2">
             <Link
+              href="/dashboard"
+              className="hidden rounded-full px-3 py-2 text-[13px] text-white/65 transition-colors hover:text-white md:inline-flex"
+            >
+              Log in
+            </Link>
+            <Link
               href="/#waitlist"
               className="group relative hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[13px] font-medium text-white transition-all hover:border-accent-green/40 hover:bg-white/[0.07] hover:shadow-[0_0_30px_-5px_rgba(62,243,162,0.4)] md:inline-flex"
             >
@@ -121,6 +127,12 @@ export function Navbar() {
                     </Link>
                   </motion.div>
                 ))}
+                <Link
+                  href="/dashboard"
+                  className="block rounded-lg px-4 py-3 text-[15px] font-medium text-white/80 transition hover:bg-white/[0.04] hover:text-white"
+                >
+                  Log in
+                </Link>
                 <div className="mt-2 border-t border-white/5 pt-2">
                   <Link
                     href="/#waitlist"

@@ -1,3 +1,6 @@
+-- NOTE: The full Moonbag schema now lives in supabase/migrations/.
+-- Run supabase/migrations/20260930000000_moonbag_core.sql (it includes this waitlist table).
+
 -- Moonbag.ai — Supabase schema
 -- Run in the Supabase SQL editor.
 
