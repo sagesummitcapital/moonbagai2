@@ -31,6 +31,10 @@ export function ThesisCard({ t, title }: { t: DailyThesis; title?: string }) {
         {plan.direction && <Row k="Stop / TPs" v={`${num(plan.stop)} / ${[plan.tp1, plan.tp2, plan.tp3].map((x) => num(x)).join(" · ")}`} />}
       </dl>
 
+      {(lv as unknown as { anchor?: string }).anchor && (
+        <div className="mt-2 text-[12px] text-white/45">Levels shown are {(lv as unknown as { anchor?: string }).anchor} key levels.</div>
+      )}
+
       {t.primary_scenario && <P label="Primary">{t.primary_scenario}</P>}
       {t.alternative_scenario && <P label="Alternative">{t.alternative_scenario}</P>}
       {t.what_changes_our_mind && <P label="What changes our mind">{t.what_changes_our_mind}</P>}
