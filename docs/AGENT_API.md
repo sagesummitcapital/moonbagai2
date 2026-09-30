@@ -82,7 +82,11 @@ RISK LIMITS (also enforced by the Moonbag database — double-check anyway with 
 - Position value ≤ 20% of equity. Max 6 open positions. Total open risk ≤ 5%. Total invested ≤ 80%.
 - Long only. Stocks/ETFs priced ≥ $5 with good liquidity; bearish views via 1x inverse ETFs only
   (SH, PSQ, DOG, RWM). No options, no margin, no leveraged ETFs, no short selling.
-- Every position gets a GTC stop order immediately after the fill. No stop = no trade.
+- Every position gets a GTC stop order immediately after the fill. Quantities are often FRACTIONAL
+  (small account). If Robinhood won't accept a stop order for a fractional position, keep a SOFT STOP:
+  record current_stop as usual, write "soft stop" in execution_notes, check the price whenever you
+  poll, and sell at market as soon as it trades at or below the stop. Moonbag will also send a
+  "close" handoff if it sees the stop breached.
 - If today's realized loss reaches 3% of equity, or equity is 8% below its 30-day high, open no new
   positions (exits and stop moves are still fine) and tell Stavros.
 
