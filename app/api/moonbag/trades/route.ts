@@ -27,7 +27,7 @@ export const POST = withAgent(["claude", "grok"], async (req, agent) => {
   const execution =
     agent === "grok" ? (body.venue === "blofin" ? "manual" : "grokbot") : body.execution;
   const trade = await createTrade({
-    ...pick(body, ["thesis_id", "handoff_id", "venue", "symbol", "direction"]),
+    ...pick(body, ["thesis_id", "handoff_id", "venue", "symbol", "direction", "setup_type", "horizon"]),
     ...pick(body, TRADE_WRITABLE_FIELDS),
     ...(execution ? { execution } : {}),
   } as never);

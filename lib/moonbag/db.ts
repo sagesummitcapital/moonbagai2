@@ -237,7 +237,7 @@ export const TRADE_WRITABLE_FIELDS = [
   "position_value", "portfolio_percent", "risk_dollars", "risk_percent", "position_notional",
   "margin", "leverage", "estimated_costs", "setup_score", "system_confidence", "opened_at",
   "exit_price", "closed_at", "realized_pnl", "fees", "return_percent", "holding_period",
-  "execution_score", "execution_notes", "status",
+  "execution_score", "execution_notes", "status", "exit_reason",
 ] as const;
 
 export async function listTrades(
@@ -309,4 +309,64 @@ export function accuracyBy(
       directionAvg: avg(rows.map((r) => (r.direction_score == null ? null : Number(r.direction_score)))),
     }))
     .sort((a, b) => b.graded - a.graded);
+}
+
+// ---------------------------------------------------------------- accounts & risk
+export async function createAccountSnapshot(snap: {
+  venue: "robinhood" | "blofin";
+  equity: number;
+  cash?: number | null;
+  buying_power?: number | null;
+  positions?: unknown[];
+  reported_by?: string;
+}) {
+  const db = supabaseAdmin();
+  return check(await db.from("account_snapshots").insert(snap).select("*").single());
+}
+
+export async function latestAccountSnapshot(venue: string) {
+  const db = supabaseAdmin();
+  const rows = check(
+    await db
+      .from("account_snapshots")
+      .select("*")
+      .eq("venue", venue)
+      .order("reported_at", { ascending: false })
+      .limit(1)
+  ) as Record<string, unknown>[];
+  return rows[0] ?? null;
+}
+
+export async function getRiskStatus(venue = "robinhood") {
+  const db = supabaseAdmin();
+  const [cfgRes, snapshot, openTrades, pendingRes] = await Promise.all([
+    db.from("risk_config").select("*").eq("venue", venue).limit(1),
+    latestAccountSnapshot(venue),
+    listTrades({ status: "open", venue }),
+    db
+      .from("handoffs")
+      .select("*")
+      .eq("broker", venue)
+      .eq("action", "open")
+      .in("status", ["pending", "acknowledged"]),
+  ]);
+  const cfgRows = check(cfgRes) as Record<string, unknown>[];
+  const pendingOpens = check(pendingRes) as Record<string, unknown>[];
+  const openRisk = openTrades.reduce((a, t) => {
+    const stop = Number(t.current_stop ?? t.stop ?? 0);
+    const entry = Number(t.entry ?? 0);
+    return a + Math.max(0, (entry - stop) * Number(t.quantity ?? 0));
+  }, 0);
+  const exposure = openTrades.reduce(
+    (a, t) => a + Number(t.position_value ?? Number(t.entry ?? 0) * Number(t.quantity ?? 0)),
+    0
+  );
+  return {
+    config: cfgRows[0] ?? null,
+    latest_snapshot: snapshot,
+    open_positions: openTrades.length,
+    pending_open_handoffs: pendingOpens.length,
+    open_risk_dollars: Math.round(openRisk * 100) / 100,
+    gross_exposure_dollars: Math.round(exposure * 100) / 100,
+  };
 }
