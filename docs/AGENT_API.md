@@ -41,7 +41,7 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
 - Theses cannot be edited or deleted. Evaluations cannot be edited or deleted.
 - Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**.
   Use `current_stop` for trailing stops. `r_multiple` is computed from the original stop.
-- `risk_percent` above 5 is rejected.
+- `risk_percent` above 10 is rejected (BloFin risk tiers: 10% under $1,000, 5% under $10,000, 2% above).
 - Alerts and open-handoffs can only be created for an **active** thesis. Close/trim/adjust_stop handoffs need an open `trade_id`.
 - **Robinhood risk gate (database):** an open-handoff is rejected unless there is an account snapshot from the last 3 days and:
   risk to stop ≤ 1% of equity (halved after 3 straight losses) · position ≤ 20% of equity · ≤ 6 open/pending positions ·

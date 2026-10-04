@@ -1,4 +1,4 @@
-# Moonbag Leverage Desk — Strategy v1
+# Moonbag Leverage Desk — Strategy v2
 
 Book 2 (BloFin). Owner: Stavros places every order. Moonbag watches, plans, scores and learns.
 Written 2026-10-04. The live copy is the newest row of `lev_strategy` in the Moonbag database.
@@ -18,8 +18,8 @@ Loop: **find levels → wait → signal → record → grade → backtest → ad
 - BTC and ETH perpetuals only. One coin at a time. No alts until the track record proves out.
 - Hold minutes to hours; 3 days maximum. Time stop at 72 hours.
 - Trade only confidence grade 4 or 5. Everything lower is logged and paper-tracked, not traded.
-- Risk per trade: 2% of the account at most (about $4.80 on $240). Never raised automatically.
-- Size comes from the stop distance. Leverage is chosen last, only to fit margin. Max 20x, max $50 margin.
+- Risk per trade steps down as the account grows: 10% under $1,000 (about $24 on $240), 5% under $10,000, 2% above. Grade 5 gets the full amount, grade 4 half. Set by Stavros on 2026-10-04; never raised automatically.
+- Size comes from the stop distance. Leverage is chosen last, only to fit margin. Max 20x; margin at most half the account.
 - Reward to TP1 must be at least 1.5R after fees; target 2R or better.
 - Stop distance at least 0.5% of price, so fees (about 0.12% of position, round trip) stay small.
 - After 2 losses in a row: half risk until the next win. Down 4% in a day: done for the day.
@@ -37,16 +37,17 @@ normal losses end the run. That path is not in this strategy. What is:
 
 | Risk per trade | Typical win (3R) | Net wins needed for $240 → $1,000 |
 | --- | --- | --- |
-| 2% (current rule) | +6% | about 25 |
+| 2% | +6% | about 25 |
 | 3% | +9% | about 17 |
-| 5% (long-term ceiling in the spec) | +15% | about 10 |
+| 5% (grade 4 now) | +15% | about 10 |
+| 10% (grade 5 now, while under $1,000) | +30% | 5 to 6 |
 
 "Net wins" means wins left over after losses are paid back. The lever that shortens the road is not
 leverage, it is (a) a real edge, and (b) letting part of a winner run far past TP1. Risk percent is
 Stavros's decision and is only changed by him.
 
-Each later milestone is 10x, about 40 net 3R wins at 2%. Position sizes grow with the account
-automatically because risk is a percent. The $50 margin cap is reviewed at each milestone.
+Each later milestone is 10x, about 17 net 3R wins at 5% ($1k to $10k) and about 40 at 2% after that. Position sizes grow with the account
+automatically because risk is a percent. At 10% risk, four losses in a row cost about a third of the account, and two full losses reach the 15% drawdown pause — so one losing trade ends the day and only grade 4–5 setups are ever traded.
 
 ## 4. What the top-100-wallets article adds
 
@@ -95,7 +96,7 @@ half an ATR past the level −10 · outside core hours −5 · after 2 losses in
 
 Grades: 85+ = 5 · 70–84 = 4 · 55–69 = 3 · 40–54 = 2 · below 40 = 1.
 
-Size by grade: grade 5 → full 2% risk. Grade 4 → 1% risk. Grade 3 and below → paper only.
+Size by grade: grade 5 → full risk for the account tier (10% under $1,000). Grade 4 → half of it (5%). Grade 3 and below → paper only.
 
 Weekly calibration: each grade's real win rate and average R are compared with what the grade promised
 (`v_lev_calibration`). If grade 4 signals do not clear breakeven over 10 or more resolved signals, the

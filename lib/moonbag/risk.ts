@@ -7,9 +7,9 @@ import { gradeEligibility, setupGrade } from "./scoring";
 
 export const RISK_DEFAULTS = {
   accountEquity: 240, // initial BloFin account
-  riskPercent: 2, // standard planned risk
-  riskCeilingPercent: 5, // stated long-term ceiling — never raised automatically
-  maxMargin: 50, // max margin per position
+  riskPercent: 5, // grade-4 risk while the account is under $1,000 (grade 5 = 10%)
+  riskCeilingPercent: 10, // ceiling while under $1,000 (Stavros, 2026-10-04) — never raised automatically
+  maxMargin: 120, // max margin per position = half the account
   maxLeverage: 20, // sanity cap — tighter stops needing more leverage are NO TRADE
   feeRatePerSide: 0.0006, // taker fee estimate; adjust to your BloFin tier
 } as const;
