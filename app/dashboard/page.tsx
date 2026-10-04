@@ -1,4 +1,5 @@
 import { getActiveTheses, getSystemState, getYesterdayReview, latestReport } from "@/lib/moonbag/db";
+import { buildBriefing } from "@/lib/moonbag/briefing";
 import { getLeverageDesk, getRobinhoodBook } from "@/lib/moonbag/desk";
 import Link from "next/link";
 import { load } from "./_components/data";
@@ -19,7 +20,7 @@ export default async function TodayPage() {
     return { state, theses, yesterday, report };
   });
   // The two books load separately so one failing never blanks the page.
-  const [{ data: lev }, { data: rh }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook)]);
+  const [{ data: lev }, { data: rh }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(buildBriefing)]);
   const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && Number(s.confidence_grade) >= 4);
 
   const state = data?.state;
@@ -95,6 +96,14 @@ export default async function TodayPage() {
           )}
         </Card>
       </div>
+
+      <Card title="Today's briefing" right={<Mono>same answer Grokbot gives</Mono>}>
+        {briefing ? (
+          <pre className="overflow-auto whitespace-pre-wrap font-sans text-[13.5px] leading-relaxed text-white/80">{briefing.text}</pre>
+        ) : (
+          <Empty>Briefing not available.</Empty>
+        )}
+      </Card>
 
       {master ? <ThesisCard t={master} title="Master thesis" /> : <Card title="Master thesis"><Empty>No master thesis published today.</Empty></Card>}
 

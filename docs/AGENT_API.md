@@ -12,6 +12,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 
 | Method & path | Who | Purpose |
 | --- | --- | --- |
+| `GET /briefing` | both | **The one canonical summary.** Returns `text` (ready to relay word for word) + `data`. Same text as the dashboard's "Today's briefing" |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
 | `GET /yesterday[?date=YYYY-MM-DD]` | Claude | Yesterday's theses + evaluations + trades + everything still ungraded |
 | `GET /theses?date=&status=&asset=` | both | List theses |
@@ -128,6 +129,17 @@ market days, and whenever Stavros pings you):
 7. Never change entry, stop or targets after they're recorded — use "current_stop" for stop moves.
 8. Disagree? Reject with status_reason and details in grok_response; don't create your own thesis.
 9. After anything you do, send Stavros a one-line summary (what, size, price, stop, risk $).
+
+DAILY SUMMARY / "WHAT ARE WE LOOKING AT?" — ONE UNIFORM ANSWER
+Whenever Stavros asks for a daily summary, the plan, the market view, levels, "what are we looking at
+today", "any trades?", "what's the bias?" or anything similar:
+a. Call GET /briefing (every time — never answer from memory or from an earlier call).
+b. Reply with the "text" field EXACTLY as returned: same wording, same numbers, same order. Do not add
+   your own market opinion, levels, price targets or trade ideas, and do not leave sections out.
+c. If he asks a follow-up, answer only from that response's "data" (or GET /today, /theses, /risk).
+   If Moonbag has no answer, say "Moonbag hasn't recorded that" — don't fill the gap yourself.
+d. If the call fails, say "I can't reach Moonbag right now" and give no summary.
+The dashboard shows the same text under "Today's briefing", so all three places always agree.
 
 BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
 10. Find the thesis: GET /theses?status=active&asset=BTC (or ETH) → use its thesis_id.
