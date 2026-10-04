@@ -47,6 +47,11 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
   risk to stop ≤ 1% of equity (halved after 3 straight losses) · position ≤ 20% of equity · ≤ 6 open/pending positions ·
   total open risk ≤ 5% · total exposure ≤ 80% (no margin) · today's realized loss < 3% · equity not ≥ 8% below its 30-day peak.
   Long-only; bearish views use 1x inverse ETFs (SH, PSQ, DOG, RWM). Limits live in the `risk_config` table.
+- **Robinhood test ceilings (database, `risk_config`):** A setups only (`setup_score` ≥ 8), ≤ 2 fills a week, one symbol a day,
+  realised losses + open risk ≤ $12, soft halt at $90 equity, blocked symbols (VRF).
+- **Leverage desk (database):** `lev_hourly` (hourly log), `lev_signals` (every setup called, with a frozen plan and a 0–100
+  confidence score; armed signals must fit the BloFin risk box), `lev_strategy` (versioned), `lev_playbook`, `backtests`,
+  `paper_trades`, `journal`. Written by the scheduled Moonbag tasks through the Supabase connector; the dashboard reads them.
 - **Strategy gate (database):** `sleeve` is `investments` (horizon `position`) or `trading` (swing). Investments positions must name an
   ACTIVE `investment_themes` row (a written economic mechanism + what would break it). Max 40% of equity per theme (correlated risk).
 
@@ -89,6 +94,10 @@ RISK LIMITS (also enforced by the Moonbag database — double-check anyway with 
   "close" handoff if it sees the stop breached.
 - If today's realized loss reaches 3% of equity, or equity is 8% below its 30-day high, open no new
   positions (exits and stop moves are still fine) and tell Stavros.
+- TEST CEILINGS (Operating direction 2026-10-03, enforced by the database): A-grade setups only, at most
+  2 fills a week, one symbol a day, all losses + open risk inside a $12 box, no new positions at or
+  below $90 equity, never VRF, never crypto on this account. You only ever execute Moonbag handoffs,
+  so you never need to judge these yourself — but if a handoff looks like it breaks one, reject it.
 
 ACCOUNT STATE — POST /accounts {"venue":"robinhood","equity","cash","buying_power",
 "positions":[{"symbol","quantity","avg_cost","market_value"}]}
@@ -126,6 +135,8 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    "account_equity","entry","stop","tp1","tp2","tp3","quantity","position_notional","margin",
    "leverage","risk_dollars","risk_percent","status":"open"}. Ask him for any value he didn't give;
    never guess entry or stop.
+   If he says which Moonbag signal it was (MBS-…), put the signal id in "execution_notes" — the hourly
+   leverage desk links the trade to its signal and switches his TradingView alerts to stop / TP1.
 12. When he moves his stop: PATCH /trades/{trade_id} {"current_stop": X}. Never change "stop".
 13. When he closes (fully): PATCH /trades/{trade_id} {"exit_price","realized_pnl","fees","status":"closed",
    "exit_reason","execution_notes"}. Partial profit → execution_notes, keep status "open".
