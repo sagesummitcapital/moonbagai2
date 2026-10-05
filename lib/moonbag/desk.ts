@@ -192,6 +192,27 @@ export interface RiskConfig {
   drawdown_stop_pct: number | null;
 }
 
+export interface TradeLookback {
+  trade_id: string;
+  created_at: string;
+  week_start: string;
+  venue: string;
+  symbol: string;
+  r_realized: number | null;
+  mfe_r: number | null;
+  mae_r: number | null;
+  r_if_held_to_plan: number | null;
+  r_best_in_window: number | null;
+  verdict: string;
+  rules_broken: string[];
+  what_went_well: string | null;
+  could_do_better: string;
+  dollars_left_on_table: number | null;
+  dollars_saved: number | null;
+  suggestion: string;
+  lesson: string | null;
+}
+
 export interface Theme {
   theme_id: string;
   name: string;
@@ -213,7 +234,7 @@ export function nextMilestone(equity: number, rules?: Json | null): number | nul
 // ---------------------------------------------------------------- Book 2: leverage desk
 export async function getLeverageDesk() {
   const db = supabaseAdmin();
-  const [strategy, risk, hourly, signals, alerts, trades, theses, calibration, setups, playbook, journal, backtests] =
+  const [strategy, risk, hourly, signals, alerts, trades, theses, calibration, setups, playbook, journal, backtests, snap, lookbacks] =
     await Promise.all([
       db.from("lev_strategy").select("*").eq("status", "active").limit(1),
       db.from("risk_config").select("*").eq("venue", "blofin").limit(1),
@@ -227,12 +248,16 @@ export async function getLeverageDesk() {
       db.from("lev_playbook").select("*").order("created_at"),
       db.from("journal").select("*").eq("book", "leverage").order("created_at", { ascending: false }).limit(12),
       db.from("backtests").select("*").eq("book", "leverage").order("created_at", { ascending: false }).limit(60),
+      db.from("account_snapshots").select("equity, reported_at").eq("venue", "blofin").order("reported_at", { ascending: false }).limit(1),
+      db.from("trade_lookbacks").select("*").eq("venue", "blofin").order("created_at", { ascending: false }).limit(12),
     ]);
 
   const cfg = (check(risk) as RiskConfig[])[0] ?? null;
   const allTrades = check(trades) as Trade[];
   const closed = allTrades.filter((t) => t.status === "closed");
-  const equity = Number(cfg?.starting_equity ?? 240) + sum(closed.map((t) => t.realized_pnl));
+  // The balance Grokbot reports from BloFin is the truth; the starting balance + P&L sum is only a fallback.
+  const reported = (check(snap) as { equity: number; reported_at: string }[])[0] ?? null;
+  const equity = reported ? Number(reported.equity) : Number(cfg?.starting_equity ?? 240) + sum(closed.map((t) => Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0)));
   const strat = (check(strategy) as LevStrategy[])[0] ?? null;
   const log = check(hourly) as LevHourly[];
   const latest: Record<string, LevHourly> = {};
@@ -242,6 +267,8 @@ export async function getLeverageDesk() {
     strategy: strat,
     risk: cfg,
     equity,
+    equityReportedAt: reported?.reported_at ?? null,
+    lookbacks: check(lookbacks) as TradeLookback[],
     startingEquity: Number(cfg?.starting_equity ?? 240),
     milestone: nextMilestone(equity, strat?.rules),
     latest,

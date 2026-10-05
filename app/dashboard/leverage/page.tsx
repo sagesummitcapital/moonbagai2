@@ -49,7 +49,7 @@ export default async function LeveragePage() {
           <Stat
             label="BloFin account"
             value={money(equity)}
-            sub={milestone ? `Next milestone ${money(milestone)} · ${num(progress, 1)}% of the way from ${money(startingEquity)}` : "All milestones reached"}
+            sub={milestone ? `${data.equityReportedAt ? `Reported ${when(data.equityReportedAt)} · ` : ""}Next milestone ${money(milestone)} · ${num(progress, 1)}% of the way from ${money(startingEquity)}` : "All milestones reached"}
           />
           <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
             <div className="h-full rounded-full bg-accent-green/70" style={{ width: `${progress}%` }} />
@@ -225,6 +225,33 @@ export default async function LeveragePage() {
           />
         </Card>
       </div>
+
+      <Card title="24-hour lookbacks — what could have gone better">
+        {data.lookbacks.length ? (
+          <ul className="space-y-4 text-[13.5px]">
+            {data.lookbacks.map((l) => (
+              <li key={l.trade_id} className="border-b border-white/[0.04] pb-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-white">{l.symbol}</strong>
+                  <Badge tone={l.verdict === "well_managed" ? "green" : l.verdict === "lucky" || l.verdict === "should_have_skipped" ? "red" : "amber"}>{l.verdict.replace(/_/g, " ")}</Badge>
+                  <span className="text-white/60">got <R v={l.r_realized} /> · original plan would have paid <R v={l.r_if_held_to_plan} /> · best possible <R v={l.r_best_in_window} /></span>
+                  <Mono>{l.trade_id}</Mono>
+                </div>
+                {l.what_went_well && <p className="mt-1.5 text-white/75"><span className="text-white/45">Did well: </span>{l.what_went_well}</p>}
+                <p className="mt-1 text-white/75"><span className="text-white/45">Could do better: </span>{l.could_do_better}</p>
+                <p className="mt-1 text-white/75"><span className="text-white/45">Next time: </span>{l.suggestion}</p>
+                <p className="mt-1 text-white/55">
+                  {Number(l.dollars_left_on_table) > 0 && <>Left on the table {money(l.dollars_left_on_table)}. </>}
+                  {Number(l.dollars_saved) > 0 && <>Saved by your management {money(l.dollars_saved)}. </>}
+                  {Array.isArray(l.rules_broken) && l.rules_broken.length ? <>Rules broken: {l.rules_broken.join("; ")}.</> : <>All rules followed.</>}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty>No lookbacks yet. About 24 hours after each trade closes, Moonbag reviews what price did next and writes it here; a weekly breakdown follows on Saturday.</Empty>
+        )}
+      </Card>
 
       <Card title="Past signals and what happened">
         <Table
