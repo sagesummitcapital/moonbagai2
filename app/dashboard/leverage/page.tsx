@@ -106,7 +106,7 @@ export default async function LeveragePage() {
             <Badge key="d" tone={biasTone(t.direction)}>{t.direction}</Badge>,
             num(t.entry),
             `${num(t.stop)} / ${num(t.current_stop)}`,
-            [t.tp1 ?? t.target, t.tp2, t.tp3].map((x) => num(x)).join(" · "),
+            [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2, t.current_tp3 ?? t.tp3].map((x) => num(x)).join(" · "),
             t.risk_dollars != null ? `${money(t.risk_dollars)} (${num(t.risk_percent)}%)` : "—",
             `${money(t.position_notional)} · ${num(t.leverage)}x · m ${money(t.margin)}`,
             when(t.opened_at),

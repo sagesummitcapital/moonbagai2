@@ -89,7 +89,7 @@ export async function buildBriefing() {
   }
   L.push(
     lev.openTrades.length
-      ? `Open trade: ${lev.openTrades.map((t) => `${t.symbol} ${t.direction} @ ${n(t.entry)} · stop ${n(t.current_stop ?? t.stop)} · TP1 ${n(t.tp1 ?? t.target)}`).join(" | ")}`
+      ? `Open trade: ${lev.openTrades.map((t) => `${t.symbol} ${t.direction} @ ${n(t.entry)} · stop ${n(t.current_stop ?? t.stop)} · TP1 ${n(t.current_tp1 ?? t.tp1 ?? t.target)}`).join(" | ")}`
       : "Open trade: none."
   );
   const live_alerts = lev.alerts.filter((a) => a.status === "active");
@@ -112,7 +112,7 @@ export async function buildBriefing() {
   if (rh.equityThesis) L.push(`Equities: ${rh.equityThesis.bias.toUpperCase()} — ${rh.equityThesis.primary_scenario ?? "no scenario written"}`);
   L.push(
     rh.open.length
-      ? `Positions: ${rh.open.map((t) => `${t.symbol} ${n(t.quantity, 4)} @ ${n(t.entry)} · stop ${n(t.current_stop ?? t.stop)} · target ${n(t.tp1 ?? t.target)}`).join(" | ")}`
+      ? `Positions: ${rh.open.map((t) => `${t.symbol} ${n(t.quantity, 4)} @ ${n(t.entry)} · stop ${n(t.current_stop ?? t.stop)} · target ${n(t.current_tp1 ?? t.tp1 ?? t.target)}`).join(" | ")}`
       : "Positions: in cash — no A-grade setup has met the standard."
   );
   const pending = rh.handoffs.filter((h) => ["pending", "acknowledged"].includes(h.status));

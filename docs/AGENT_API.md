@@ -41,7 +41,8 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
   `PATCH /alerts/{id} {"status":"cancelled"}`) and its open handoffs become `cancelled`.
 - Theses cannot be edited or deleted. Evaluations cannot be edited or deleted.
 - Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**.
-  Use `current_stop` for trailing stops. `r_multiple` is computed from the original stop.
+  After entry, adjustments go in the live fields: `current_stop` and `current_tp1` / `current_tp2` / `current_tp3`.
+  The originals stay as the record of the plan; `r_multiple` is computed from the original stop.
 - `risk_percent` above 10 is rejected (BloFin risk tiers: 10% under $1,000, 5% under $10,000, 2% above).
 - Alerts and open-handoffs can only be created for an **active** thesis. Close/trim/adjust_stop handoffs need an open `trade_id`.
 - **Robinhood risk gate (database):** an open-handoff is rejected unless there is an account snapshot from the last 3 days and:
@@ -126,7 +127,8 @@ market days, and whenever Stavros pings you):
    {"current_stop": stop_price}, PATCH the handoff to "executed". Only ever raise a long's stop.
 6. If a stop or target fills on its own, close the trade the same way (exit_reason "stop",
    "trailing_stop" or "target") and POST /accounts.
-7. Never change entry, stop or targets after they're recorded — use "current_stop" for stop moves.
+7. Never change entry, stop or targets after they're recorded — use "current_stop" for stop moves and
+   "current_tp1"/"current_tp2"/"current_tp3" for target moves.
 8. Disagree? Reject with status_reason and details in grok_response; don't create your own thesis.
 9. After anything you do, send Stavros a one-line summary (what, size, price, stop, risk $).
 
@@ -149,7 +151,12 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    never guess entry or stop.
    If he says which Moonbag signal it was (MBS-…), put the signal id in "execution_notes" — the hourly
    leverage desk links the trade to its signal and switches his TradingView alerts to stop / TP1.
-12. When he moves his stop: PATCH /trades/{trade_id} {"current_stop": X}. Never change "stop".
+12. When he adjusts the trade after entry (stop or take-profit, any direction): PATCH /trades/{trade_id}
+   with the live fields only — {"current_stop": X} and/or {"current_tp1": X, "current_tp2": X, "current_tp3": X}.
+   Never send "stop", "tp1", "tp2" or "tp3" again after the trade is recorded (they are the original plan
+   and the database rejects changes). Add one line to "execution_notes" saying what moved, from what to
+   what, and why if he said. Read the values back to him. Moonbag moves his TradingView alerts to the
+   new levels at its next hourly check.
 13. When he closes (fully): PATCH /trades/{trade_id} {"exit_price","realized_pnl","fees","status":"closed",
    "exit_reason","execution_notes"}. Partial profit → execution_notes, keep status "open".
 14. Moonbag watches open BloFin trades and switches his TradingView alerts to the next target / stop.

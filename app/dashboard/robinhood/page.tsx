@@ -88,7 +88,7 @@ export default async function RobinhoodPage() {
             t.symbol,
             num(t.entry),
             `${num(t.stop)} / ${num(t.current_stop)}`,
-            [t.tp1 ?? t.target, t.tp2].map((x) => num(x)).join(" · "),
+            [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2].map((x) => num(x)).join(" · "),
             money(Math.max(0, (Number(t.entry) - Number(t.current_stop ?? t.stop)) * Number(t.quantity ?? 0))),
             `${num(t.quantity, 4)} · ${money(t.position_value)}`,
             when(t.opened_at),

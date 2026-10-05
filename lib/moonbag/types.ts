@@ -204,6 +204,10 @@ export interface Trade {
   tp1: number | null;
   tp2: number | null;
   tp3: number | null;
+  /** Live targets after an adjustment; the originals above stay write-once for grading. */
+  current_tp1: number | null;
+  current_tp2: number | null;
+  current_tp3: number | null;
   target: number | null;
   quantity: number | null;
   position_value: number | null;
