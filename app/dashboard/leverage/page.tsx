@@ -1,4 +1,4 @@
-import { getLeverageDesk, type LevHourly, type LevSignal } from "@/lib/moonbag/desk";
+import { fmtPct, fmtRR, getLeverageDesk, tradeMetrics, type LevHourly, type LevSignal } from "@/lib/moonbag/desk";
 import type { DailyThesis } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
@@ -99,18 +99,20 @@ export default async function LeveragePage() {
       {/* ------------------------------------------------ open trades */}
       <Card title="Open BloFin trades">
         <Table
-          head={["Trade", "Coin", "Side", "Entry", "Stop (orig / now)", "Targets", "Risk", "Size · Lev", "Opened"]}
-          rows={openTrades.map((t) => [
+          head={["Trade", "Coin", "Side", "R : R", "Account % (stop / target)", "Entry", "Stop (orig / now)", "Targets", "Risk $", "Size · Lev", "Opened"]}
+          rows={openTrades.map((t) => { const m = tradeMetrics(t); return [
             <Mono key="i">{t.trade_id}</Mono>,
             t.symbol,
             <Badge key="d" tone={biasTone(t.direction)}>{t.direction}</Badge>,
+            <strong key="rr" className="font-mono text-white">{fmtRR(m.rr)}</strong>,
+            <span key="pc" className="font-mono"><span className={Number(m.riskPct) < 0 ? "text-rose-300" : "text-accent-green"}>{fmtPct(m.riskPct)}</span> / <span className="text-accent-green">{fmtPct(m.rewardPct)}</span></span>,
             num(t.entry),
             `${num(t.stop)} / ${num(t.current_stop)}`,
             [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2, t.current_tp3 ?? t.tp3].map((x) => num(x)).join(" · "),
-            t.risk_dollars != null ? `${money(t.risk_dollars)} (${num(t.risk_percent)}%)` : "—",
+            money(t.risk_dollars),
             `${money(t.position_notional)} · ${num(t.leverage)}x · m ${money(t.margin)}`,
             when(t.opened_at),
-          ])}
+          ]; })}
           empty="No open trade. Tell Moonbag (or Grokbot) when you take one and it shows up here with its next levels."
         />
       </Card>
@@ -212,15 +214,18 @@ export default async function LeveragePage() {
         </Card>
         <Card title="Closed BloFin trades">
           <Table
-            head={["Coin", "Side", "Entry → exit", "P&L", "R", "Closed"]}
-            rows={closedTrades.slice(0, 10).map((t) => [
+            head={["Coin", "Side", "Planned R : R", "Risked", "Result", "R", "P&L", "Lev", "Closed"]}
+            rows={closedTrades.slice(0, 10).map((t) => { const m = tradeMetrics(t); return [
               t.symbol,
               <Badge key="d" tone={biasTone(t.direction)}>{t.direction}</Badge>,
-              `${num(t.entry)} → ${num(t.exit_price)}`,
-              <span key="p" className={Number(t.realized_pnl) >= 0 ? "text-accent-green" : "text-rose-300"}>{money(t.realized_pnl)}</span>,
+              <span key="rr" className="font-mono">{fmtRR(m.rr)}</span>,
+              <span key="rk" className="font-mono text-rose-300">{fmtPct(m.riskPct)}</span>,
+              <span key="rs" className={`font-mono ${Number(m.resultPct) >= 0 ? "text-accent-green" : "text-rose-300"}`}>{fmtPct(m.resultPct, 2)}</span>,
               <R key="r" v={t.r_multiple} />,
+              <span key="p" className={Number(t.realized_pnl) >= 0 ? "text-accent-green" : "text-rose-300"}>{money(t.realized_pnl)}</span>,
+              `${num(t.leverage, 0)}x`,
               when(t.closed_at),
-            ])}
+            ]; })}
             empty="No closed trades yet."
           />
         </Card>
@@ -415,7 +420,9 @@ function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) 
         <Cell k={`TP1 (${num(s.rr_tp1, 1)}R)`} v={num(s.tp1)} />
         <Cell k="Size" v={s.quantity != null ? `${num(s.quantity, 4)} (${money(s.notional)})` : "—"} />
         <Cell k="Leverage · margin" v={s.leverage != null ? `${num(s.leverage, 0)}x · ${money(s.margin)}` : "—"} />
-        <Cell k="Risk" v={s.risk_dollars != null ? `${money(s.risk_dollars)} (${num(s.risk_percent, 1)}%)` : "—"} />
+        <Cell k="Risk $" v={money(s.risk_dollars)} />
+        <Cell k="R : R" v={fmtRR(s.rr_tp1)} />
+        <Cell k="Account % (stop / TP1)" v={s.risk_percent != null ? `${fmtPct(-Number(s.risk_percent))} / ${fmtPct(Number(s.risk_percent) * Number(s.rr_tp1 ?? 0))}` : "—"} />
       </div>
       {(s.tp2 || s.tp3) && <div className="mt-2 text-[12.5px] text-white/50">Runner targets: {[s.tp2, s.tp3].filter(Boolean).map((x) => num(x)).join(" · ")}</div>}
 

@@ -230,6 +230,8 @@ export interface Trade {
   r_multiple: number | null;
   execution_score: number | null;
   execution_notes: string | null;
+  setup_type?: string | null;
+  exit_reason?: string | null;
   status: TradeStatus;
   created_at: string;
   updated_at: string;

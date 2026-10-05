@@ -225,6 +225,37 @@ export interface Theme {
 
 const sum = (xs: (number | null | undefined)[]) => xs.reduce<number>((a, b) => a + (Number(b) || 0), 0);
 
+/**
+ * The two numbers Stavros tracks on every leveraged trade:
+ *   R:R         reward to the (live) target ÷ risk to the (live) stop
+ *   account %   what the stop costs (−) and what the target pays (+), as a percent of the account
+ * Plus, once closed, what the trade actually did to the account.
+ */
+export function tradeMetrics(t: {
+  direction: string; entry: number | null; stop: number | null; current_stop?: number | null;
+  tp1?: number | null; current_tp1?: number | null; target?: number | null; quantity: number | null;
+  account_equity: number | null; realized_pnl?: number | null; fees?: number | null;
+}) {
+  const entry = Number(t.entry), qty = Number(t.quantity), eq = Number(t.account_equity);
+  const stop = t.current_stop ?? t.stop, tp = t.current_tp1 ?? t.tp1 ?? t.target;
+  const sign = t.direction === "short" ? -1 : 1;
+  const ok = (v: unknown) => v !== null && v !== undefined && Number.isFinite(Number(v));
+  const stopMove = ok(stop) && ok(t.entry) ? sign * (Number(stop) - entry) : null; // negative = loss at the stop
+  const tpMove = ok(tp) && ok(t.entry) ? sign * (Number(tp) - entry) : null;
+  const pct = (move: number | null) => (move !== null && qty > 0 && eq > 0 ? (move * qty * 100) / eq : null);
+  const rr = stopMove !== null && tpMove !== null && stopMove < 0 ? tpMove / -stopMove : null;
+  const net = ok(t.realized_pnl) ? Number(t.realized_pnl) - Number(t.fees ?? 0) : null;
+  return {
+    rr,                                   // 2.1 means 1 : 2.1
+    riskPct: pct(stopMove),               // e.g. -1.9  (positive once the stop is past entry = profit locked)
+    rewardPct: pct(tpMove),               // e.g. +4.0
+    resultPct: net !== null && eq > 0 ? (net * 100) / eq : null, // closed trades, after fees
+  };
+}
+
+export const fmtRR = (rr: number | null | undefined) => (rr == null ? "—" : `1 : ${rr.toFixed(rr >= 10 ? 0 : 1)}`);
+export const fmtPct = (v: number | null | undefined, d = 1) => (v == null ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}%`);
+
 /** Next milestone above the current equity, from the strategy's milestone ladder. */
 export function nextMilestone(equity: number, rules?: Json | null): number | null {
   const ladder = Array.isArray(rules?.milestones) ? (rules!.milestones as number[]) : [1000, 10000, 100000, 1000000];
