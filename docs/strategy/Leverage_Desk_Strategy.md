@@ -1,7 +1,7 @@
 # Moonbag Leverage Desk — Strategy v5
 
 Book 2 (BloFin). Stavros places every order. Moonbag watches, plans, scores and learns.
-v5 written 2026-10-08 (DB v7: daily loss limit removed · v8: level plays — alerts always set). The live copy is the newest row of `lev_strategy` in the Moonbag database.
+v5 written 2026-10-08 (DB v7: daily loss limit removed · v8: level plays · v9: order card). The live copy is the newest row of `lev_strategy` in the Moonbag database.
 
 ## 1. The goal
 
@@ -134,3 +134,19 @@ trade's stop and next target instead.
 - After each close: 24-hour lookback.
 - Saturday: C-setup review (every RESEARCH ONLY setup of the week, what it would have paid, which
   component held it back) → then the weekly strategy review → coaching breakdown.
+
+## 12. Order card (Stavros, 2026-10-08)
+
+Every TAKE TRADE NOW comes as a BloFin-ready card, worked out from the current BloFin balance:
+
+- Coin: BTC / ETH
+- Side: Long / Short
+- Entry: market if price is within a quarter ATR (1h) of the plan, otherwise a limit at the level
+- Stop: stop-market, with the % distance
+- TP1: price and R (half the position, limit) · TP2 runner
+- Size: in coins (set BloFin's size unit to the coin) and $ value, sized to the risk tier
+- Leverage: isolated, the lowest that keeps margin within half the account, never above 20x; liquidation well beyond the stop
+- Risk: $ and % of the account · R:R
+
+Minimum R:R stays 1:1.5 (prefer 2+). Stavros is flexible on it, so the Saturday review groups results by
+R:R bucket (1.5–2, 2–3, 3+) and moves the minimum when 10+ results per bucket say so.
