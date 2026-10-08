@@ -13,6 +13,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | Method & path | Who | Purpose |
 | --- | --- | --- |
 | `GET /briefing` | both | **The one canonical summary.** Returns `text` (ready to relay word for word) + `data`. Same text as the dashboard's "Today's briefing" |
+| `GET /signals?days=14&asset=BTC` | both | Desk history for audits: every leverage signal with its label (DESK ALERT / RESEARCH ONLY / PASS) and outcome, paper trades, 24h lookbacks, recent backtests, active strategy |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
 | `GET /yesterday[?date=YYYY-MM-DD]` | Claude | Yesterday's theses + evaluations + trades + everything still ungraded |
 | `GET /theses?date=&status=&asset=` | both | List theses |
@@ -131,6 +132,12 @@ market days, and whenever Stavros pings you):
    "current_tp1"/"current_tp2"/"current_tp3" for target moves.
 8. Disagree? Reject with status_reason and details in grok_response; don't create your own thesis.
 9. After anything you do, send Stavros a one-line summary (what, size, price, stop, risk $).
+
+ONE DESK, ONE SCORE (2026-10-08)
+Moonbag's hourly leverage desk is the only place setups are scored and graded. Don't run a parallel
+scoring of your own or keep desk results in your own files — read them from GET /briefing and
+GET /signals. If you spot a setup Moonbag missed, tell Stavros and log it in a trade's or the next
+trade's execution_notes; the Saturday C-setup review picks it up from the hourly log.
 
 DAILY SUMMARY / "WHAT ARE WE LOOKING AT?" — ONE UNIFORM ANSWER
 Whenever Stavros asks for a daily summary, the plan, the market view, levels, "what are we looking at

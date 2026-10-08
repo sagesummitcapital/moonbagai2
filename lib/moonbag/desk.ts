@@ -253,6 +253,14 @@ export function tradeMetrics(t: {
   };
 }
 
+/** Strategy v5 label: DESK ALERT = grade 3+ that passed the 8-point checklist; RESEARCH ONLY = paper-tracked; PASS = not recorded. */
+export function signalLabel(s: { confidence_grade: number | null; status_reason?: string | null; reasoning?: string | null }) {
+  const research = /^RESEARCH ONLY/i.test(s.status_reason ?? "") || /^RESEARCH ONLY/i.test(s.reasoning ?? "");
+  if (Number(s.confidence_grade) >= 3 && !research) return "DESK ALERT" as const;
+  return Number(s.confidence_grade) >= 2 || research ? ("RESEARCH ONLY" as const) : ("PASS" as const);
+}
+export const isDeskAlert = (s: Parameters<typeof signalLabel>[0]) => signalLabel(s) === "DESK ALERT";
+
 export const fmtRR = (rr: number | null | undefined) => (rr == null ? "—" : `1 : ${rr.toFixed(rr >= 10 ? 0 : 1)}`);
 export const fmtPct = (v: number | null | undefined, d = 1) => (v == null ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}%`);
 

@@ -1,4 +1,4 @@
-import { fmtPct, fmtRR, getLeverageDesk, tradeMetrics, type LevHourly, type LevSignal } from "@/lib/moonbag/desk";
+import { fmtPct, fmtRR, getLeverageDesk, signalLabel, tradeMetrics, type LevHourly, type LevSignal } from "@/lib/moonbag/desk";
 import type { DailyThesis } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
@@ -69,7 +69,7 @@ export default async function LeveragePage() {
           <Stat
             label="Hourly watch"
             value={<span className="text-[18px]">{lastRun ? when(lastRun) : "not yet run"}</span>}
-            sub={stale ? "No hourly entry in the last 2½ hours — check the scheduled task." : "Running. Trades only at confidence grade 4–5."}
+            sub={stale ? "No hourly entry in the last 2½ hours — check the scheduled task." : "Running. Pings DESK ALERTs (grade 3+ that pass the checklist)."}
           />
         </Card>
       </div>
@@ -440,7 +440,7 @@ function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Mono>{s.signal_id}</Mono>
         {s.expires_at && <Mono>· expires {when(s.expires_at)}</Mono>}
-        {Number(s.confidence_grade) < 4 && <Badge tone="gray">paper only — below grade 4</Badge>}
+        <Badge tone={signalLabel(s) === "DESK ALERT" ? "green" : "gray"}>{signalLabel(s)}</Badge>
       </div>
     </div>
   );

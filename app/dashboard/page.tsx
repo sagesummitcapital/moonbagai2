@@ -1,6 +1,6 @@
 import { getActiveTheses, getSystemState, getYesterdayReview, latestReport } from "@/lib/moonbag/db";
 import { buildBriefing } from "@/lib/moonbag/briefing";
-import { getLeverageDesk, getRobinhoodBook } from "@/lib/moonbag/desk";
+import { getLeverageDesk, getRobinhoodBook, isDeskAlert } from "@/lib/moonbag/desk";
 import Link from "next/link";
 import { load } from "./_components/data";
 import { DataNotice } from "./_components/Notice";
@@ -21,7 +21,7 @@ export default async function TodayPage() {
   });
   // The two books load separately so one failing never blanks the page.
   const [{ data: lev }, { data: rh }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(buildBriefing)]);
-  const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && Number(s.confidence_grade) >= 4);
+  const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && isDeskAlert(s));
 
   const state = data?.state;
   const theses = data?.theses ?? [];
@@ -88,7 +88,7 @@ export default async function TodayPage() {
                   ? `In a trade: ${lev.openTrades.map((t) => `${t.symbol} ${t.direction} @ ${num(t.entry)}`).join(" · ")}`
                   : liveSignals.length
                     ? liveSignals.map((s) => `${s.asset} ${s.direction} ${s.status} — grade ${s.confidence_grade} (${num(s.confidence_score, 0)}/100)`).join(" · ")
-                    : "No grade 4–5 setup right now — waiting for levels."}
+                    : "No DESK ALERT right now — waiting for levels."}
               </p>
             </>
           ) : (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { listTrades } from "@/lib/moonbag/db";
-import { fmtPct, fmtRR, tradeMetrics, type LevSignal } from "@/lib/moonbag/desk";
+import { fmtPct, fmtRR, isDeskAlert, tradeMetrics, type LevSignal } from "@/lib/moonbag/desk";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
@@ -76,9 +76,9 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const sig = data.signals.filter((s) => s.resolved_at && monthKey(s.resolved_at) === m && ["tp1", "stop", "timeout"].includes(s.outcome ?? ""));
   const sigRow = (list: LevSignal[]) => tally(list.map((s) => ({ r: s.outcome_r != null ? Number(s.outcome_r) : null, pct: s.outcome_r != null && s.risk_percent != null ? Number(s.outcome_r) * Number(s.risk_percent) : null, pnl: null })));
   const calls = [
-    { name: "Grade 5 calls", ...sigRow(sig.filter((s) => s.confidence_grade === 5)) },
-    { name: "Grade 4 calls", ...sigRow(sig.filter((s) => s.confidence_grade === 4)) },
-    { name: "Below grade 4 (paper only)", ...sigRow(sig.filter((s) => Number(s.confidence_grade) < 4)) },
+    { name: "DESK ALERT — grade 4–5 (A/A+)", ...sigRow(sig.filter((s) => isDeskAlert(s) && Number(s.confidence_grade) >= 4)) },
+    { name: "DESK ALERT — grade 3 (B starter)", ...sigRow(sig.filter((s) => isDeskAlert(s) && s.confidence_grade === 3)) },
+    { name: "RESEARCH ONLY (paper)", ...sigRow(sig.filter((s) => !isDeskAlert(s))) },
   ];
 
   const href = (mm: string, b = book) => `/dashboard/tracker?m=${mm}${b !== "all" ? `&book=${b}` : ""}`;
