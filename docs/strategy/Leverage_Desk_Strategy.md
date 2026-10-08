@@ -1,7 +1,7 @@
 # Moonbag Leverage Desk — Strategy v5
 
 Book 2 (BloFin). Stavros places every order. Moonbag watches, plans, scores and learns.
-v5 written 2026-10-08 (DB version 6 adds the trade-only alert policy). The live copy is the newest row of `lev_strategy` in the Moonbag database.
+v5 written 2026-10-08 (DB v6: trade-only alerts · v7: daily loss limit removed). The live copy is the newest row of `lev_strategy` in the Moonbag database.
 
 ## 1. The goal
 
@@ -30,7 +30,8 @@ able to reach Stavros.
 - Stavros places every order and may set his own size; Moonbag records what he actually did.
 - Leverage ≤ 20x; the stop must sit inside 80% of the distance to liquidation.
 - Reward to TP1 at least 1.5R (prefer 2R+). Stop at least 0.5% from entry, beyond real structure.
-- After 2 losses in a row: half risk until the next win. One losing trade ends the day.
+- After 2 losses in a row: half risk until the next win. No daily trade or loss limit (Stavros removed
+  it 2026-10-08) — a loss does not end the day.
   Down 15% from the peak: live alerts pause, research only, until the weekly review.
 
 ## 4. Confidence score v2 (0–100)
