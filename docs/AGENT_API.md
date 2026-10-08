@@ -133,6 +133,13 @@ market days, and whenever Stavros pings you):
 8. Disagree? Reject with status_reason and details in grok_response; don't create your own thesis.
 9. After anything you do, send Stavros a one-line summary (what, size, price, stop, risk $).
 
+TRADINGVIEW ALERTS = LEVEL PLAYS (strategy v8, 2026-10-08)
+With no open BloFin trade, Moonbag keeps 2 "MB … PLAY" alerts per coin in TradingView: the nearest level
+above and below price, each a conditional trade with its validation rule (1h close beyond + hold, or sweep
+and close back inside). Never treat a touch of the level as an entry. Moonbag answers after the 1h close
+with TAKE TRADE NOW or NO TRADE. With a trade open, the MB alerts are that trade's stop and next target.
+If you see fewer than 2 PLAY alerts per coin and no open trade, tell Stavros — the hourly desk resets them.
+
 ONE DESK, ONE SCORE (2026-10-08)
 Moonbag's hourly leverage desk is the only place setups are scored and graded. Don't run a parallel
 scoring of your own or keep desk results in your own files — read them from GET /briefing and

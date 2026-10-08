@@ -73,8 +73,19 @@ export async function buildBriefing() {
     } else if (sig) {
       plan = `DESK ALERT: ${sig.direction.toUpperCase()} · grade ${sig.confidence_grade} (${n(sig.confidence_score, 0)}/100) · ${sig.trigger_condition ?? `trigger ${n(sig.trigger_price)}`} · entry ${n(sig.entry)} stop ${n(sig.stop)} TP1 ${n(sig.tp1)} · R:R ${fmtRR(sig.rr_tp1)} · account ${fmtPct(-Number(sig.risk_percent ?? 0))} / ${fmtPct(Number(sig.risk_percent ?? 0) * Number(sig.rr_tp1 ?? 0))}`;
     } else {
-      const r = research.find((s) => s.asset === a);
-      plan = `No trade — nothing to do. Key levels ${above[0] ? n(above[0]) : "—"} / ${below[0] ? n(below[0]) : "—"}; you get a ping only if a trade sets up${r ? ` · research: ${r.direction} ${r.setup_id} (${n(r.confidence_score, 0)})` : ""}`;
+      // Level plays: the two conditional trades sitting in TradingView for this coin (above and below price).
+      const plays = lev.signals
+        .filter((s) => s.asset === a && ["watching", "armed"].includes(s.status) && !s.outcome)
+        .sort((x, y) => Number(y.trigger_price ?? y.entry) - Number(x.trigger_price ?? x.entry));
+      plan = plays.length
+        ? `PLAYS: ${plays
+            .map((s) => {
+              const lvl = Number(s.trigger_price ?? s.entry);
+              const side = price != null && lvl < price ? "▼" : "▲";
+              return `${side} ${n(lvl)} ${s.direction.toUpperCase()} (${n(s.confidence_score, 0)}, R:R ${fmtRR(s.rr_tp1)}) if ${s.trigger_condition ?? "validated"}`;
+            })
+            .join("  ·  ")}`
+        : `No plays set yet — key levels ${above[0] ? n(above[0]) : "—"} / ${below[0] ? n(below[0]) : "—"}`;
     }
     const ch = h?.indicators && (h.indicators as Record<string, unknown>).change_24h_pct;
     return {

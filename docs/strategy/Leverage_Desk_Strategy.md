@@ -1,7 +1,7 @@
 # Moonbag Leverage Desk — Strategy v5
 
 Book 2 (BloFin). Stavros places every order. Moonbag watches, plans, scores and learns.
-v5 written 2026-10-08 (DB v6: trade-only alerts · v7: daily loss limit removed). The live copy is the newest row of `lev_strategy` in the Moonbag database.
+v5 written 2026-10-08 (DB v7: daily loss limit removed · v8: level plays — alerts always set). The live copy is the newest row of `lev_strategy` in the Moonbag database.
 
 ## 1. The goal
 
@@ -115,9 +115,22 @@ everything below B is paper.
 
 ## 10. Rhythm
 
-- Hourly: log, store candles, score setups. TradingView alerts and pings exist ONLY for trades to take
-  (TAKE TRADE order, TAKE TRADE NOW on a confirmed trigger, CANCEL, open-trade events). No watch,
-  level or "no trade yet" alerts (Stavros, 2026-10-08). Levels live in the morning brief and dashboard.
+- Hourly: log, store candles, score setups, keep the LEVEL PLAYS current (below).
+
+## 11. Level plays — alerts are always set (Stavros, 2026-10-08)
+
+TradingView always holds 2 plays per coin: the nearest real 4h/daily level above price and the nearest
+below. Each alert is a pre-planned conditional trade — direction, validation, entry, stop, TP1/TP2, size.
+
+| Play | Validation (never enter on the touch) |
+| --- | --- |
+| Breakout long / breakdown short | 1h closes beyond the level AND the next 1h candle doesn't close back through it — or a retest of the level holds on a 1h close |
+| Rejection short / reclaim long | Price sweeps beyond the level, then a 1h candle closes back inside |
+
+After the 1h close Moonbag answers one of two ways: TAKE TRADE NOW (validated, score ≥ 55, checklist
+passes, price within half an ATR of entry) or NO TRADE (with the reason). Then it sets the next play so
+both sides always have one. No generic "watching" messages. While a trade is open, the alerts are that
+trade's stop and next target instead.
 - After each close: 24-hour lookback.
 - Saturday: C-setup review (every RESEARCH ONLY setup of the week, what it would have paid, which
   component held it back) → then the weekly strategy review → coaching breakdown.
