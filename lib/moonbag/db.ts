@@ -237,7 +237,7 @@ export const TRADE_WRITABLE_FIELDS = [
   "position_value", "portfolio_percent", "risk_dollars", "risk_percent", "position_notional",
   "margin", "leverage", "estimated_costs", "setup_score", "system_confidence", "opened_at",
   "exit_price", "closed_at", "realized_pnl", "fees", "return_percent", "holding_period",
-  "execution_score", "execution_notes", "status", "exit_reason",
+  "execution_score", "execution_notes", "status", "exit_reason", "origin", "origin_notes",
 ] as const;
 
 export async function listTrades(

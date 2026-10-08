@@ -232,6 +232,11 @@ export interface Trade {
   execution_notes: string | null;
   setup_type?: string | null;
   exit_reason?: string | null;
+  /** "moonbag" = followed a DESK ALERT; "own" = Stavros's own call. */
+  origin?: "moonbag" | "own" | null;
+  /** What Moonbag's confidence rubric gives the setup at entry (own trades: scored after the fact). */
+  moonbag_score?: number | null;
+  origin_notes?: string | null;
   status: TradeStatus;
   created_at: string;
   updated_at: string;

@@ -1,7 +1,7 @@
 # Moonbag Leverage Desk — Strategy v5
 
 Book 2 (BloFin). Stavros places every order. Moonbag watches, plans, scores and learns.
-v5 written 2026-10-08. The live copy is the newest row of `lev_strategy` in the Moonbag database.
+v5 written 2026-10-08 (DB version 6 adds the trade-only alert policy). The live copy is the newest row of `lev_strategy` in the Moonbag database.
 
 ## 1. The goal
 
@@ -54,8 +54,8 @@ When the trigger prints it rescores with the real trigger points. The ping goes 
 
 | Score | Grade | Label | What happens |
 | --- | --- | --- | --- |
-| 85+ | 5 · A+ | DESK ALERT | Push + TradingView alert with the full plan |
-| 70–84 | 4 · A | DESK ALERT | Push + TradingView alert with the full plan |
+| 85+ | 5 · A+ | DESK ALERT | Push + TradingView alert at the entry: the order to place |
+| 70–84 | 4 · A | DESK ALERT | Push + TradingView alert at the entry: the order to place |
 | 55–69 | 3 · B | DESK ALERT (starter) | Push + alert, starter size |
 | 40–54 | 2 · C | RESEARCH ONLY | Recorded and paper-tracked, no ping. Reviewed every Saturday |
 | < 40 | 1 | PASS | Logged in the hourly note only |
@@ -114,7 +114,9 @@ everything below B is paper.
 
 ## 10. Rhythm
 
-- Hourly: log, store candles, score setups, keep BTC/ETH level alerts current, ping DESK ALERTs.
+- Hourly: log, store candles, score setups. TradingView alerts and pings exist ONLY for trades to take
+  (TAKE TRADE order, TAKE TRADE NOW on a confirmed trigger, CANCEL, open-trade events). No watch,
+  level or "no trade yet" alerts (Stavros, 2026-10-08). Levels live in the morning brief and dashboard.
 - After each close: 24-hour lookback.
 - Saturday: C-setup review (every RESEARCH ONLY setup of the week, what it would have paid, which
   component held it back) → then the weekly strategy review → coaching breakdown.

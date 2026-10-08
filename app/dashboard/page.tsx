@@ -3,6 +3,7 @@ import { buildBriefing } from "@/lib/moonbag/briefing";
 import { getLeverageDesk, getRobinhoodBook, isDeskAlert } from "@/lib/moonbag/desk";
 import Link from "next/link";
 import { load } from "./_components/data";
+import { MorningBrief } from "./_components/MorningBrief";
 import { DataNotice } from "./_components/Notice";
 import { ThesisCard } from "./_components/ThesisCard";
 import { Badge, Card, Empty, Mono, Stat, biasTone, money, num, when } from "./_components/ui";
@@ -33,6 +34,8 @@ export default async function TodayPage() {
   return (
     <div className="space-y-6">
       <DataNotice error={error} />
+
+      {briefing ? <MorningBrief brief={briefing.brief} /> : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="md:col-span-2">
@@ -97,13 +100,12 @@ export default async function TodayPage() {
         </Card>
       </div>
 
-      <Card title="Today's briefing" right={<Mono>same answer Grokbot gives</Mono>}>
-        {briefing ? (
-          <pre className="overflow-auto whitespace-pre-wrap font-sans text-[13.5px] leading-relaxed text-white/80">{briefing.text}</pre>
-        ) : (
-          <Empty>Briefing not available.</Empty>
-        )}
-      </Card>
+      {briefing && (
+        <details className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <summary className="cursor-pointer text-[13px] text-white/60">Text version — the same brief Grokbot sends</summary>
+          <pre className="mt-3 overflow-auto whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed text-white/80">{briefing.text}</pre>
+        </details>
+      )}
 
       {master ? <ThesisCard t={master} title="Master thesis" /> : <Card title="Master thesis"><Empty>No master thesis published today.</Empty></Card>}
 

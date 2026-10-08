@@ -156,8 +156,11 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    "account_equity","entry","stop","tp1","tp2","tp3","quantity","position_notional","margin",
    "leverage","risk_dollars","risk_percent","status":"open"}. Ask him for any value he didn't give;
    never guess entry or stop.
-   If he says which Moonbag signal it was (MBS-…), put the signal id in "execution_notes" — the hourly
-   leverage desk links the trade to its signal and switches his TradingView alerts to stop / TP1.
+   Always include "origin": "moonbag" if he took a Moonbag TAKE TRADE alert (put the signal id MBS-… in
+   "execution_notes"), or "origin": "own" if it was his own read. If he doesn't say, ask "Moonbag alert or
+   your own call?" For an own trade, put his reason in "origin_notes" in his words (the level he saw, why
+   he took it). Don't score it yourself — Moonbag scores every trade with its own rubric so the two can be
+   compared. The hourly desk links the trade to its signal and switches his TradingView alerts to stop / TP1.
 12. When he adjusts the trade after entry (stop or take-profit, any direction): PATCH /trades/{trade_id}
    with the live fields only — {"current_stop": X} and/or {"current_tp1": X, "current_tp2": X, "current_tp3": X}.
    Never send "stop", "tp1", "tp2" or "tp3" again after the trade is recorded (they are the original plan

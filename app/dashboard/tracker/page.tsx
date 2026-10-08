@@ -81,6 +81,14 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
     { name: "RESEARCH ONLY (paper)", ...sigRow(sig.filter((s) => !isDeskAlert(s))) },
   ];
 
+  // Moonbag vs your own calls — leverage trades, all time, so the sample builds up across months.
+  const lev = all.filter((t) => t.venue === "blofin");
+  const originName = (t: Trade) => (t.origin === "moonbag" ? "Moonbag DESK ALERT" : t.origin === "own" ? "Your own call" : "Not tagged yet");
+  const head2head = ["Moonbag DESK ALERT", "Your own call", "Not tagged yet"].map((name) => ({ name, ...tally(lev.filter((t) => originName(t) === name).map(tradeRow)) }));
+  const scored = lev.filter((t) => t.origin === "own" && t.moonbag_score != null);
+  const ownHigh = tally(scored.filter((t) => Number(t.moonbag_score) >= 55).map(tradeRow));
+  const ownLow = tally(scored.filter((t) => Number(t.moonbag_score) < 55).map(tradeRow));
+
   const href = (mm: string, b = book) => `/dashboard/tracker?m=${mm}${b !== "all" ? `&book=${b}` : ""}`;
   const statTable = (rows: (ReturnType<typeof tally> & { name: string })[], first: string, empty: string) => (
     <Table
@@ -147,16 +155,26 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         <p className="mt-3 text-[12.5px] text-white/45">If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</p>
       </Card>
 
+      <Card title="Moonbag vs your calls — leverage" right={<Mono>all closed BloFin trades</Mono>}>
+        {statTable(head2head, "Who called it", "No closed leverage trades yet.")}
+        <p className="mt-3 text-[12.5px] text-white/45">
+          {scored.length
+            ? `Your own trades that Moonbag would have scored 55+: ${ownHigh.trades} (${signed(ownHigh.totalR, 2, "R")}). Scored under 55: ${ownLow.trades} (${signed(ownLow.totalR, 2, "R")}). If the under-55 group keeps winning, the scoring is missing something you see — the weekly review turns that into a rule.`
+            : "Each of your own trades is scored after the fact with Moonbag's rubric, so we can see whether the scoring misses setups you catch. Results build up as trades close."}
+        </p>
+      </Card>
+
       <Card title={`Trade log — ${monthLabel(m)}`}>
         {shown.length ? (
           <Table
-            head={["Closed", "Market", "Side", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
+            head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
             rows={shown.map((t) => {
               const x = tradeMetrics(t);
               return [
                 <span key="c">{when(t.closed_at)}<br /><Mono>{t.trade_id}</Mono></span>,
                 <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
                 <Badge key="d" tone={biasTone(t.direction)}>{t.direction}</Badge>,
+                <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
                 <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
                 <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
                 <span key="rs" className={`font-mono ${tone(x.resultPct)}`}>{fmtPct(x.resultPct, 2)}</span>,
