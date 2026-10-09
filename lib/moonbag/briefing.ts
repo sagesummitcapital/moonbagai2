@@ -44,6 +44,11 @@ export type BriefCoin = {
   regime: string | null;
   above: number[];
   below: number[];
+  /** The two lines on the TradingView chart (Cartographer): range high and range low. */
+  rangeHigh: number | null;
+  rangeLow: number | null;
+  /** Short form of the plays for the X post, e.g. "short <80,345 hold · short reject 83,500". */
+  playLine: string | null;
   plan: string;
   deskAlert: boolean;
   checkedAt: string | null;
@@ -60,12 +65,20 @@ export async function buildBriefing() {
   const coins: BriefCoin[] = ["BTC", "ETH"].map((a) => {
     const h = lev.latest[a];
     const t = lev.theses.find((x) => x.asset === a);
-    const lv = (h?.levels ?? t?.levels ?? {}) as { support?: number[]; resistance?: number[] };
+    const lv = (h?.levels ?? t?.levels ?? {}) as { support?: number[]; resistance?: number[]; range_high?: number; range_low?: number };
     const price = h ? Number(h.price) : null;
     const above = (lv.resistance ?? []).map(Number).filter((x) => price == null || x > price).sort((x, y) => x - y).slice(0, 2);
     const below = (lv.support ?? []).map(Number).filter((x) => price == null || x < price).sort((x, y) => y - x).slice(0, 2);
     const sig = live.find((s) => s.asset === a);
     const open = lev.openTrades.find((tr) => tr.symbol === a);
+    const rh = lv.range_high != null && (price == null || Number(lv.range_high) > price) ? Number(lv.range_high) : null;
+    const rl = lv.range_low != null && (price == null || Number(lv.range_low) < price) ? Number(lv.range_low) : null;
+    const coinPlays = lev.signals
+      .filter((s) => s.asset === a && ["watching", "armed"].includes(s.status) && !s.outcome)
+      .sort((x, y) => Number(y.trigger_price ?? y.entry) - Number(x.trigger_price ?? x.entry));
+    const playLine = coinPlays.length
+      ? coinPlays.map((s) => `${s.direction} ${price != null && Number(s.trigger_price ?? s.entry) < price ? "below" : "above"} ${n(s.trigger_price ?? s.entry, 0)}`).join(" · ")
+      : null;
     let plan: string;
     if (open) {
       const m = tradeMetrics(open);
@@ -97,11 +110,28 @@ export async function buildBriefing() {
       regime: h?.regime ?? null,
       above,
       below,
+      rangeHigh: rh,
+      rangeLow: rl,
+      playLine,
       plan,
       deskAlert: !!sig,
       checkedAt: h?.ts ?? null,
     };
   });
+
+  // Rotation: the Scout's top 5 vs BTC and the (max 2) coins in play, with their level plays.
+  const rotationCoins = lev.universe.filter((u) => u.tier === "rotation").sort((x, y) => Number(x.rank ?? 99) - Number(y.rank ?? 99));
+  const rotation = {
+    top: rotationCoins.slice(0, 5).map((u) => ({ asset: u.asset, rank: u.rank, rs1m: u.rs_1m_vs_btc == null ? null : Number(u.rs_1m_vs_btc), inPlay: u.in_play })),
+    plays: rotationCoins
+      .filter((u) => u.in_play)
+      .map((u) => ({
+        asset: u.asset,
+        plays: lev.signals
+          .filter((s) => s.asset === u.asset && ["watching", "armed"].includes(s.status) && !s.outcome)
+          .map((s) => `${s.direction.toUpperCase()} ${n(s.trigger_price ?? s.entry)} (${n(s.confidence_score, 0)}, R:R ${fmtRR(s.rr_tp1)})`),
+      })),
+  };
 
   const tickers = rh.tickerTheses.filter((t) => t.setup_score != null).sort((x, y) => Number(y.setup_score) - Number(x.setup_score));
   const best = tickers[0] ?? null;
@@ -121,6 +151,7 @@ export async function buildBriefing() {
       changeMind: firstSentence(rh.master?.what_changes_our_mind, 140),
     },
     coins,
+    rotation,
     stocks: {
       bias: rh.equityThesis?.bias ?? null,
       view: firstSentence(rh.equityThesis?.primary_scenario),
@@ -152,9 +183,12 @@ export async function buildBriefing() {
   L.push("");
   for (const c of coins) {
     L.push(`${c.asset}  ${n(c.price)}  ${arrow(c.bias)} ${c.change24 == null ? "" : `${fmtPct(c.change24)} 24h  `}${c.bias.toUpperCase()}${c.htf ? ` (4h ${c.htf}${c.regime ? ` · ${c.regime}` : ""})` : ""}`);
-    L.push(`  Above: ${c.above.length ? c.above.map((x) => n(x)).join(" · ") : "—"}    Below: ${c.below.length ? c.below.map((x) => n(x)).join(" · ") : "—"}`);
+    L.push(`  Range lines ${c.rangeLow != null ? n(c.rangeLow) : "—"} / ${c.rangeHigh != null ? n(c.rangeHigh) : "—"} · Above: ${c.above.length ? c.above.map((x) => n(x)).join(" · ") : "—"} · Below: ${c.below.length ? c.below.map((x) => n(x)).join(" · ") : "—"}`);
     L.push(`  ▸ ${c.plan}`);
   }
+  L.push("");
+  L.push(`ROTATION  ${rotation.top.length ? rotation.top.map((r) => `${r.asset} ${r.rs1m == null ? "" : `${r.rs1m > 0 ? "+" : ""}${n(r.rs1m, 0)}%`}${r.inPlay ? "★" : ""}`).join(" · ") : "Not ranked yet"}  (1M vs BTC · ★ in play)`);
+  for (const r of rotation.plays) L.push(`  ▸ ${r.asset}: ${r.plays.length ? r.plays.join("  ·  ") : "no plays set yet"}`);
   L.push("");
   L.push(`STOCKS  ${(brief.stocks.bias ?? "—").toUpperCase()}${brief.stocks.view ? ` — ${brief.stocks.view}` : ""}`);
   L.push(`  ▸ ${brief.stocks.best ? `Best setup: ${brief.stocks.best.symbol} ${n(brief.stocks.best.score, 1)}/10 (${brief.stocks.best.grade})` : "No equity setup scored yet"}`);

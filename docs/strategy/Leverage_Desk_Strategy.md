@@ -1,4 +1,7 @@
-# Moonbag Leverage Desk — Strategy v5
+# Moonbag Leverage Desk — Strategy v5 (detail)
+
+> The source of truth is now **MOONBAG_STRATEGY.md** (same folder, also in the database as `strategy_doc`).
+> This file keeps the history and the reasoning behind the leverage rules; where they differ, MOONBAG_STRATEGY.md wins.
 
 Book 2 (BloFin). Stavros places every order. Moonbag watches, plans, scores and learns.
 v5 written 2026-10-08 (DB v7: daily loss limit removed · v8: level plays · v9: order card). The live copy is the newest row of `lev_strategy` in the Moonbag database.

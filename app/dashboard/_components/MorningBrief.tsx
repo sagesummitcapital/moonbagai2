@@ -36,6 +36,25 @@ export function MorningBrief({ brief }: { brief: Brief }) {
         {brief.coins.map((c) => <Coin key={c.asset} c={c} />)}
       </div>
 
+      {/* 2b — rotation: the Scout's top 5 vs BTC, ★ = in play */}
+      {brief.rotation.top.length > 0 && (
+        <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-white/45">Rotation · 1M vs BTC</span>
+            {brief.rotation.top.map((r) => (
+              <Badge key={r.asset} tone={r.inPlay ? "green" : "gray"}>
+                {r.asset} {r.rs1m == null ? "" : `${r.rs1m > 0 ? "+" : ""}${num(r.rs1m, 0)}%`}{r.inPlay ? " ★" : ""}
+              </Badge>
+            ))}
+          </div>
+          {brief.rotation.plays.map((r) => (
+            <div key={r.asset} className="mt-1.5 text-[12.5px] text-white/70">
+              <strong className="text-white">{r.asset}</strong> · {r.plays.length ? r.plays.join("  ·  ") : "no plays set yet"}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 3 — stocks · today · books · yesterday */}
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Tile title="Stocks">
@@ -109,6 +128,13 @@ function Coin({ c }: { c: BriefCoin }) {
         </div>
       )}
 
+      {(c.rangeLow != null || c.rangeHigh != null) && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[12.5px]">
+          <span className="text-white/45">TradingView lines</span>
+          <Badge tone="red">range low {c.rangeLow != null ? num(c.rangeLow) : "—"}</Badge>
+          <Badge tone="green">range high {c.rangeHigh != null ? num(c.rangeHigh) : "—"}</Badge>
+        </div>
+      )}
       <p className={`text-[13.5px] leading-snug ${c.deskAlert ? "font-medium text-white" : "text-white/75"}`}>▸ {c.plan}</p>
       {c.checkedAt && <p className="mt-1 text-[11.5px] text-white/35">checked {when(c.checkedAt)}</p>}
     </div>

@@ -270,16 +270,28 @@ export function nextMilestone(equity: number, rules?: Json | null): number | nul
   return ladder.find((m) => m > equity) ?? null;
 }
 
+/** A coin the leverage desk watches (lev_universe): BTC/ETH core plus the Scout's top-5 rotation coins. */
+export type UniverseCoin = {
+  asset: string;
+  tier: "core" | "rotation" | "bench";
+  rank: number | null;
+  rs_1m_vs_btc: number | null;
+  rs_3m_vs_btc: number | null;
+  in_play: boolean;
+  max_leverage: number;
+  blofin_symbol: string;
+};
+
 // ---------------------------------------------------------------- Book 2: leverage desk
 export async function getLeverageDesk() {
   const db = supabaseAdmin();
-  const [strategy, risk, hourly, signals, alerts, trades, theses, calibration, setups, playbook, journal, backtests, snap, lookbacks] =
+  const [strategy, risk, hourly, signals, alerts, trades, theses, calibration, setups, playbook, journal, backtests, snap, lookbacks, universe] =
     await Promise.all([
       db.from("lev_strategy").select("*").eq("status", "active").limit(1),
       db.from("risk_config").select("*").eq("venue", "blofin").limit(1),
       db.from("lev_hourly").select("*").order("ts", { ascending: false }).limit(48),
       db.from("lev_signals").select("*").order("created_at", { ascending: false }).limit(40),
-      db.from("alerts").select("*").in("asset", ["BTC", "ETH"]).in("status", ["active", "triggered"]).order("created_at", { ascending: false }).limit(20),
+      db.from("alerts").select("*").in("status", ["active", "triggered"]).order("created_at", { ascending: false }).limit(60),
       db.from("trades").select("*").eq("venue", "blofin").order("created_at", { ascending: false }).limit(30),
       db.from("daily_thesis").select("*").eq("status", "active").in("asset", ["BTC", "ETH"]),
       db.from("v_lev_calibration").select("*"),
@@ -289,6 +301,7 @@ export async function getLeverageDesk() {
       db.from("backtests").select("*").eq("book", "leverage").order("created_at", { ascending: false }).limit(60),
       db.from("account_snapshots").select("equity, reported_at").eq("venue", "blofin").order("reported_at", { ascending: false }).limit(1),
       db.from("trade_lookbacks").select("*").eq("venue", "blofin").order("created_at", { ascending: false }).limit(12),
+      db.from("lev_universe").select("*").order("rank", { ascending: true, nullsFirst: true }),
     ]);
 
   const cfg = (check(risk) as RiskConfig[])[0] ?? null;
@@ -308,12 +321,14 @@ export async function getLeverageDesk() {
     equity,
     equityReportedAt: reported?.reported_at ?? null,
     lookbacks: check(lookbacks) as TradeLookback[],
+    universe: check(universe) as UniverseCoin[],
     startingEquity: Number(cfg?.starting_equity ?? 240),
     milestone: nextMilestone(equity, strat?.rules),
     latest,
     hourly: log,
     signals: check(signals) as LevSignal[],
-    alerts: check(alerts) as Alert[],
+    // Only coin alerts (the universe), not Robinhood stock alerts.
+    alerts: (check(alerts) as Alert[]).filter((x) => (check(universe) as UniverseCoin[]).some((u) => u.asset === x.asset)).slice(0, 30),
     openTrades: allTrades.filter((t) => t.status === "open" || t.status === "pending"),
     closedTrades: closed,
     theses: check(theses) as DailyThesis[],

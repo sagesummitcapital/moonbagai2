@@ -1,5 +1,6 @@
 import { withAgent, json } from "@/lib/moonbag/apiAuth";
 import { buildBriefing } from "@/lib/moonbag/briefing";
+import { morningBriefPost } from "@/lib/moonbag/xposts";
 
 export const dynamic = "force-dynamic";
 
@@ -9,5 +10,5 @@ export const dynamic = "force-dynamic";
  */
 export const GET = withAgent(["claude", "grok"], async () => {
   const b = await buildBriefing();
-  return json({ ok: true, ...b });
+  return json({ ok: true, ...b, x_post: morningBriefPost(b.brief) });
 });

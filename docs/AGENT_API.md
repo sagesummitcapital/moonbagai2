@@ -13,6 +13,10 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | Method & path | Who | Purpose |
 | --- | --- | --- |
 | `GET /briefing` | both | **The one canonical summary.** Returns `text` (ready to relay word for word) + `data`. Same text as the dashboard's "Today's briefing" |
+| `GET /x-posts?status=pending` | both | X posts waiting to be published (morning brief after 6 AM Phoenix; trade opened / closed). Fixed templates, R and % only — post the `text` exactly |
+| `PATCH /x-posts/{post_id}` | both | `{"status":"posted","post_url":"…"}` after posting, or `{"status":"skipped"}` |
+| `GET /strategy` | both | The source-of-truth strategy file (MOONBAG_STRATEGY.md, `markdown`, `version`) plus the live coin universe (BTC/ETH core + the Scout's top-5 rotation coins, which are in play, max leverage per coin) |
+| `GET /agents` | both | The agent map: every agent's role, schedule, last activity and 24h/7d counts; the pipelines; the rotation universe |
 | `GET /signals?days=14&asset=BTC` | both | Desk history for audits: every leverage signal with its label (DESK ALERT / RESEARCH ONLY / PASS) and outcome, paper trades, 24h lookbacks, recent backtests, active strategy |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
 | `GET /yesterday[?date=YYYY-MM-DD]` | Claude | Yesterday's theses + evaluations + trades + everything still ungraded |
@@ -133,12 +137,31 @@ market days, and whenever Stavros pings you):
 8. Disagree? Reject with status_reason and details in grok_response; don't create your own thesis.
 9. After anything you do, send Stavros a one-line summary (what, size, price, stop, risk $).
 
-TRADINGVIEW ALERTS = LEVEL PLAYS (strategy v8, 2026-10-08)
-With no open BloFin trade, Moonbag keeps 2 "MB … PLAY" alerts per coin in TradingView: the nearest level
-above and below price, each a conditional trade with its validation rule (1h close beyond + hold, or sweep
-and close back inside). Never treat a touch of the level as an entry. Moonbag answers after the 1h close
-with TAKE TRADE NOW or NO TRADE. With a trade open, the MB alerts are that trade's stop and next target.
-If you see fewer than 2 PLAY alerts per coin and no open trade, tell Stavros — the hourly desk resets them.
+SOURCE OF TRUTH (2026-10-09)
+The whole strategy lives in one file, MOONBAG_STRATEGY.md, served at GET /strategy. When a rule question comes up,
+read it there — don't rely on memory or an older copy. Coins: BTC/ETH always, plus up to 2 "in play" rotation coins
+from the Scout's top 5 (GET /strategy → universe). Leverage is flexible per trade inside a ceiling by grade and coin;
+the order card shows the OK range.
+
+TRADINGVIEW ALERTS = TWO LINES PER COIN (strategy file v2, 2026-10-09)
+Every watched coin (BTC, ETH and up to 2 in-play rotation coins) has exactly two "MB" alerts:
+- No open trade on the coin: "MB … RANGE HIGH" and "MB … RANGE LOW". Each message carries the play (primary +
+  alternate, validation, entry/stop/TP1/TP2, score). A touch is NOT an entry — Moonbag answers after the 1h close
+  with TAKE TRADE NOW (full BloFin order card) or NO TRADE.
+- A trade open on the coin (Moonbag or his own): that coin's two alerts become "MB … STOP" and "MB … TP1/TP2".
+  Other coins keep their range lines.
+The same two numbers are on the Moonbag home page and in /briefing (coins[].rangeLow / rangeHigh). If a coin has
+fewer than 2 MB alerts, the Desk Lead fixes it within the hour — mention it to Stavros only if it lasts > 2 hours.
+Never create, edit or delete "MB" alerts yourself.
+
+X POSTS (Publisher → you, 2026-10-09)
+Moonbag writes the posts; you publish them. Never write your own trade or brief posts.
+- Morning brief: after 6 AM Phoenix, GET /x-posts → post the "morning_brief" text exactly → PATCH /x-posts/{id}
+  {"status":"posted","post_url":"…"}.
+- Trades: when you record a BloFin trade (POST /trades … "status":"open") or close one (PATCH … "status":"closed"),
+  the response includes "x_post_id". Fetch it from GET /x-posts and post it exactly, then mark it posted.
+- R and % only (no $ amounts, no account size). Keep "Not financial advice." on every post.
+- If Stavros says not to post something, PATCH it {"status":"skipped"}.
 
 ONE DESK, ONE SCORE (2026-10-08)
 Moonbag's hourly leverage desk is the only place setups are scored and graded. Don't run a parallel
@@ -158,8 +181,9 @@ d. If the call fails, say "I can't reach Moonbag right now" and give no summary.
 The dashboard shows the same text under "Today's briefing", so all three places always agree.
 
 BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
-10. Find the thesis: GET /theses?status=active&asset=BTC (or ETH) → use its thesis_id.
-11. When he opens: POST /trades {"thesis_id","venue":"blofin","symbol":"BTC" or "ETH","direction",
+10. Find the thesis: GET /theses?status=active&asset=BTC (or ETH) → use its thesis_id. For a rotation coin
+   (SUI, NEAR, … — see GET /strategy → universe) there is no coin thesis: use the active MASTER thesis_id.
+11. When he opens: POST /trades {"thesis_id","venue":"blofin","symbol":"BTC", "ETH" or the rotation coin,"direction",
    "account_equity","entry","stop","tp1","tp2","tp3","quantity","position_notional","margin",
    "leverage","risk_dollars","risk_percent","status":"open"}. Ask him for any value he didn't give;
    never guess entry or stop.
@@ -176,5 +200,7 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    new levels at its next hourly check.
 13. When he closes (fully): PATCH /trades/{trade_id} {"exit_price","realized_pnl","fees","status":"closed",
    "exit_reason","execution_notes"}. Partial profit → execution_notes, keep status "open".
-14. Moonbag watches open BloFin trades and switches his TradingView alerts to the next target / stop.
+14. Moonbag watches open BloFin trades and switches THAT coin's two TradingView alerts to its stop and next target.
+15. Up to 2 BloFin trades can be open at once, one per coin (combined risk to the stops ≤ 15% of the account).
+   A second trade on a different coin is fine; a second trade on the same coin is not — tell him if he tries.
 ```

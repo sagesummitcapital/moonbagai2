@@ -1,6 +1,7 @@
 import { withAgent, json, readJson, requireFields, pick, BadRequest } from "@/lib/moonbag/apiAuth";
 import { createTrade, listTrades, TRADE_WRITABLE_FIELDS } from "@/lib/moonbag/db";
 import type { TradeStatus } from "@/lib/moonbag/types";
+import { queueTradePost } from "@/lib/moonbag/xposts";
 
 export const dynamic = "force-dynamic";
 
@@ -31,5 +32,7 @@ export const POST = withAgent(["claude", "grok"], async (req, agent) => {
     ...pick(body, TRADE_WRITABLE_FIELDS),
     ...(execution ? { execution } : {}),
   } as never);
-  return json({ ok: true, trade }, 201);
+  // Every BloFin trade gets an X post for Grok (template, R and % only).
+  const x_post_id = trade.venue === "blofin" && trade.status === "open" ? await queueTradePost(trade, "trade_open") : null;
+  return json({ ok: true, trade, x_post_id }, 201);
 });
