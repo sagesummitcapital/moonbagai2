@@ -146,7 +146,7 @@ export default async function LeveragePage() {
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
                     <div className="h-full rounded-full bg-accent-cyan/60" style={{ width: `${Number(pts) * 5}%` }} />
                   </div>
-                  <span className="w-10 text-right font-mono text-white/70">{pts}</span>
+                  <span className="w-10 text-right font-mono text-white/70">{typeof pts === "object" ? "—" : String(pts)}</span>
                 </div>
               ))}
             </div>
@@ -400,7 +400,18 @@ function AssetCard({ asset, h, thesis, alerts }: {
 }
 
 function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) {
-  const comps = Object.entries(s.confidence_components ?? {});
+  // Components are numbers, but the desk sometimes stores a group (e.g. penalties: {} or {chasing: -10}).
+  // Never render a raw object — React crashes the whole page on it. Sum groups; drop empty ones.
+  const comps = Object.entries((s.confidence_components ?? {}) as Record<string, unknown>)
+    .map(([k, v]): [string, number | string | null] => {
+      if (typeof v === "number" || typeof v === "string") return [k, v];
+      if (v && typeof v === "object") {
+        const vals = Object.values(v as Record<string, unknown>).map(Number).filter((x) => Number.isFinite(x));
+        return [k, vals.length ? vals.reduce((a, b) => a + b, 0) : null];
+      }
+      return [k, null];
+    })
+    .filter(([, v]) => v !== null && v !== 0 && v !== "");
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">

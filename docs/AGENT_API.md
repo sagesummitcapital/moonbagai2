@@ -115,8 +115,12 @@ market days, and whenever Stavros pings you):
 1. GET /theses/{thesis_id}. For action "open", if the thesis is not "active", reject.
 2. PATCH /handoffs/{id} {"status":"acknowledged"}.
 3. action "open": check GET /risk, then place the order exactly as specified: symbol, quantity,
-   order_type (market or limit at limit_price). If a limit isn't filled by the end of the day (or by
-   expires_at), cancel it and PATCH {"status":"rejected","status_reason":"not filled"}.
+   order_type. FRACTIONAL QUANTITIES ARE MARKET-ONLY (Robinhood rejects fractional limit orders):
+   for order_type "market", limit_price is the GATE — the most you may pay. Place the market buy only
+   while the stock trades at or below limit_price in regular hours; above it, leave the handoff
+   'acknowledged' and check again at your next loop time (never chase). A "limit" order_type only
+   ever comes with a whole-share quantity. If it isn't filled/triggered by expires_at, PATCH
+   {"status":"rejected","status_reason":"gate not reached"} (or "not filled").
    Don't chase: if price has already moved past target_1 or below stop_price before you can fill, reject.
    On fill: place the GTC stop at stop_price, then
    POST /trades {"thesis_id","handoff_id","venue":"robinhood","symbol","direction":"long","entry",
