@@ -5,7 +5,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildBriefing } from "./briefing";
 import { tradeMetrics } from "./desk";
-import type { Trade } from "./types";
+import type { Trade, TradeExit } from "./types";
 
 const MAX = 280;
 const DISCLAIMER = "Not financial advice.";
@@ -91,6 +91,25 @@ export function tradeClosePost(t: Trade) {
   );
 }
 
+/** Trade management: a partial take-profit and/or the stop moved to breakeven. R and % only. */
+export function tradeUpdatePost(t: Trade, ex: TradeExit | null) {
+  const side = String(t.direction).toUpperCase();
+  const isShort = t.direction === "short";
+  const stop = Number(t.current_stop ?? t.stop);
+  const riskFree = Number.isFinite(stop) && (isShort ? stop <= Number(t.entry) : stop >= Number(t.entry));
+  const lines = [`Trade update: ${t.symbol} ${side}`];
+  if (ex) lines.push(`Took ${r1(Number(ex.pct_of_position))}% off at ${px(ex.price)} (${signed(ex.r_at_exit, "R")})`);
+  lines.push(riskFree ? `Stop at ${Math.abs(stop - Number(t.entry)) < 1e-9 ? "breakeven" : px(stop)} — the rest is risk-free` : `Stop now ${px(stop)}`);
+  const pctOpen = t.quantity ? (100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity) : null;
+  const bankedR = ex && ex.r_at_exit != null && ex.pct_of_position != null ? (ex.r_at_exit * ex.pct_of_position) / 100 : null;
+  const optional = [
+    pctOpen != null && pctOpen < 100 ? `${r1(pctOpen)}% still running to TP1 ${px(t.current_tp1 ?? t.tp1)}` : "",
+    bankedR != null ? `Banked ${signed(bankedR, "R")}${t.risk_percent != null ? ` (${signed(bankedR * Number(t.risk_percent), "%")} of account)` : ""}` : "",
+    "Locking in gains, not giving them back.",
+  ].filter(Boolean);
+  return fit(lines, optional, [DISCLAIMER]);
+}
+
 // ---------------------------------------------------------------- storage
 async function upsertPost(kind: string, ref: string, text: string) {
   const db = supabaseAdmin();
@@ -99,6 +118,17 @@ async function upsertPost(kind: string, ref: string, text: string) {
   // 23505 = already created for this trade/day — that's fine (one post per event).
   if (error && error.code !== "23505") throw new Error(error.message);
   return post_id;
+}
+
+/** A partial exit or a stop moved to breakeven / into profit. Never throws. */
+export async function queueTradeUpdatePost(t: Trade, ex: TradeExit | null, ref: string) {
+  try {
+    if (t.venue !== "blofin") return null;
+    return await upsertPost("trade_update", ref, tradeUpdatePost(t, ex));
+  } catch (e) {
+    console.error("[x_posts]", e);
+    return null;
+  }
 }
 
 /** Called when Grok records a BloFin trade. Never throws — a post failing must not block the trade record. */

@@ -237,6 +237,10 @@ export interface Trade {
   /** What Moonbag's confidence rubric gives the setup at entry (own trades: scored after the fact). */
   moonbag_score?: number | null;
   origin_notes?: string | null;
+  // Partial exits (trade_exits) — maintained by the database, never written directly.
+  qty_open?: number | null;
+  banked_pnl?: number | null;
+  banked_fees?: number | null;
   status: TradeStatus;
   created_at: string;
   updated_at: string;
@@ -265,3 +269,19 @@ export interface DailyReport {
   markdown: string;
   created_at: string;
 }
+
+export type TradeExit = {
+  exit_id: string;
+  trade_id: string;
+  kind: "partial" | "final";
+  quantity: number;
+  price: number;
+  pnl: number | null;
+  fee: number | null;
+  pct_of_position: number | null;
+  r_at_exit: number | null;
+  reason: "tp1" | "tp2" | "tp3" | "manual" | "stop" | "breakeven_stop" | "trail" | "time";
+  exited_at: string;
+  notes: string | null;
+  created_at: string;
+};

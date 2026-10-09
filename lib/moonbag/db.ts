@@ -16,6 +16,7 @@ import type {
   SystemState,
   ThesisStatus,
   Trade,
+  TradeExit,
   TradeStatus,
 } from "./types";
 
@@ -260,6 +261,37 @@ export async function updateTrade(tradeId: string, patch: Partial<Trade>): Promi
   return check(
     await db.from("trades").update(patch).eq("trade_id", tradeId).select("*").single()
   ) as Trade;
+}
+
+// ---------------------------------------------------------------- partial / final exits
+export const EXIT_REASONS = ["tp1", "tp2", "tp3", "manual", "stop", "breakeven_stop", "trail", "time"] as const;
+
+/** Record one exit fill. The database closes the trade on the last fill and sums P&L across fills. */
+export async function createTradeExit(e: {
+  trade_id: string;
+  quantity: number;
+  price: number;
+  pnl?: number | null;
+  fee?: number | null;
+  reason?: string;
+  exited_at?: string;
+  notes?: string | null;
+}): Promise<TradeExit> {
+  const db = supabaseAdmin();
+  return check(await db.from("trade_exits").insert(e).select("*").single()) as TradeExit;
+}
+
+export async function listTradeExits(tradeId: string): Promise<TradeExit[]> {
+  const db = supabaseAdmin();
+  return check(
+    await db.from("trade_exits").select("*").eq("trade_id", tradeId).order("exited_at", { ascending: true })
+  ) as TradeExit[];
+}
+
+export async function getTrade(tradeId: string): Promise<Trade | null> {
+  const db = supabaseAdmin();
+  const rows = check(await db.from("trades").select("*").eq("trade_id", tradeId).limit(1)) as Trade[];
+  return rows[0] ?? null;
 }
 
 // ---------------------------------------------------------------- reports

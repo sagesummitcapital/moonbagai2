@@ -31,6 +31,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `POST /handoffs` | Claude | Create a Robinhood handoff for Grok |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
 | `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
+| `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
 | `POST /size` | Claude | Position sizing (leverage last) → `TRADE_PLAN` or `NO_TRADE` |
@@ -129,9 +130,9 @@ market days, and whenever Stavros pings you):
    (copy setup_type, horizon, sleeve and theme from the handoff)
    and PATCH /handoffs/{id} {"status":"executed"}, then POST /accounts.
 4. action "trim" / "close": sell the quantity given (close = all), cancel/resize the stop order, then
-   PATCH /trades/{trade_id} — for a full close {"exit_price","realized_pnl","fees","return_percent",
-   "holding_period","exit_reason","status":"closed","execution_notes"}; for a trim put the partial fill
-   in execution_notes. Then PATCH the handoff to "executed".
+   POST /trades/{trade_id}/exits {"quantity","price","pnl","fee","reason":"tp1"|"manual"|…} — one call per
+   fill; the call for the last of the position closes the trade (exit price, P&L, fees and R are summed
+   by the database). Then PATCH the handoff to "executed".
 5. action "adjust_stop": replace the GTC stop with stop_price, PATCH /trades/{trade_id}
    {"current_stop": stop_price}, PATCH the handoff to "executed". Only ever raise a long's stop.
 6. If a stop or target fills on its own, close the trade the same way (exit_reason "stop",
@@ -162,7 +163,8 @@ X POSTS (Publisher → you, 2026-10-09)
 Moonbag writes the posts; you publish them. Never write your own trade or brief posts.
 - Morning brief: after 6 AM Phoenix, GET /x-posts → post the "morning_brief" text exactly → PATCH /x-posts/{id}
   {"status":"posted","post_url":"…"}.
-- Trades: when you record a BloFin trade (POST /trades … "status":"open") or close one (PATCH … "status":"closed"),
+- Trades: when you record a BloFin trade (POST /trades … "status":"open"), take a partial or close it
+  (POST /trades/{id}/exits), or move its stop to breakeven or into profit (PATCH … "current_stop"),
   the response includes "x_post_id". Fetch it from GET /x-posts and post it exactly, then mark it posted.
 - R and % only (no $ amounts, no account size). Keep "Not financial advice." on every post.
 - If Stavros says not to post something, PATCH it {"status":"skipped"}.
@@ -202,8 +204,21 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    and the database rejects changes). Add one line to "execution_notes" saying what moved, from what to
    what, and why if he said. Read the values back to him. Moonbag moves his TradingView alerts to the
    new levels at its next hourly check.
-13. When he closes (fully): PATCH /trades/{trade_id} {"exit_price","realized_pnl","fees","status":"closed",
-   "exit_reason","execution_notes"}. Partial profit → execution_notes, keep status "open".
+13. PARTIAL PROFIT AND BREAKEVEN (Stavros does this a lot — 2026-10-09). Every time he takes some off:
+   POST /trades/{trade_id}/exits {"percent": 25, "price": 82829.3, "pnl": 1.47, "fee": 0.207,
+   "reason": "manual", "current_stop": 82534.3, "notes": "his words"}
+   - "percent" = share of the ORIGINAL position; or send "quantity" in coin units instead.
+   - "pnl" and "fee" exactly as BloFin shows them for that fill (Moonbag computes pnl if missing).
+   - "reason": "tp1"/"tp2"/"tp3" when a target order filled, "manual" when he sold by hand,
+     "breakeven_stop" when the rest stopped out at entry, "stop", "trail" or "time" otherwise.
+   - "current_stop" is optional: include it when he moved the stop in the same action (e.g. to breakeven).
+     A stop move on its own is still PATCH /trades/{trade_id} {"current_stop": X}.
+   - When he closes what is left, POST /exits again with that quantity (or "percent" for the rest).
+     That last fill closes the trade — do NOT also PATCH status "closed". The database sums P&L across
+     fills, sets the size-weighted exit price and the R for the whole trade.
+   - Never PATCH realized_pnl/exit_price/fees yourself on a trade with partials.
+   - The response carries "x_post_id" (a trade update or the close post) — post it like the others.
+   Read back to him: how much is still open, what is banked, and where the stop is now.
 14. Moonbag watches open BloFin trades and switches THAT coin's two TradingView alerts to its stop and next target.
 15. Up to 2 BloFin trades can be open at once, one per coin (combined risk to the stops ≤ 15% of the account).
    A second trade on a different coin is fine; a second trade on the same coin is not — tell him if he tries.

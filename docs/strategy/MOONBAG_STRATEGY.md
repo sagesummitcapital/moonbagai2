@@ -1,6 +1,6 @@
 # Moonbag Strategy — Source of Truth
 
-Version 2 · 2026-10-09 · Owner: Stavros · Maintained by Claude
+Version 3 · 2026-10-09 · Owner: Stavros · Maintained by Claude
 
 This file is the one place the Moonbag strategy is written down. Every agent works from it.
 When it changes, the same text is saved in three places: this file in the repo
@@ -203,6 +203,7 @@ Validated: <what printed>
 • Size: <qty> <coin> (≈ $notional) — set BloFin's size unit to the coin
 • Leverage: <x>x isolated (OK range <floor>–<ceiling>x) · margin $m · liq ≈ <price>
 • Risk: $r (p% of $equity) · R:R 1:<rr> · open risk after this q% of 15%
+• Lock-in: at +1R (<price>) move the stop to entry and take 25% off, or wait for TP1 (half off) — your call
 After TP1 fills: move the stop on the rest to entry. Skip if: <reason>.
 ```
 
@@ -216,6 +217,14 @@ After TP1 fills: move the stop on the rest to entry. Skip if: <reason>.
 3. Trail the runner behind the last 1h swing until it is +3R, then behind the last 4h swing.
 4. TP2 is the next 4h/daily level. Exit at TP2, the trailed stop, or 72 hours.
 5. If Stavros moves a target or stop, the live fields (`current_stop`, `current_tp1–3`) are updated and the alerts follow.
+
+**Lock-in: breakeven stops and partial profits (Stavros's usual management, 2026-10-09).** He often moves the stop to entry and takes 25–50% off before TP1, so gains aren't given back. The system supports it fully:
+
+- **Recording.** Grok records every fill with `POST /api/moonbag/trades/{id}/exits` (percent or quantity, price, BloFin P&L and fee, reason). A stop move is `PATCH current_stop`. Each fill is its own immutable row in `trade_exits`. The trade keeps `qty_open`, `banked_pnl` and `banked_fees`. The last fill closes the trade: the exit price is size-weighted, P&L and fees are summed over every fill, and R = total P&L ÷ the original risk in dollars.
+- **Risk budget.** Open risk counts only the size still open × the distance to the current stop. A trade with its stop at or past entry is **risk-free** and frees its share of the 15% budget for the other coin.
+- **Alerts.** The coin keeps its two lines: STOP at the live stop ("breakeven, rest is risk-free") and the next target. They are not recreated for a partial.
+- **Prompt.** At +1R with the stop still at the original level, the Exit Clerk sends one line naming the lock-in point (stop to entry, 25% off). It goes out once per trade and is never a nag.
+- **Learning.** The Coach compares what the lock-in earned with holding the original plan (`r_if_held_to_plan`). The weekly review reports whether breakeven + partials is adding or costing R across trades. A rule only changes with 10+ trades of evidence.
 
 ### 3.8 R:R — flexible, learned
 
@@ -267,6 +276,17 @@ Posts are filled from fixed templates by the website. No model writes them. **R 
   Closed: <COIN> <SIDE> · <±x>R (<±y>% of account)
   Entry <e> → exit <x> · held <h>h
   Exit: <reason> · Call: Moonbag desk | own read
+  Not financial advice.
+  ```
+
+- **Trade update** (a partial taken, or the stop moved to breakeven or into profit):
+
+  ```
+  Trade update: <COIN> <SIDE>
+  Took <p>% off at <price> (<±x>R)
+  Stop at breakeven — the rest is risk-free
+  <q>% still running to TP1 <tp1>
+  Banked <±x>R (<±y>% of account)
   Not financial advice.
   ```
 
@@ -348,6 +368,13 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 ---
 
 ## 7. Change log
+
+- **2026-10-09 (v3):** breakeven stops and partial profits are first-class.
+  - New `trade_exits` table and endpoint.
+  - Open risk counts only the size still open.
+  - Lock-in line added to the order card, plus the +1R prompt.
+  - "Trade update" X post.
+  - Leverage page fix: a score component stored as a group no longer crashes the page.
 
 - **2026-10-09 (v2):**
   - **Alerts:** two lines per coin (range high/low) on TradingView and the home page; a coin with an open trade swaps to stop + target, and other coins are unaffected.

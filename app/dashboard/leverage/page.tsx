@@ -99,7 +99,7 @@ export default async function LeveragePage() {
       {/* ------------------------------------------------ open trades */}
       <Card title="Open BloFin trades">
         <Table
-          head={["Trade", "Coin", "Side", "R : R", "Account % (stop / target)", "Entry", "Stop (orig / now)", "Targets", "Risk $", "Size · Lev", "Opened"]}
+          head={["Trade", "Coin", "Side", "R : R", "Account % (stop / target)", "Entry", "Stop (orig / now)", "Targets", "Risk $", "Still open", "Banked", "Size · Lev", "Opened"]}
           rows={openTrades.map((t) => { const m = tradeMetrics(t); return [
             <Mono key="i">{t.trade_id}</Mono>,
             t.symbol,
@@ -107,9 +107,11 @@ export default async function LeveragePage() {
             <strong key="rr" className="font-mono text-white">{fmtRR(m.rr)}</strong>,
             <span key="pc" className="font-mono"><span className={Number(m.riskPct) < 0 ? "text-rose-300" : "text-accent-green"}>{fmtPct(m.riskPct)}</span> / <span className="text-accent-green">{fmtPct(m.rewardPct)}</span></span>,
             num(t.entry),
-            `${num(t.stop)} / ${num(t.current_stop)}`,
+            <span key="st">{num(t.stop)} / {num(t.current_stop)}{(t.direction === "short" ? Number(t.current_stop) <= Number(t.entry) : Number(t.current_stop) >= Number(t.entry)) && <> <Badge tone="green">risk-free</Badge></>}</span>,
             [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2, t.current_tp3 ?? t.tp3].map((x) => num(x)).join(" · "),
             money(t.risk_dollars),
+            <span key="qo" className="font-mono">{num(t.qty_open ?? t.quantity, 4)}{t.quantity ? <span className="text-white/45"> ({num((100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity), 0)}%)</span> : null}</span>,
+            <span key="bk" className={`font-mono ${Number(t.banked_pnl) > 0 ? "text-accent-green" : Number(t.banked_pnl) < 0 ? "text-rose-300" : "text-white/50"}`}>{Number(t.banked_pnl) ? money(t.banked_pnl) : "—"}</span>,
             `${money(t.position_notional)} · ${num(t.leverage)}x · m ${money(t.margin)}`,
             when(t.opened_at),
           ]; })}
