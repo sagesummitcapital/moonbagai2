@@ -182,7 +182,8 @@ Moonbag writes the posts; you publish them. Never write your own trade or brief 
   {"status":"posted","post_url":"…"}.
 - Trades: when you record a BloFin trade (POST /trades … "status":"open"), take a partial or close it
   (POST /trades/{id}/exits), or move its stop to breakeven or into profit (PATCH … "current_stop"),
-  the response includes "x_post_id". Fetch it from GET /x-posts and post it exactly, then mark it posted.
+  the response includes "x_post_id". Fetch it with GET /x-posts/{x_post_id} (or GET /x-posts for all pending)
+  and post its "text" exactly, then mark it posted. GET /x-posts?status=all shows skipped and posted ones too.
 - R and % only (no $ amounts, no account size). Keep "Not financial advice." on every post.
 - If Stavros says not to post something, PATCH it {"status":"skipped"}.
 

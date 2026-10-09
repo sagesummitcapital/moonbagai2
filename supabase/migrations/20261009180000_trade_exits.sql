@@ -128,3 +128,7 @@ alter table public.trade_exits add column if not exists voided_at timestamptz, a
 -- (applied live: moonbag_trade_recalc(), void-only update path in moonbag_trade_exit_immutable(),
 --  trg_trade_exit_after_void, duplicate guard (same qty + price) in moonbag_trade_exit_before_insert(),
 --  sums exclude voided fills, a filled tpN clears current_tpN_qty.)
+-- FIX 2026-10-09: trades.r_multiple is a GENERATED column (from entry, stop, exit_price), so the final-fill branch of
+-- moonbag_trade_exit_after_insert() no longer writes it. The size-weighted exit_price makes the generated R equal to
+-- total price-P&L across all fills ÷ (original size × original risk per unit). Verified with a rolled-back test
+-- (2 fills: +1R and +2R on half each → exit 115, R 1.50, status closed).

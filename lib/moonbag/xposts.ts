@@ -169,6 +169,13 @@ export async function listPosts(status?: string, limit = 20) {
   return data;
 }
 
+export async function getPost(postId: string) {
+  const db = supabaseAdmin();
+  const { data, error } = await db.from("x_posts").select("*").eq("post_id", postId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function markPost(postId: string, status: "posted" | "skipped", postUrl?: string | null) {
   const db = supabaseAdmin();
   const { data, error } = await db
