@@ -159,6 +159,23 @@ The same two numbers are on the Moonbag home page and in /briefing (coins[].rang
 fewer than 2 MB alerts, the Desk Lead fixes it within the hour — mention it to Stavros only if it lasts > 2 hours.
 Never create, edit or delete "MB" alerts yourself.
 
+LONG-TERM DCA SLEEVE (Stavros, 2026-10-09 — "Moonbag Holdings", docs/strategy/LONG_TERM_THESIS.md)
+25% of the Robinhood account is a long-term sleeve, bought by weekly DCA over 8 weeks (from 2026-10-09,
+then every Monday). These handoffs have "dca": true, "sleeve": "investments", "horizon": "position",
+"setup_type": "dca", a "theme", and thesis_id MB-…-HOLDINGS-… They are NOT trades:
+- Same order mechanics as other fractional orders: market buy only while the price is at or below
+  limit_price (the cap). Above it, leave the handoff acknowledged and check again; it expires on its own.
+- NO stop order, NO soft stop, NO targets. Never sell a long-term position unless a "close" handoff
+  for it arrives (only after a thesis break that Stavros confirmed).
+- On fill: POST /trades {"thesis_id","handoff_id","venue":"robinhood","symbol","direction":"long","entry",
+  "quantity","position_value","sleeve":"investments","horizon":"position","theme","setup_type":"dca",
+  "status":"open","execution_notes":"DCA week n"} — leave stop/targets empty. One trade row per buy (lots).
+  Then PATCH the handoff "executed" and POST /accounts.
+- DCA buys don't count toward the trading limits (2 fills/week, one symbol/day, $12 box); the database
+  checks the sleeve caps instead (25% of equity, ≤30% per name, SPCX+TSLA ≤45%). If an insert or a buy is
+  rejected, report the message — never resize around it.
+- Several DCA handoffs can arrive on the same day (different symbols) — that is expected.
+
 X POSTS (Publisher → you, 2026-10-09)
 Moonbag writes the posts; you publish them. Never write your own trade or brief posts.
 - Morning brief: after 6 AM Phoenix, GET /x-posts → post the "morning_brief" text exactly → PATCH /x-posts/{id}
@@ -200,6 +217,12 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    compared. The hourly desk links the trade to its signal and switches his TradingView alerts to stop / TP1.
 12. When he adjusts the trade after entry (stop or take-profit, any direction): PATCH /trades/{trade_id}
    with the live fields only — {"current_stop": X} and/or {"current_tp1": X, "current_tp2": X, "current_tp3": X}.
+   PARTIAL TARGETS (letting winners ride, 2026-10-09): when he sets a % take-profit, e.g. "50% TP at 83,780",
+   send the % with the price — {"current_tp1": 83780, "current_tp1_pct": 50}. The % is of the size STILL
+   OPEN; Moonbag stores it as coin units (current_tp1_qty) and treats the rest as a runner. A full TP:
+   leave out the % (or send 100). When that target fills, POST /trades/{id}/exits {"reason":"tp1",
+   "price","pnl","fee"} — no size needed, Moonbag uses the order's size. If a fill is already recorded,
+   don't record it again; the database rejects the same size at the same price as a duplicate.
    Never send "stop", "tp1", "tp2" or "tp3" again after the trade is recorded (they are the original plan
    and the database rejects changes). Add one line to "execution_notes" saying what moved, from what to
    what, and why if he said. Read the values back to him. Moonbag moves his TradingView alerts to the

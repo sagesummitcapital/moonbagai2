@@ -235,6 +235,7 @@ export async function respondToHandoff(
 // ---------------------------------------------------------------- trades
 export const TRADE_WRITABLE_FIELDS = [
   "account_equity", "entry", "stop", "current_stop", "tp1", "tp2", "tp3", "current_tp1", "current_tp2", "current_tp3", "target", "quantity",
+  "current_tp1_qty", "current_tp2_qty", "current_tp3_qty",
   "position_value", "portfolio_percent", "risk_dollars", "risk_percent", "position_notional",
   "margin", "leverage", "estimated_costs", "setup_score", "system_confidence", "opened_at",
   "exit_price", "closed_at", "realized_pnl", "fees", "return_percent", "holding_period",

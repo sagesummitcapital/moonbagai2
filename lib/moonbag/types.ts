@@ -239,6 +239,10 @@ export interface Trade {
   origin_notes?: string | null;
   // Partial exits (trade_exits) — maintained by the database, never written directly.
   qty_open?: number | null;
+  // Partial take-profit orders: size (coin units) on each working target; null = the whole remaining position.
+  current_tp1_qty?: number | null;
+  current_tp2_qty?: number | null;
+  current_tp3_qty?: number | null;
   banked_pnl?: number | null;
   banked_fees?: number | null;
   status: TradeStatus;

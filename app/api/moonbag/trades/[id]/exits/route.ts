@@ -35,8 +35,14 @@ export const POST = withAgent(["claude", "grok"], async (req, _a, { params }) =>
     // percent of the original size, capped at what is still open; 8 dp is finer than any exchange step
     quantity = Math.min(open, Math.round(((Number(trade.quantity) * pct) / 100) * 1e8) / 1e8);
   }
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new BadRequest("Send quantity (coin units) or percent.");
   const reason = String(body.reason ?? "manual");
+  // "TP1 filled" with no size → use the size of the TP1 order on record (or everything still open).
+  if (!Number.isFinite(quantity) && /^tp[123]$/.test(reason)) {
+    const open = Number(trade.qty_open ?? trade.quantity);
+    const orderQty = Number((trade as unknown as Record<string, unknown>)[`current_${reason}_qty`]);
+    quantity = Number.isFinite(orderQty) && orderQty > 0 ? Math.min(orderQty, open) : open;
+  }
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new BadRequest("Send quantity (coin units) or percent.");
   if (!(EXIT_REASONS as readonly string[]).includes(reason)) throw new BadRequest(`reason must be one of ${EXIT_REASONS.join(", ")}.`);
 
   // Optional stop move first, so the update post shows the new stop.

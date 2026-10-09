@@ -119,3 +119,12 @@ select t.trade_id, t.venue, t.symbol, t.direction, t.origin, t.entry, t.stop, t.
          * coalesce(t.qty_open, t.quantity) as open_risk_dollars
   from public.trades t
  where t.status = 'open';
+
+-- ---- 2026-10-09 (later): partial targets, voiding duplicates -------------------------------------
+-- "50% TP at 83,780" = current_tp1 83780 + current_tp1_qty (coin units). null qty = full close.
+alter table public.trades add column if not exists current_tp1_qty numeric,
+  add column if not exists current_tp2_qty numeric, add column if not exists current_tp3_qty numeric;
+alter table public.trade_exits add column if not exists voided_at timestamptz, add column if not exists void_reason text;
+-- (applied live: moonbag_trade_recalc(), void-only update path in moonbag_trade_exit_immutable(),
+--  trg_trade_exit_after_void, duplicate guard (same qty + price) in moonbag_trade_exit_before_insert(),
+--  sums exclude voided fills, a filled tpN clears current_tpN_qty.)

@@ -108,7 +108,10 @@ export default async function LeveragePage() {
             <span key="pc" className="font-mono"><span className={Number(m.riskPct) < 0 ? "text-rose-300" : "text-accent-green"}>{fmtPct(m.riskPct)}</span> / <span className="text-accent-green">{fmtPct(m.rewardPct)}</span></span>,
             num(t.entry),
             <span key="st">{num(t.stop)} / {num(t.current_stop)}{(t.direction === "short" ? Number(t.current_stop) <= Number(t.entry) : Number(t.current_stop) >= Number(t.entry)) && <> <Badge tone="green">risk-free</Badge></>}</span>,
-            [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2, t.current_tp3 ?? t.tp3].map((x) => num(x)).join(" · "),
+            <span key="tg">{([[t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp1_qty], [t.current_tp2 ?? t.tp2, t.current_tp2_qty], [t.current_tp3 ?? t.tp3, t.current_tp3_qty]] as [unknown, unknown][])
+              .filter(([px]) => px != null)
+              .map(([px, q]) => `${num(px)}${q != null && Number(t.qty_open ?? t.quantity) > 0 ? ` (${num((100 * Number(q)) / Number(t.qty_open ?? t.quantity), 0)}%)` : ""}`)
+              .join(" · ") || "—"}{t.current_tp1_qty != null && <div className="text-[11px] text-accent-green/80">rest rides — runner</div>}</span>,
             money(t.risk_dollars),
             <span key="qo" className="font-mono">{num(t.qty_open ?? t.quantity, 4)}{t.quantity ? <span className="text-white/45"> ({num((100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity), 0)}%)</span> : null}</span>,
             <span key="bk" className={`font-mono ${Number(t.banked_pnl) > 0 ? "text-accent-green" : Number(t.banked_pnl) < 0 ? "text-rose-300" : "text-white/50"}`}>{Number(t.banked_pnl) ? money(t.banked_pnl) : "—"}</span>,

@@ -1,6 +1,6 @@
 # Moonbag Strategy — Source of Truth
 
-Version 3 · 2026-10-09 · Owner: Stavros · Maintained by Claude
+Version 5 · 2026-10-09 · Owner: Stavros · Maintained by Claude
 
 This file is the one place the Moonbag strategy is written down. Every agent works from it.
 When it changes, the same text is saved in three places: this file in the repo
@@ -224,6 +224,8 @@ After TP1 fills: move the stop on the rest to entry. Skip if: <reason>.
 - **Risk budget.** Open risk counts only the size still open × the distance to the current stop. A trade with its stop at or past entry is **risk-free** and frees its share of the 15% budget for the other coin.
 - **Alerts.** The coin keeps its two lines: STOP at the live stop ("breakeven, rest is risk-free") and the next target. They are not recreated for a partial.
 - **Prompt.** At +1R with the stop still at the original level, the Exit Clerk sends one line naming the lock-in point (stop to entry, 25% off). It goes out once per trade and is never a nag.
+- **Partial targets / runners** ("let winners ride"). A take-profit can be set for part of the position, e.g. "50% TP at 83,780". It is stored as `current_tp1` plus `current_tp1_qty`, and the rest is a runner. When the partial target fills, the second alert becomes RUNNER +3R. The Exit Clerk suggests trailing the stop to the last closed 1h swing once that locks in at least 0.5R more, at most once every 4 hours, and never says to close the runner by hand.
+- **Corrections.** The same fill reported twice (same size, same price) is rejected. A mistaken fill on an open trade is voided with a reason, never deleted.
 - **Learning.** The Coach compares what the lock-in earned with holding the original plan (`r_if_held_to_plan`). The weekly review reports whether breakeven + partials is adding or costing R across trades. A rule only changes with 10+ trades of evidence.
 
 ### 3.8 R:R — flexible, learned
@@ -334,6 +336,19 @@ Each post is at most 280 characters. Optional lines are dropped first.
 4. Coach runs the lookback after the close.
 5. The Auditor reviews on Saturday. "A is not static": the definition is re-tested weekly with backtests and paper trades.
 
+
+### 4.5 Long-term sleeve — Moonbag Holdings (2026-10-09)
+
+Full thesis: `docs/strategy/LONG_TERM_THESIS.md`.
+
+- **What it is.** 25% of the Robinhood account, bought by weekly DCA over 8 weeks from 2026-10-09 (then every Monday). It draws on Rich Dad, The Entropy Trap and where the US government is taking equity.
+- **Core holdings and target weights:** SPCX 25 · TSLA 20 · GLD 12 · NVDA 10 · INTC 8 · SLV 8 · MP 7 · GDX 5 · FCX 5. Each name has its own break rule.
+- **Separate rules.** Buys don't count toward 2 fills a week, one symbol a day, A-setups only or the $12 box. No hard stops: exits only on a written thesis break, confirmed by the weekly review and Stavros.
+- **Caps (database-enforced):** sleeve ≤ 25% of equity · one name ≤ 30% of the sleeve · SPCX + TSLA ≤ 45%. Account-wide limits still apply: $90 soft halt, 80% gross exposure, never VRF, no crypto.
+- **FUD boost.** SPCX, TSLA and NVDA only: a week's buy doubles when the name is 15%+ below its 26-week high and its thesis is intact. Metals never get a boost, per the backtest.
+- **Watchlist** (government-backed or on-thesis; bought only after promotion) and **avoid list** (entropy losers, tracked as paper shorts) live in `lt_universe`.
+- **Feedback loop.** The Saturday review scores the sleeve against SPY bought on the same dates, checks the FUD boost against plain DCA, grades the paper shorts, runs the entropy scan ("who just lost pricing power?") and checks each watchlist name's add-rule.
+
 ---
 
 ## 5. Daily brief (one format, every day)
@@ -368,6 +383,11 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 ---
 
 ## 7. Change log
+
+- **2026-10-09 (v5):** Long-term sleeve added (§4.5 and LONG_TERM_THESIS.md).
+  - 25% of the Robinhood account, weekly DCA over 8 weeks, with its own rules.
+  - Lists: 9 core names, 12 watchlist names, 10 avoid names (paper shorts).
+  - Week 1 buys: SPCX, TSLA, GLD.
 
 - **2026-10-09 (v3):** breakeven stops and partial profits are first-class.
   - New `trade_exits` table and endpoint.

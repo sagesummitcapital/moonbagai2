@@ -80,6 +80,40 @@ export default async function RobinhoodPage() {
         )}
       </Card>
 
+      <Card title="Long-term holdings — 25% sleeve, weekly DCA" right={<Badge tone="cyan">thesis: LONG_TERM_THESIS.md</Badge>}>
+        {data.longTerm.sleeve.length ? (
+          <Table
+            head={["Name", "Theme", "Target", "Target $", "Bought $", "Pending $", "Left to buy", "FUD boost"]}
+            rows={data.longTerm.sleeve.map((r) => [
+              <span key="n"><strong className="text-white">{r.symbol}</strong><br /><span className="text-[12px] text-white/45">{r.name}</span></span>,
+              <Mono key="t">{r.theme_id}</Mono>,
+              `${num(r.target_weight_pct, 0)}%`,
+              money(r.target_dollars),
+              money(r.cost_basis),
+              money(r.pending_dollars),
+              money(Math.max(0, Number(r.gap_dollars))),
+              r.fud_boost ? <Badge key="f" tone="green">yes</Badge> : <span key="f" className="text-white/40">no</span>,
+            ])}
+          />
+        ) : (
+          <Empty>The long-term sleeve isn't set up yet.</Empty>
+        )}
+        {!!data.longTerm.lists.length && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2 text-[13px]">
+            {(["watch", "avoid"] as const).map((role) => (
+              <div key={role}>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/40">{role === "watch" ? "Watchlist — buy only after promotion" : "Avoid / paper short — entropy losers"}</div>
+                <ul className="mt-1.5 space-y-1">
+                  {data.longTerm.lists.filter((x) => x.role === role).map((x) => (
+                    <li key={x.symbol} className="text-white/70"><strong className="text-white">{x.symbol}</strong> <span className="text-white/45">· {x.thesis}</span></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Card title="Open positions">
         <Table
           head={["Trade", "Symbol", "Entry", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}

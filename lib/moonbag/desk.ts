@@ -349,9 +349,12 @@ function weekStartPhoenix(): Date {
   return new Date(monday + 7 * 3600_000);
 }
 
+export type LtSleeveRow = { symbol: string; name: string; theme_id: string; target_weight_pct: number; fud_boost: boolean; target_dollars: number; qty: number; cost_basis: number; pending_dollars: number; gap_dollars: number };
+export type LtListRow = { symbol: string; name: string; theme_id: string; role: "watch" | "avoid"; thesis: string; add_rule: string | null; break_rule: string; status: string };
+
 export async function getRobinhoodBook() {
   const db = supabaseAdmin();
-  const [risk, snapshot, trades, handoffs, theses, themes, paper, journal, backtests] = await Promise.all([
+  const [risk, snapshot, trades, handoffs, theses, themes, paper, journal, backtests, sleeve, ltList] = await Promise.all([
     db.from("risk_config").select("*").eq("venue", "robinhood").limit(1),
     db.from("account_snapshots").select("*").eq("venue", "robinhood").order("reported_at", { ascending: false }).limit(1),
     db.from("trades").select("*").eq("venue", "robinhood").order("created_at", { ascending: false }).limit(60),
@@ -361,6 +364,9 @@ export async function getRobinhoodBook() {
     db.from("paper_trades").select("*").eq("book", "robinhood").order("opened_at", { ascending: false }).limit(30),
     db.from("journal").select("*").eq("book", "robinhood").order("created_at", { ascending: false }).limit(12),
     db.from("backtests").select("*").eq("book", "robinhood").order("created_at", { ascending: false }).limit(20),
+    // Long-term sleeve (docs/strategy/LONG_TERM_THESIS.md). Missing tables just mean an empty card.
+    db.from("v_lt_sleeve").select("*"),
+    db.from("lt_universe").select("symbol, name, theme_id, role, thesis, add_rule, break_rule, status").neq("role", "core").order("role").order("symbol"),
   ]);
 
   const cfg = (check(risk) as RiskConfig[])[0] ?? null;
@@ -370,10 +376,12 @@ export async function getRobinhoodBook() {
   const snap = (check(snapshot) as { equity: number; cash: number | null; buying_power: number | null; reported_at: string; positions: unknown }[])[0] ?? null;
 
   // $ loss box: realised net loss so far + what is still at risk to the stops.
-  const realisedLoss = Math.max(0, -sum(closed.map((t) => t.realized_pnl)));
-  const openRisk = sum(open.map((t) => Math.max(0, (Number(t.entry) - Number(t.current_stop ?? t.stop)) * Number(t.quantity ?? 0))));
+  // The $12 box and the 2-fills-a-week count belong to the trading sleeve; long-term DCA lots (no stops) are excluded.
+  const trading = (t: Trade) => (t as Trade & { sleeve?: string | null }).sleeve !== "investments";
+  const realisedLoss = Math.max(0, -sum(closed.filter(trading).map((t) => t.realized_pnl)));
+  const openRisk = sum(open.filter(trading).map((t) => Math.max(0, (Number(t.entry) - Number(t.current_stop ?? t.stop)) * Number(t.quantity ?? 0))));
   const wk = weekStartPhoenix().getTime();
-  const fillsThisWeek = all.filter((t) => t.status !== "cancelled" && new Date(t.created_at).getTime() >= wk).length;
+  const fillsThisWeek = all.filter((t) => trading(t) && t.status !== "cancelled" && new Date(t.created_at).getTime() >= wk).length;
 
   const th = check(theses) as DailyThesis[];
   return {
@@ -390,6 +398,10 @@ export async function getRobinhoodBook() {
     journal: check(journal) as JournalLine[],
     backtests: check(backtests) as Backtest[],
     box: { limit: Number(cfg?.combined_max_loss_dollars ?? 12), used: realisedLoss + openRisk, realisedLoss, openRisk },
+    longTerm: {
+      sleeve: (sleeve.error ? [] : sleeve.data ?? []) as LtSleeveRow[],
+      lists: (ltList.error ? [] : ltList.data ?? []) as LtListRow[],
+    },
     fillsThisWeek,
   };
 }
