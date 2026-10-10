@@ -1,6 +1,6 @@
 # Moonbag Strategy — Source of Truth
 
-Version 7 · 2026-10-10 · Owner: Stavros · Maintained by Claude
+Version 10 · 2026-10-10 · Owner: Stavros · Maintained by Claude
 
 This file is the one place the Moonbag strategy is written down. Every agent works from it.
 When it changes, the same text is saved in three places: this file in the repo
@@ -31,8 +31,7 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 | Head | Agents under it | Scheduled task |
 | --- | --- | --- |
 | **Desk Lead** (leverage desk) | Scout · Cartographer · Gate · Risk Officer · Exit Clerk | Desk Lead (hourly, :25) · Scout (every 4h, :07) |
-| **Strategist** (research + Robinhood) | Publisher · Level Watch · Executor (Grok/RockBot) | Daily cycle (5:50 AM) · Intraday check (6:45 / 9:45 / 1:45) |
-| **Auditor** (feedback loops) | Coach | Weekly reviews (Sat 6:29 / 6:59) · 24h lookback (every 3h) |
+| **Strategist** (research + head of both agentic books: Robinhood and Coinbase) | Publisher · Level Watch · Coinbase Desk · Executor (Grok/RockBot) · Auditor → Coach | Daily cycle (5:50 AM) · Intraday check (6:45 / 9:45 / 1:45) · Coinbase desk (hourly :32, full run after the 00:00 UTC close) · Weekly reviews (Sat 6:29 / 6:59) · 24h lookback (every 3h) |
 | **Stavros** | — | Places every BloFin order; also takes his own calls |
 
 | Agent | Tasks |
@@ -44,9 +43,10 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 | Exit Clerk | Swap a coin's lines to stop + target when a trade opens · TP1 → breakeven, trail · 72h · restore lines after close |
 | Publisher | Morning-brief X post · trade opened / closed X posts (templates, filled by the website) |
 | Level Watch | Robinhood levels during market hours — messages only when something changed |
-| Executor | Robinhood orders inside the limits · records fills and BloFin trades · posts the X posts |
+| Coinbase Desk | The Strategist's Coinbase arm: daily candles for 36 coins · `cb_run()` — regime, paper book, live status, entries, stops/TP1/trail · hands orders to Grok |
+| Executor | Grok/RockBot: Robinhood AND Coinbase orders inside the limits · records fills and BloFin trades · account snapshots for both · posts the X posts |
 | Coach | 24h lookback on every close · scores Stavros's own calls |
-| Auditor | C-setup review · weekly strategy review · R:R, leverage, rotation, agent health · writes strategy changes here |
+| Auditor | The Strategist's weekly self-review: C-setup review · weekly strategy review · Coinbase paper book and promotions · R:R, leverage, rotation, agent health · writes strategy changes here |
 
 **Token discipline.**
 
@@ -354,7 +354,8 @@ Full thesis: `docs/strategy/LONG_TERM_THESIS.md`.
 Full strategy, research and backtests: `docs/strategy/COINBASE_STRATEGY.md`. Machine form: `risk_config` (venue `coinbase`), `cb_universe`, `cb_signals`, `cb_backtest()`.
 
 - **What it is.** The agentic Coinbase account (started with $100), connected to Grokbot. It is spot only: long or cash (USDC). It works like Robinhood: Moonbag decides and hands off (`broker: coinbase`), Grok executes and reports, and everything shows on `/dashboard/coinbase`.
-- **Coins.** BTC-USD, ETH-USD, SOL-USD. New coins need their own backtest first.
+- **Who directs it.** The Strategist heads Book 3 exactly like Book 1: its daily cycle reviews the Coinbase desk's signals, fills and paper book; Grok executes both books' handoffs. One strategist, one self-improvement loop, risk limits untouched.
+- **Coins (v2, open universe).** 36 Coinbase USD pairs are scanned and paper-traded daily (`cb_paper`). BTC, ETH and SOL trade live at 5% risk. **Alts are OFF for live trading (Stavros, 2026-10-10: not keen on alts for the agentic account; he trades alts himself on BloFin)** — they stay scanned and paper-traded so the record keeps building; `risk_config.alts_live` turns them back on. If switched on, an alt trades live only after its own paper record shows 4+ trades averaging +0.5R or better — at half risk (2.5%), only while BTC is bull, after core coins. Opening all coins at full risk cut average R from +1.15 to +0.30 and deepened the worst drawdown to −64% in the backtest; the earned-status rule kept average R at +1.10 (2021–26) and raised CAGR to 37.8% vs 32.6% (2023–26). See COINBASE_STRATEGY.md §4b.
 - **Regime, per coin.**
   - **BULL:** a daily close above 1.02 × 200-day SMA.
   - **BEAR:** a daily close below 0.97 × 200-day SMA. That means exit, cash, no longs.
@@ -364,7 +365,7 @@ Full strategy, research and backtests: `docs/strategy/COINBASE_STRATEGY.md`. Mac
 - **Take profit and trail.** TP1 sells half at 3R. Then the stop on the rest goes to entry + 1.2%, and the runner trails the prior 20-day low (the 10-day low once BTC trades above 100k).
 - **Risk.**
   - 5% of equity per trade, including fees.
-  - 15% max open risk; one position per coin, max 3.
+  - 15% max open risk; one position per coin, max 3. Alts: half the per-trade risk.
   - Risk halves after 3 straight losses.
   - New entries pause if equity is 20% below its 30-day peak.
   - The database enforces all of this (`moonbag_check_handoff_coinbase`).
@@ -406,6 +407,10 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 ---
 
 ## 7. Change log
+
+- **2026-10-10 (v10):** Coinbase alts switched off for live trading at Stavros's request (`risk_config.alts_live = false`); BTC/ETH/SOL only live, all 36 coins still paper-traded. Desk Lead now delivers every TOUCH / DECISION / TAKE TRADE / management line as an "MB NOTE" TradingView alert as well.
+
+- **2026-10-10 (v9):** One Strategist heads both agentic books (Robinhood + Coinbase); the Coinbase desk, Executor (Grok, both accounts) and the Auditor (its weekly self-review) report to it. Coinbase v2: open universe — 36 coins scanned and paper-traded, alts earn live status (4+ paper trades, avg ≥ +0.5R) at half risk while BTC is bull (§4.6, COINBASE_STRATEGY.md §4b). No risk limit changed.
 
 - **2026-10-10 (v7):** Book 3 — Coinbase crypto trend book (§4.6, COINBASE_STRATEGY.md).
   - Spot BTC/ETH/SOL, regime-gated 55-day breakout, 5% risk, 15% open risk.

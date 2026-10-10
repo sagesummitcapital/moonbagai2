@@ -30,7 +30,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /handoffs?status=pending[&broker=robinhood\|coinbase]` | both | Grok's inbox |
 | `POST /handoffs` | Claude | Create a Robinhood or Coinbase (`broker: coinbase`, thesis_id optional) handoff for Grok |
 | `GET /coinbase` | both | Book 3: regime + trigger per coin, account, open trades, pending handoffs, system decisions, limits |
-| `GET /candles/sync[?full=1]` | Claude / Vercel cron | Pull closed daily candles for BTC/ETH/SOL from Coinbase into `candles` (backtests) |
+| `GET /candles/sync[?full=1]` | Claude | Pull closed daily candles for the Coinbase book's coins from Coinbase into `candles` (backtest history; no cron — the Coinbase desk stores each new daily bar itself) |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
 | `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
 | `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
@@ -255,7 +255,13 @@ COINBASE — BOOK 3 (Stavros connected Coinbase to you on 2026-10-10; docs/strat
 Same deal as Robinhood: Moonbag decides, you execute automatically inside the limits, and you report every
 fill back so Moonbag shows and manages it. Spot crypto only, in the Coinbase agent portfolio Stavros connected.
 Never use futures, perps, margin, conversions to other coins, transfers or withdrawals.
-- Coins: BTC-USD, ETH-USD, SOL-USD only (Moonbag symbols BTC, ETH, SOL). Cash sits in USDC/USD.
+- Who directs it: the STRATEGIST, the same head that directs your Robinhood handoffs. Both books run the same way:
+  Moonbag decides and sizes, you execute and report, every fill feeds the same review loop.
+- Coins (v2, open universe 2026-10-10): any coin Moonbag hands you, always the Coinbase product "<SYMBOL>-USD"
+  (e.g. BTC -> BTC-USD, XRP -> XRP-USD, SHIB -> SHIB-USD; the product is also named in entry_condition).
+  Moonbag scans 36 coins, but for now only BTC/ETH/SOL are handed to you (alts are paper-only by Stavros's
+  choice). You never pick coins yourself - only execute handoffs. Cash sits in USDC/USD. If a product can't
+  be traded on Coinbase, reject the handoff with that reason.
 - Read the book any time: GET /coinbase (regime + entry trigger per coin, open trades, pending handoffs,
   system decisions, limits).
 A. ACCOUNT STATE — POST /accounts {"venue":"coinbase","equity","cash","positions":[{"symbol","quantity",

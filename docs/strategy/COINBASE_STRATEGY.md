@@ -94,7 +94,7 @@ Book 3 is where the long-term thesis's "hard money" view gets real BTC exposure,
 
 ## 4. The system (v1)
 
-Universe: `cb_universe` = BTC-USD, ETH-USD, SOL-USD. A new coin needs its own backtest before it is added.
+Universe (v1): `cb_universe` = BTC-USD, ETH-USD, SOL-USD. **Superseded by v2 (§4b): the universe is now open — 36 coins, with alts earning live status from their paper record.**
 
 **Regime, per coin, on the daily close:**
 
@@ -143,6 +143,58 @@ Universe: `cb_universe` = BTC-USD, ETH-USD, SOL-USD. A new coin needs its own ba
 
 The backtest system is already long all three, in its paper record: ETH and SOL since 19 Aug, BTC since 21 Sep, with SOL past TP1. The live account starts flat and only takes fresh signals. Chasing old entries was not part of the test.
 
+## 4b. v2 — Open universe, earned live status (2026-10-10)
+
+Stavros: *"i dont want coinbase to be limited to just 3 coins - open it up to the entire system - goal is increasing r:r"*.
+
+**What the backtest said first.** We pulled Coinbase daily history for 36 USD pairs — today's leaders and coins that faded
+(MANA, SAND, AXS, ALGO, FIL, ICP, DOT, ATOM, CRV…) to limit survivorship bias — and ran the same rules over all of them
+(`research/coinbase/uni.py`, fees + 0.3% alt slippage).
+
+| 2021-01 → 2026-10 | Trades | Win % | Avg R | Profit factor | CAGR | Worst DD |
+|---|---|---|---|---|---|---|
+| v1: BTC/ETH/SOL | 29 | 52% | **+1.15R** | 2.65 | 29.8% | −18.9% |
+| All 36 coins, same rules, full risk | 76 | 26% | +0.30R | 1.14 | 10.7% | **−64.0%** |
+| **v2: all 36 scanned, alts earn live status** | 32 | 47% | +1.10R | 2.57 | 29.9% | −20.4% |
+
+| 2023-01 → 2026-10 | Avg R | CAGR | Worst DD |
+|---|---|---|---|
+| v1 | +1.02R | 32.6% | −18.9% |
+| v2 | +1.09R | **37.8%** | −19.1% |
+
+From mid-2024 on, v2 averaged +0.63R vs +0.36R for v1 (CAGR 21.7% vs 14.5%). The alt trades v2 let through averaged
++0.37R to +0.64R in every window tested.
+
+**Opening the universe naively lowers R:R.** Most alts don't trend cleanly enough for a 55-day breakout: per coin, the alts
+averaged about +0.3R against about +1.1R for BTC/ETH/SOL, with many more stop-outs and deeper gap losses. So v2 scans
+everything but only trades what has proven itself.
+
+**v2 rules (in `cb_run()` and the database gate):**
+
+1. **Scan and paper-trade every coin.** All 36 coins in `cb_universe` run the exact v1 rules on paper in `cb_paper`, every
+   day, with no portfolio limits. The paper book was seeded with each coin's backtest record (311 trades through 2026-10-09)
+   and continues live from there.
+2. **Core coins trade live:** BTC, ETH, SOL, at 5% risk (unchanged).
+3. **An alt goes live only when its own paper record earns it:** 4+ closed paper trades averaging **+0.5R or better**.
+   It drops back to paper automatically if its average falls below that. (Tested thresholds: +0.3R and +0.5R held in every
+   window; +0.75R and +1.0R were worse.)
+4. **Alts trade at half risk** (2.5% — `cb_universe.risk_mult` 0.5) and **only while BTC's regime is bull**.
+5. **Priority when several coins break out on the same day:** core coins first, then alts by 90-day strength vs BTC.
+6. **Unchanged:** 15% max open risk, max 3 positions, one per coin, losing-streak halving, 20% drawdown pause, the 1% price gate,
+   stops/TP1/trail/regime exits.
+
+**Update 2026-10-10 (later): Stavros switched alts OFF for live trading** ("not too keen on alts myself for the agentic trading" — he trades alts on BloFin). `risk_config.alts_live = false`: only BTC/ETH/SOL trade live; all 36 coins keep their paper record, and the weekly review reports which alts would have qualified. Flip `alts_live` to true to re-enable rule 3.
+
+Would have been live at the start (2026-10-10): BTC, ETH, SOL + 13 alts — ADA, ARB, AVAX, DOGE, GRT, INJ, MANA, NEAR, SAND, SHIB, SUI, XLM, XRP.
+Paper only: AAVE, ALGO, APT, ATOM, AXS, BCH, CRV, DOT, ENA, ETC, FIL, HBAR, ICP, LINK, LTC, ONDO, OP, RENDER, SEI, UNI.
+
+**Honest limits.** The live rule was picked on the same history it was tested on, the alt samples are small (5–10 trades
+over 4 years), and coins that were delisted aren't in the data. That's why alts trade at half risk, why the rule is
+re-checked every Saturday, and why a coin can lose live status as fast as it earned it.
+
+**Adding coins.** Any Coinbase USD pair Moonbag tracks elsewhere (Scout rotation, BloFin trades) can be added to
+`cb_universe` with a 300-bar daily backfill. It starts paper-only, with its backtest record seeding `cb_paper`.
+
 ## 5. Backtests (Coinbase daily data, fees and slippage included)
 
 Research code is in `research/coinbase/` (Python). The same rules run in the database as `select public.cb_backtest(...)`, which matched the Python results trade-for-trade on BTC+ETH from 2024-09 to 2026-10: 6 trades, +5.6R, 18.5% a year, −15.8% worst drawdown.
@@ -184,7 +236,8 @@ Research code is in `research/coinbase/` (Python). The same rules run in the dat
 
 | Step | Claude / Moonbag | Grok |
 |---|---|---|
-| Daily, 00:32 UTC (5:32 PM Phoenix) | Updates `cb_universe` (regime, trigger, stops). Logs every decision in `cb_signals`. On a signal: sizes the trade and creates a handoff (`broker: coinbase`). | — |
+| Daily, 5:50 AM Phoenix | **Strategist** (head of both agentic books): reviews the Coinbase book — signals, fills vs plan, paper moves, promotions, desk health. Can pause a coin for a written reason (delisting, exploit, depeg, regulatory action). Never changes risk. | — |
+| Daily, 00:32 UTC (5:32 PM Phoenix) | Coinbase desk (the Strategist's arm): stores closed daily candles for all coins, runs `cb_run()` — regime, paper book, live status, entries. Updates `cb_universe` (regime, trigger, stops). Logs every decision in `cb_signals`. On a signal: sizes the trade and creates a handoff (`broker: coinbase`). | — |
 | Entry | — | Polls `GET /handoffs?status=pending&broker=coinbase`. Previews, then market-buys the quote amount. Places a TP1 limit sell for half, plus a stop or bracket if the connector supports it. `POST /trades` (venue `coinbase`). Marks the handoff executed. `POST /accounts` (venue `coinbase`). |
 | Every hour, :32 | Stop / TP1 / regime / trail checks on open Coinbase trades. Issues `close`, `trim` or `adjust_stop` handoffs. Updates `current_stop`. | Executes them and records every fill with `POST /trades/{id}/exits`. |
 | Every 3 hours | Coach: 24-hour lookback on each closed trade (all venues). | — |
@@ -203,4 +256,6 @@ Grok posts a Coinbase account snapshot at least daily. Without one under 2 days 
 
 ## 8. Change log
 
+- **2026-10-10 v2.1:** alts off for live trading (Stavros); paper tracking continues.
+- **2026-10-10 v2.0:** open universe (§4b). 36 coins scanned and paper-traded; alts trade live only after 4+ paper trades averaging +0.5R, at half risk, while BTC is bull; core coins first. Strategist now heads Book 3 (with Robinhood); Grok executes both.
 - **2026-10-10 v1.0:** book created. Research covered Coinbase capabilities, macro, and 36-variant backtests on BTC/ETH/SOL from 2016–2026.

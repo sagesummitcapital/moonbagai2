@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Daily candles for the Coinbase book (BTC/ETH/SOL, tf '1d') from Coinbase's public market-data API.
+ * Daily candles for the Coinbase book (every cb_universe coin; full history for BTC/ETH/SOL, tf '1d') from Coinbase's public market-data API.
  * The backtest engine (select public.cb_backtest()) and the Coinbase desk read these.
  * - Vercel Cron calls it daily (vercel.json) with "Authorization: Bearer $CRON_SECRET".
  * - Claude can call it with its API key; ?full=1 re-fetches the whole history (duplicates are ignored).
@@ -45,14 +45,22 @@ export async function GET(req: Request) {
   const db = supabaseAdmin();
   const todayUtc = Math.floor(Date.now() / DAY) * DAY; // start of the forming day — never stored
   const out: Record<string, unknown> = {};
-  for (const p of PRODUCTS) {
+  // Open universe (v2): every cb_universe coin. Alts keep whatever history is stored (300+ bars), or 400 days when new.
+  const { data: uni } = await db.from("cb_universe").select("symbol, product_id");
+  const products = [
+    ...PRODUCTS,
+    ...((uni ?? []) as { symbol: string; product_id: string }[])
+      .filter((u) => !PRODUCTS.some((p) => p.asset === u.symbol))
+      .map((u) => ({ asset: u.symbol, product: u.product_id, start: "", alt: true })),
+  ] as { asset: string; product: string; start: string; alt?: boolean }[];
+  for (const p of products) {
     try {
       const [{ data: first }, { data: last }] = await Promise.all([
         db.from("candles").select("ts").eq("asset", p.asset).eq("tf", "1d").order("ts", { ascending: true }).limit(1),
         db.from("candles").select("ts").eq("asset", p.asset).eq("tf", "1d").order("ts", { ascending: false }).limit(1),
       ]);
-      const start = Date.parse(p.start);
       const haveFrom = first?.[0] ? Date.parse(first[0].ts as string) : null;
+      const start = p.alt ? (haveFrom ?? todayUtc - 400 * DAY) : Date.parse(p.start);
       const haveTo = last?.[0] ? Date.parse(last[0].ts as string) : null;
       // Backfill everything when asked, when empty, or when history before the first stored bar is missing.
       const from = full || haveFrom == null || haveFrom > start + 5 * DAY ? start : (haveTo as number) - 3 * DAY;

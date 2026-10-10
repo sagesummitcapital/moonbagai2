@@ -53,6 +53,7 @@ export const EXPECTED_HOURS: Record<string, number | null> = {
   executor: null,
   coach: null,
   auditor: 24 * 8,
+  coinbase_desk: 2,
   stavros: null,
 };
 
@@ -61,9 +62,11 @@ export const PIPELINES: { when: string; steps: string[]; note: string }[] = [
   { when: "Every 4h close", steps: ["scout", "desk_lead", "cartographer"], note: "Re-rank coins → the Desk Lead redraws each coin's range high / low lines and alerts" },
   { when: "Every 1h close", steps: ["desk_lead", "gate", "risk_officer", "stavros"], note: "Cheap check first — only if a line was hit: validation → score → order card → you place it" },
   { when: "Trade opened", steps: ["stavros", "executor", "publisher", "exit_clerk"], note: "You tell Grok → trade recorded → X post queued → that coin's 2 lines become stop + target" },
-  { when: "Daily 5:50 AM", steps: ["strategist", "publisher", "executor"], note: "Theses + morning brief → X post → Grok posts it; Robinhood handoffs" },
+  { when: "Daily 5:50 AM", steps: ["strategist", "publisher", "executor"], note: "Strategist heads both agentic books: grades yesterday, theses + brief, Robinhood handoffs, reviews the Coinbase desk → Grok executes" },
+  { when: "Daily close 5:32 PM (00:00 UTC)", steps: ["strategist", "coinbase_desk", "executor"], note: "Strategist's rules → Coinbase desk scans 36 coins, paper-trades all, sizes live entries (core + alts that earned it) → Grok buys on Coinbase" },
+  { when: "Every hour (:32)", steps: ["coinbase_desk", "executor"], note: "Stops, TP1 and breakeven on open Coinbase trades → Grok sells/moves stops" },
   { when: "24h after a close", steps: ["coach"], note: "Lookback, Moonbag vs your call" },
-  { when: "Saturday", steps: ["auditor"], note: "C setups, backtests, R:R, leverage, rotation → strategy file" },
+  { when: "Saturday", steps: ["strategist", "auditor"], note: "Strategist's weekly self-review: C setups, backtests, R:R, Coinbase paper book and promotions → strategy file" },
 ];
 
 export async function getAgentsBoard() {

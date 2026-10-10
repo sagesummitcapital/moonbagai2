@@ -407,7 +407,9 @@ export async function getRobinhoodBook() {
 }
 
 // ---------------------------------------------------------------- Book 3: Coinbase (spot crypto trend book)
-// docs/strategy/COINBASE_STRATEGY.md — regime-gated 55-day breakout on BTC/ETH/SOL, 5% risk, 15% open risk.
+// docs/strategy/COINBASE_STRATEGY.md v2 — regime-gated 55-day breakout over an open universe (36 Coinbase coins).
+// Every coin is paper-traded (cb_paper); BTC/ETH/SOL trade live at 5% risk; alts trade live only after their paper
+// record earns it (4+ trades, avg >= +0.5R) at half risk while BTC is bull. 15% max open risk.
 export interface CbUniverseRow {
   symbol: string;
   product_id: string;
@@ -426,6 +428,31 @@ export interface CbUniverseRow {
   as_of: string | null;
   notes: string | null;
   updated_at: string;
+  tier: "core" | "alt";
+  live: boolean;
+  risk_mult: number;
+  rs90: number | null;
+  paper_n: number;
+  paper_avg_r: number | null;
+  paper_last4: number | null;
+  live_reason: string | null;
+}
+
+export interface CbPaper {
+  id: number;
+  symbol: string;
+  source: "backtest" | "paper";
+  status: "open" | "closed";
+  opened_on: string;
+  entry: number;
+  stop0: number;
+  tp1: number;
+  cur_stop: number;
+  tp1_done: boolean;
+  closed_on: string | null;
+  exit_px: number | null;
+  r: number | null;
+  why: string | null;
 }
 
 export interface CbSignal {
@@ -453,15 +480,16 @@ export interface CbSignal {
 
 export async function getCoinbaseBook() {
   const db = supabaseAdmin();
-  const [risk, snapshots, trades, handoffs, universe, signals, backtests, journal] = await Promise.all([
+  const [risk, snapshots, trades, handoffs, universe, signals, backtests, journal, paper] = await Promise.all([
     db.from("risk_config").select("*").eq("venue", "coinbase").limit(1),
     db.from("account_snapshots").select("*").eq("venue", "coinbase").order("reported_at", { ascending: false }).limit(60),
     db.from("trades").select("*").eq("venue", "coinbase").order("created_at", { ascending: false }).limit(60),
     db.from("handoffs").select("*").eq("broker", "coinbase").order("created_at", { ascending: false }).limit(20),
-    db.from("cb_universe").select("*").order("symbol"),
+    db.from("cb_universe").select("*").order("live", { ascending: false }).order("tier", { ascending: false }).order("rs90", { ascending: false, nullsFirst: false }),
     db.from("cb_signals").select("*").order("as_of", { ascending: false }).order("id", { ascending: false }).limit(40),
     db.from("backtests").select("*").eq("book", "coinbase").order("created_at", { ascending: false }).limit(12),
     db.from("journal").select("*").eq("book", "coinbase").order("created_at", { ascending: false }).limit(10),
+    db.from("cb_paper").select("*").or("status.eq.open,source.eq.paper").order("opened_on", { ascending: false }).limit(80),
   ]);
   const cfg = (check(risk) as (RiskConfig & { max_open_risk_pct?: number | null })[])[0] ?? null;
   const snaps = check(snapshots) as { equity: number; cash: number | null; reported_at: string; positions: unknown }[];
@@ -490,6 +518,7 @@ export async function getCoinbaseBook() {
     handoffs: check(handoffs) as Handoff[],
     universe: (universe.error ? [] : universe.data ?? []) as CbUniverseRow[],
     signals: (signals.error ? [] : signals.data ?? []) as CbSignal[],
+    paper: (paper.error ? [] : paper.data ?? []) as CbPaper[],
     backtests: check(backtests) as Backtest[],
     journal: check(journal) as JournalLine[],
     openRisk,
