@@ -5,18 +5,21 @@ export const dynamic = "force-dynamic";
 
 /** Latest account snapshot per venue. */
 export const GET = withAgent(["claude", "grok"], async () => {
-  const [robinhood, blofin] = await Promise.all([
+  const [robinhood, blofin, coinbase] = await Promise.all([
     latestAccountSnapshot("robinhood"),
     latestAccountSnapshot("blofin"),
+    latestAccountSnapshot("coinbase"),
   ]);
-  return json({ ok: true, robinhood, blofin });
+  return json({ ok: true, robinhood, blofin, coinbase });
 });
 
-/** Grok posts the Robinhood account state (equity, cash, positions) — required before new positions are sized. */
+/** Grok posts the Robinhood or Coinbase account state (and BloFin balances Stavros reports) (equity, cash, positions) — required before new positions are sized. */
 export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   const body = await readJson(req);
   requireFields(body, ["venue", "equity"]);
-  if (body.venue !== "robinhood" && body.venue !== "blofin") throw new BadRequest('venue must be "robinhood" or "blofin"');
+  if (body.venue !== "robinhood" && body.venue !== "blofin" && body.venue !== "coinbase") {
+    throw new BadRequest('venue must be "robinhood", "blofin" or "coinbase"');
+  }
   const snapshot = await createAccountSnapshot({
     venue: body.venue,
     equity: Number(body.equity),

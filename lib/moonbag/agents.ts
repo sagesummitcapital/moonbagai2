@@ -8,7 +8,7 @@ export type AgentRow = {
   agent_id: string;
   name: string;
   role: string;
-  book: "leverage" | "robinhood" | "both";
+  book: "leverage" | "robinhood" | "coinbase" | "both";
   cadence: string;
   runs_in: string;
   inputs: string | null;

@@ -56,7 +56,7 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const nowKey = monthKey(new Date().toISOString());
   const months = Array.from(new Set([nowKey, ...all.map((t) => monthKey(t.closed_at!))])).sort().reverse().slice(0, 8);
   const m = searchParams?.m && /^\d{4}-\d{2}$/.test(searchParams.m) ? searchParams.m : nowKey;
-  const book = searchParams?.book === "blofin" || searchParams?.book === "robinhood" ? searchParams.book : "all";
+  const book = searchParams?.book === "blofin" || searchParams?.book === "robinhood" || searchParams?.book === "coinbase" ? searchParams.book : "all";
 
   const inMonth = all.filter((t) => monthKey(t.closed_at!) === m);
   const shown = inMonth.filter((t) => book === "all" || t.venue === book);
@@ -70,6 +70,7 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const books = [
     { name: "Leverage — BloFin", ...tally(inMonth.filter((t) => t.venue === "blofin").map(tradeRow)) },
     { name: "Long-term — Robinhood", ...tally(inMonth.filter((t) => t.venue === "robinhood").map(tradeRow)) },
+    { name: "Crypto trend — Coinbase", ...tally(inMonth.filter((t) => t.venue === "coinbase").map(tradeRow)) },
   ];
 
   // Moonbag's own calls, followed on paper whether or not they were taken — the benchmark for your trades.
@@ -117,7 +118,7 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
           <p className="mt-1 text-[13.5px] text-white/55">Every closed trade, logged from the database. Nothing is left out or added by hand.</p>
         </div>
         <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
-          {[["all", "All books"], ["blofin", "Leverage"], ["robinhood", "Long-term"]].map(([k, label]) => (
+          {[["all", "All books"], ["blofin", "Leverage"], ["robinhood", "Long-term"], ["coinbase", "Coinbase"]].map(([k, label]) => (
             <Link key={k} href={href(m, k)} className={`rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
           ))}
         </div>

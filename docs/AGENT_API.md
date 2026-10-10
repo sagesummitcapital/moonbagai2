@@ -27,15 +27,17 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `POST /evaluations` | Claude | Grade a thesis (immutable). Recomputes System Confidence |
 | `GET /evaluations` | both | Graded history with thesis context |
 | `POST /alerts` · `PATCH /alerts/{alert_id}` | Claude | Record TradingView alerts / link `tv_alert_id` / mark triggered or cancelled |
-| `GET /handoffs?status=pending` | both | Grok's inbox |
-| `POST /handoffs` | Claude | Create a Robinhood handoff for Grok |
+| `GET /handoffs?status=pending[&broker=robinhood\|coinbase]` | both | Grok's inbox |
+| `POST /handoffs` | Claude | Create a Robinhood or Coinbase (`broker: coinbase`, thesis_id optional) handoff for Grok |
+| `GET /coinbase` | both | Book 3: regime + trigger per coin, account, open trades, pending handoffs, system decisions, limits |
+| `GET /candles/sync[?full=1]` | Claude / Vercel cron | Pull closed daily candles for BTC/ETH/SOL from Coinbase into `candles` (backtests) |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
 | `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
 | `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
 | `POST /size` | Claude | Position sizing (leverage last) → `TRADE_PLAN` or `NO_TRADE` |
-| `POST /accounts` · `GET /accounts` | Grok (+Claude) / both | Robinhood account snapshot: equity, cash, buying_power, positions |
+| `POST /accounts` · `GET /accounts` | Grok (+Claude) / both | Account snapshot (`venue` robinhood, coinbase or blofin): equity, cash, buying_power, positions |
 | `GET /risk?venue=robinhood` | both | Risk limits + current open risk / exposure |
 
 Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations are `400` with a clear message.
@@ -113,6 +115,8 @@ ACCOUNT STATE — POST /accounts {"venue":"robinhood","equity","cash","buying_po
 
 YOUR LOOP (check GET /handoffs?status=pending at least at 6:35 AM, 9:50 AM and 1:50 PM Phoenix on
 market days, and whenever Stavros pings you):
+0. Every handoff has a "broker". broker "robinhood" → steps 1–9 below. broker "coinbase" → the COINBASE section
+   at the end (different account, different rules). Never execute a handoff on the other broker.
 1. GET /theses/{thesis_id}. For action "open", if the thesis is not "active", reject.
 2. PATCH /handoffs/{id} {"status":"acknowledged"}.
 3. action "open": check GET /risk, then place the order exactly as specified: symbol, quantity,
@@ -244,6 +248,55 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    - The response carries "x_post_id" (a trade update or the close post) — post it like the others.
    Read back to him: how much is still open, what is banked, and where the stop is now.
 14. Moonbag watches open BloFin trades and switches THAT coin's two TradingView alerts to its stop and next target.
-15. Up to 2 BloFin trades can be open at once, one per coin (combined risk to the stops ≤ 15% of the account).
-   A second trade on a different coin is fine; a second trade on the same coin is not — tell him if he tries.
+15. BloFin: one trade per coin, no cap on how many coins (Stavros removed the 2-trade limit 2026-10-10);
+   combined risk to the stops ≤ 15% of the account. A second trade on the same coin is not allowed — tell him if he tries.
+
+COINBASE — BOOK 3 (Stavros connected Coinbase to you on 2026-10-10; docs/strategy/COINBASE_STRATEGY.md)
+Same deal as Robinhood: Moonbag decides, you execute automatically inside the limits, and you report every
+fill back so Moonbag shows and manages it. Spot crypto only, in the Coinbase agent portfolio Stavros connected.
+Never use futures, perps, margin, conversions to other coins, transfers or withdrawals.
+- Coins: BTC-USD, ETH-USD, SOL-USD only (Moonbag symbols BTC, ETH, SOL). Cash sits in USDC/USD.
+- Read the book any time: GET /coinbase (regime + entry trigger per coin, open trades, pending handoffs,
+  system decisions, limits).
+A. ACCOUNT STATE — POST /accounts {"venue":"coinbase","equity","cash","positions":[{"symbol","quantity",
+   "avg_cost","market_value"}]} at least once a day (around 5:30 PM Phoenix, after the daily close),
+   after every fill, and when Stavros asks. Equity = USD + USDC + coins at market. Without a snapshot under
+   2 days old, Moonbag cannot hand you new entries.
+B. INBOX — GET /handoffs?status=pending&broker=coinbase at least at 5:40 PM Phoenix every day (entries
+   come right after the 00:00 UTC daily close, 5:00 PM Phoenix) and at least every 4 hours otherwise, and
+   whenever Stavros pings you. Handoffs with broker "coinbase" go to Coinbase, never to Robinhood.
+C. action "open" (always long, always order_type "market"):
+   1. PATCH /handoffs/{id} {"status":"acknowledged"}.
+   2. orders_preview a market BUY on the product with quote_size = round(quantity x reference_price, 2) USD.
+      The handoff's limit_price is the GATE — the most you may pay. If the price is above the gate, don't buy:
+      leave it acknowledged, check again at your next loop, and reject it ("gate not reached") once it expires.
+      If the price is already at or below stop_price, reject ("below stop").
+   3. orders_create the market buy. Read the fill (orders_fills): filled size, average price, fees.
+   4. Exits on the exchange:
+      a. Try to place a protective STOP for the whole filled size at stop_price: a stop-limit sell
+         (stop_limit_stop_limit_gtc, stop_price = stop, limit_price = stop x 0.99) or, better, a bracket
+         (trigger_bracket_gtc) for HALF the size with limit_price = target_1 and stop_trigger_price = stop_price.
+      b. Place a GTC LIMIT SELL for HALF the filled size at target_1 (TP1) if the bracket didn't already do it.
+      c. If your connector refuses stop orders, say so once in execution_notes ("soft stop — connector has no
+         stop orders"). Moonbag then watches the stop every hour and sends you a "close" handoff.
+   5. POST /trades {"handoff_id","venue":"coinbase","symbol","direction":"long","entry": avg fill price,
+      "quantity": filled size,"position_value","stop": stop_price,"current_stop": stop_price,"tp1": target_1,
+      "risk_dollars","account_equity","setup_type","horizon":"swing","fees": entry fee,"status":"open",
+      "execution_notes":"cb order <order_id>; TP1 limit <order_id>; stop <order_id or 'soft stop'>"}
+      (no thesis_id needed for Coinbase), then PATCH the handoff {"status":"executed"} and POST /accounts.
+D. action "trim" / "close": cancel any open sell orders for that coin that would conflict, market-sell the
+   quantity given (close = everything still held), then POST /trades/{trade_id}/exits {"quantity","price",
+   "pnl","fee","reason"} (reason "stop", "trail", "manual" or "time"; regime exits use "manual" with notes
+   "regime flip"). The last fill closes the trade — don't PATCH status. Re-place the remaining orders for any
+   size still held. PATCH the handoff "executed", POST /accounts.
+E. action "adjust_stop": cancel the old stop order (if any) and place the new one at stop_price for the size
+   still held; PATCH /trades/{trade_id} {"current_stop": stop_price}; PATCH the handoff "executed".
+   Stops on Coinbase trades only ever move UP.
+F. When the TP1 limit fills on its own: POST /trades/{trade_id}/exits {"reason":"tp1","price","pnl","fee"}
+   (no size needed). Moonbag then moves the stop on the rest to entry +1.2% (adjust_stop handoff) and trails it.
+   When a stop fills on its own: POST /exits with reason "stop" (or "trail" if it was a raised stop).
+G. Limits the database enforces (reject anything that looks outside them): ≤ 5% of equity at risk per trade
+   including fees, ≤ 15% total open risk, one position per coin, max 3, no new entries 20% below the 30-day peak.
+H. After anything you do on Coinbase, send Stavros one line: what, size, price, stop, TP1, risk $.
+I. No X posts for Coinbase trades unless Moonbag queues one.
 ```

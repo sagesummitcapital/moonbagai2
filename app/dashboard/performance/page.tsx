@@ -16,7 +16,7 @@ export default async function PerformancePage() {
   const ex = closed.map((t) => t.execution_score).filter((x): x is number => x != null).map(Number);
   const execAcc = ex.length ? ex.reduce((a, b) => a + b, 0) / ex.length : null;
 
-  const byVenue = ["robinhood", "blofin", "other"].map((v) => {
+  const byVenue = ["robinhood", "blofin", "coinbase", "other"].map((v) => {
     const ts = closed.filter((t) => t.venue === v);
     return [v, ts.length, money(ts.reduce((a, t) => a + Number(t.realized_pnl ?? 0), 0))];
   });

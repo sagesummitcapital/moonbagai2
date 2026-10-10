@@ -16,14 +16,15 @@ export const GET = withAgent(["claude", "grok"], async (req) => {
 
 /**
  * Record an execution.
- * Grok: Robinhood fills it executes (execution "grokbot") AND BloFin leveraged
+ * Grok: Robinhood and Coinbase fills it executes (execution "grokbot") AND BloFin leveraged
  * trades Stavros tells it he took manually (execution "manual").
  */
 export const POST = withAgent(["claude", "grok"], async (req, agent) => {
   const body = await readJson(req);
-  requireFields(body, ["thesis_id", "venue", "symbol", "direction"]);
-  if (agent === "grok" && body.venue !== "robinhood" && body.venue !== "blofin") {
-    throw new BadRequest("Grok can record Robinhood or BloFin trades.");
+  // Coinbase trades come from the rule-based system and may omit thesis_id (send handoff_id instead).
+  requireFields(body, body.venue === "coinbase" ? ["venue", "symbol", "direction"] : ["thesis_id", "venue", "symbol", "direction"]);
+  if (agent === "grok" && !["robinhood", "blofin", "coinbase"].includes(String(body.venue))) {
+    throw new BadRequest("Grok can record Robinhood, Coinbase or BloFin trades.");
   }
   const execution =
     agent === "grok" ? (body.venue === "blofin" ? "manual" : "grokbot") : body.execution;

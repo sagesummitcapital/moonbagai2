@@ -11,7 +11,7 @@ const HEALTH = {
   idle: { dot: "bg-white/30", label: "idle", tone: "gray" },
 } as const;
 
-const BOOK_TONE: Record<string, string> = { leverage: "cyan", robinhood: "green", both: "gray" };
+const BOOK_TONE: Record<string, string> = { leverage: "cyan", robinhood: "green", coinbase: "amber", both: "gray" };
 const MODE_TONE: Record<string, string> = { work: "green", quiet: "gray", error: "red" };
 
 const ago = (iso?: string | null) => {

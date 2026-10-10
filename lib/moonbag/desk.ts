@@ -405,3 +405,102 @@ export async function getRobinhoodBook() {
     fillsThisWeek,
   };
 }
+
+// ---------------------------------------------------------------- Book 3: Coinbase (spot crypto trend book)
+// docs/strategy/COINBASE_STRATEGY.md — regime-gated 55-day breakout on BTC/ETH/SOL, 5% risk, 15% open risk.
+export interface CbUniverseRow {
+  symbol: string;
+  product_id: string;
+  tv_symbol: string;
+  status: string;
+  regime: "bull" | "bear" | null;
+  regime_since: string | null;
+  close: number | null;
+  sma200: number | null;
+  bear_line: number | null;
+  bull_line: number | null;
+  trigger_px: number | null;
+  atr14: number | null;
+  ll20: number | null;
+  wk_ema20: number | null;
+  as_of: string | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export interface CbSignal {
+  id: number;
+  as_of: string;
+  symbol: string;
+  kind: string;
+  close: number | null;
+  trigger_px: number | null;
+  stop: number | null;
+  tp1: number | null;
+  atr14: number | null;
+  regime: string | null;
+  risk_pct: number | null;
+  quantity: number | null;
+  notional: number | null;
+  handoff_id: string | null;
+  trade_id: string | null;
+  blocked_by: string | null;
+  outcome_r: number | null;
+  outcome: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export async function getCoinbaseBook() {
+  const db = supabaseAdmin();
+  const [risk, snapshots, trades, handoffs, universe, signals, backtests, journal] = await Promise.all([
+    db.from("risk_config").select("*").eq("venue", "coinbase").limit(1),
+    db.from("account_snapshots").select("*").eq("venue", "coinbase").order("reported_at", { ascending: false }).limit(60),
+    db.from("trades").select("*").eq("venue", "coinbase").order("created_at", { ascending: false }).limit(60),
+    db.from("handoffs").select("*").eq("broker", "coinbase").order("created_at", { ascending: false }).limit(20),
+    db.from("cb_universe").select("*").order("symbol"),
+    db.from("cb_signals").select("*").order("as_of", { ascending: false }).order("id", { ascending: false }).limit(40),
+    db.from("backtests").select("*").eq("book", "coinbase").order("created_at", { ascending: false }).limit(12),
+    db.from("journal").select("*").eq("book", "coinbase").order("created_at", { ascending: false }).limit(10),
+  ]);
+  const cfg = (check(risk) as (RiskConfig & { max_open_risk_pct?: number | null })[])[0] ?? null;
+  const snaps = check(snapshots) as { equity: number; cash: number | null; reported_at: string; positions: unknown }[];
+  const snap = snaps[0] ?? null;
+  const all = check(trades) as (Trade & { qty_open?: number | null; banked_pnl?: number | null })[];
+  const open = all.filter((t) => t.status === "open" || t.status === "pending");
+  const closed = all.filter((t) => t.status === "closed");
+  const equity = Number(snap?.equity ?? cfg?.starting_equity ?? 0);
+  const peak30 = Math.max(equity, ...snaps.filter((s) => Date.now() - new Date(s.reported_at).getTime() < 30 * 86400_000).map((s) => Number(s.equity)));
+  const openRisk = sum(
+    open.map((t) => Math.max(0, (Number(t.entry) - Number(t.current_stop ?? t.stop)) * Number(t.qty_open ?? t.quantity ?? 0)))
+  );
+  const closedR = closed.map((t) => (t.r_multiple == null ? null : Number(t.r_multiple))).filter((x): x is number => x != null);
+  let streak = 0;
+  for (const t of [...closed].sort((a, b) => String(b.closed_at).localeCompare(String(a.closed_at)))) {
+    if (Number(t.realized_pnl) < 0) streak++;
+    else break;
+  }
+  return {
+    risk: cfg,
+    snapshot: snap,
+    equity,
+    peak30,
+    open,
+    closed,
+    handoffs: check(handoffs) as Handoff[],
+    universe: (universe.error ? [] : universe.data ?? []) as CbUniverseRow[],
+    signals: (signals.error ? [] : signals.data ?? []) as CbSignal[],
+    backtests: check(backtests) as Backtest[],
+    journal: check(journal) as JournalLine[],
+    openRisk,
+    openRiskPct: equity > 0 ? (openRisk / equity) * 100 : 0,
+    stats: {
+      closed: closedR.length,
+      wins: closedR.filter((r) => r > 0).length,
+      avgR: closedR.length ? closedR.reduce((a, b) => a + b, 0) / closedR.length : null,
+      totalR: closedR.reduce((a, b) => a + b, 0),
+      pnl: sum(closed.map((t) => t.realized_pnl)),
+      lossStreak: streak,
+    },
+  };
+}

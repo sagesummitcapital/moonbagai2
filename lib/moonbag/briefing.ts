@@ -4,7 +4,7 @@
 // Same layout every day, built to be skimmed in the morning (Stavros, 2026-10-08).
 
 import { getSystemState, getYesterdayReview } from "./db";
-import { fmtPct, fmtRR, getLeverageDesk, getRobinhoodBook, isDeskAlert, tradeMetrics } from "./desk";
+import { fmtPct, fmtRR, getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert, tradeMetrics } from "./desk";
 
 const n = (v: unknown, d = 2) =>
   v === null || v === undefined || v === "" || Number.isNaN(Number(v))
@@ -55,7 +55,13 @@ export type BriefCoin = {
 };
 
 export async function buildBriefing() {
-  const [state, lev, rh, yesterday] = await Promise.all([getSystemState(), getLeverageDesk(), getRobinhoodBook(), getYesterdayReview()]);
+  const [state, lev, rh, yesterday, cb] = await Promise.all([
+    getSystemState(),
+    getLeverageDesk(),
+    getRobinhoodBook(),
+    getYesterdayReview(),
+    getCoinbaseBook().catch(() => null), // Book 3 is optional — never let it blank the brief
+  ]);
   const now = new Date().toISOString();
   const risk = riskNow(lev.equity, lev.strategy?.rules, Number(lev.risk?.risk_per_trade_pct ?? 2));
 
@@ -168,6 +174,14 @@ export async function buildBriefing() {
         fills: rh.fillsThisWeek,
         maxFills: rh.risk?.max_fills_per_week ?? 2,
       },
+      coinbase: cb
+        ? {
+            equity: cb.equity,
+            open: cb.open.map((t) => t.symbol),
+            openRiskPct: cb.openRiskPct,
+            regimes: cb.universe.map((u) => ({ symbol: u.symbol, regime: u.regime, trigger: u.trigger_px })),
+          }
+        : null,
     },
     yesterday: { graded: scores.length, avg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null, lesson },
   };
@@ -198,6 +212,15 @@ export async function buildBriefing() {
   L.push("YOUR BOOKS");
   L.push(`  Leverage   ${usd(lev.equity)}${lev.milestone ? ` → next ${usd(lev.milestone)}` : ""} · ${lev.openTrades.length ? `${lev.openTrades.length} open trade` : "no open trade"} · risk ${n(risk.g5, 1)}% A+ / ${n(risk.g4, 1)}% A`);
   L.push(`  Robinhood  ${rh.snapshot ? usd(rh.snapshot.equity) : "—"} · ${rh.open.length ? rh.open.map((t) => t.symbol).join(", ") : "cash"} · loss box ${usd(rh.box.used)}/${usd(rh.box.limit)} · fills ${rh.fillsThisWeek}/${n(rh.risk?.max_fills_per_week ?? 2, 0)}`);
+  if (cb) {
+    const cbCoins = cb.universe
+      .map((u) => {
+        const held = cb.open.find((t) => t.symbol === u.symbol);
+        return held ? `${u.symbol} held (stop ${n(held.current_stop ?? held.stop)})` : `${u.symbol} ${u.regime ?? "—"} buy > ${u.trigger_px != null ? n(u.trigger_px) : "—"}`;
+      })
+      .join(" · ");
+    L.push(`  Coinbase   ${usd(cb.equity)} · open risk ${n(cb.openRiskPct, 1)}%/15% · ${cbCoins}`);
+  }
   L.push("");
   L.push(`YESTERDAY  ${brief.yesterday.avg != null ? `forecasts graded ${brief.yesterday.avg}/100 avg (${brief.yesterday.graded})` : "not graded yet"}`);
   if (lesson) L.push(`  Lesson: ${firstSentence(lesson, 200)}`);
@@ -227,6 +250,15 @@ export async function buildBriefing() {
         open_trades: rh.open,
         pending_handoffs: rh.handoffs.filter((h) => ["pending", "acknowledged"].includes(h.status)),
       },
+      coinbase: cb
+        ? {
+            equity: cb.equity,
+            open_risk_pct: cb.openRiskPct,
+            universe: cb.universe,
+            open_trades: cb.open,
+            pending_handoffs: cb.handoffs.filter((h) => ["pending", "acknowledged"].includes(h.status)),
+          }
+        : null,
     },
   };
 }

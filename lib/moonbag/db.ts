@@ -192,15 +192,16 @@ export async function updateAlert(
 }
 
 // ---------------------------------------------------------------- handoffs
-export async function listHandoffs(status?: HandoffStatus): Promise<Handoff[]> {
+export async function listHandoffs(status?: HandoffStatus, broker?: string): Promise<Handoff[]> {
   const db = supabaseAdmin();
   let q = db.from("handoffs").select("*");
   if (status) q = q.eq("status", status);
+  if (broker) q = q.eq("broker", broker);
   return check(await q.order("created_at", { ascending: false }).limit(300)) as Handoff[];
 }
 
 export async function createHandoff(
-  h: Pick<Handoff, "thesis_id" | "symbol" | "direction"> &
+  h: Pick<Handoff, "symbol" | "direction"> & { thesis_id?: string | null } &
     Partial<
       Pick<
         Handoff,
@@ -346,7 +347,7 @@ export function accuracyBy(
 
 // ---------------------------------------------------------------- accounts & risk
 export async function createAccountSnapshot(snap: {
-  venue: "robinhood" | "blofin";
+  venue: "robinhood" | "blofin" | "coinbase";
   equity: number;
   cash?: number | null;
   buying_power?: number | null;

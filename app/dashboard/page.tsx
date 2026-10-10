@@ -1,6 +1,6 @@
 import { getActiveTheses, getSystemState, getYesterdayReview, latestReport } from "@/lib/moonbag/db";
 import { buildBriefing } from "@/lib/moonbag/briefing";
-import { getLeverageDesk, getRobinhoodBook, isDeskAlert } from "@/lib/moonbag/desk";
+import { getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert } from "@/lib/moonbag/desk";
 import Link from "next/link";
 import { load } from "./_components/data";
 import { MorningBrief } from "./_components/MorningBrief";
@@ -21,7 +21,7 @@ export default async function TodayPage() {
     return { state, theses, yesterday, report };
   });
   // The two books load separately so one failing never blanks the page.
-  const [{ data: lev }, { data: rh }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(buildBriefing)]);
+  const [{ data: lev }, { data: rh }, { data: cb }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(getCoinbaseBook), load(buildBriefing)]);
   const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && isDeskAlert(s));
 
   const state = data?.state;
@@ -96,6 +96,26 @@ export default async function TodayPage() {
             </>
           ) : (
             <Empty>Leverage desk not loaded.</Empty>
+          )}
+        </Card>
+        <Card title="Book 3 · Crypto trend (Coinbase)" className="lg:col-span-2" right={<Link href="/dashboard/coinbase" className="text-[12.5px] text-accent-cyan hover:underline">Open →</Link>}>
+          {cb ? (
+            <>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="font-mono text-[24px] font-semibold text-white">{money(cb.equity)}</span>
+                <span className="text-[13px] text-white/55">open risk {num(cb.openRiskPct, 1)}% of 15% · {cb.stats.closed ? `${cb.stats.closed} closed, ${num(cb.stats.totalR, 1)}R` : "no closed trades yet"}</span>
+              </div>
+              <p className="mt-2 text-[13.5px] text-white/75">
+                {cb.universe.map((u) => {
+                  const held = cb.open.find((t) => t.symbol === u.symbol);
+                  return held
+                    ? `${u.symbol} held @ ${num(held.entry)} (stop ${num(held.current_stop ?? held.stop)})`
+                    : `${u.symbol} ${u.regime ?? "—"} · buys above ${num(u.trigger_px)}`;
+                }).join(" · ")}
+              </p>
+            </>
+          ) : (
+            <Empty>Coinbase book not loaded.</Empty>
           )}
         </Card>
       </div>

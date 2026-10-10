@@ -7,6 +7,7 @@ import { Badge, Card, Mono, Table, biasTone, money, num, statusTone, when } from
 const VENUES: { key: string; label: string }[] = [
   { key: "robinhood", label: "Robinhood (Grok)" },
   { key: "blofin", label: "BloFin (manual leverage)" },
+  { key: "coinbase", label: "Coinbase (Grok, spot crypto)" },
   { key: "other", label: "Other venues" },
 ];
 

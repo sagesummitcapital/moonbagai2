@@ -164,7 +164,8 @@ export type HandoffStatus =
 
 export interface Handoff {
   handoff_id: string; // MBH-…
-  thesis_id: string;
+  /** null only for Coinbase handoffs (the rule-based system signal is the thesis) */
+  thesis_id: string | null;
   destination: string;
   broker: string;
   symbol: string;
@@ -187,11 +188,12 @@ export interface Handoff {
 }
 
 export type TradeStatus = "pending" | "open" | "closed" | "cancelled";
-export type Venue = "robinhood" | "blofin" | "other";
+export type Venue = "robinhood" | "blofin" | "coinbase" | "other";
 
 export interface Trade {
   trade_id: string; // MBT-…
-  thesis_id: string;
+  /** null only for Coinbase trades */
+  thesis_id: string | null;
   handoff_id: string | null;
   venue: Venue;
   execution: "manual" | "grokbot" | "other";

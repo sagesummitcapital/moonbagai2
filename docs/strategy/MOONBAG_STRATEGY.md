@@ -1,6 +1,6 @@
 # Moonbag Strategy — Source of Truth
 
-Version 5 · 2026-10-09 · Owner: Stavros · Maintained by Claude
+Version 7 · 2026-10-10 · Owner: Stavros · Maintained by Claude
 
 This file is the one place the Moonbag strategy is written down. Every agent works from it.
 When it changes, the same text is saved in three places: this file in the repo
@@ -82,7 +82,7 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 
 ### 3.2 Hard rules (do not bend)
 
-- **One trade per coin, at most 2 open at once, combined risk to the stops ≤ 15% of the account** (Stavros, 2026-10-09). A trade on one coin never changes another coin's lines. A second trade is sized to fit what is left of the 15% (below 1% left = NO TRADE). Risk on a trade drops to 0 once its stop is at or past entry.
+- **One trade per coin, no cap on the number of open trades, combined risk to the stops ≤ 15% of the account** (Stavros, 2026-10-09; 2-trade cap removed 2026-10-10). A trade on one coin never changes another coin's lines. Each extra trade is sized to fit what is left of the 15% (below 1% left = NO TRADE). Risk on a trade drops to 0 once its stop is at or past entry.
 - Hold 72 hours maximum (time stop).
 - Stavros places every order.
 - Stop beyond real structure and at least 0.5% from entry (0.8% for rotation coins). The stop must sit inside 80% of the distance to liquidation.
@@ -156,7 +156,7 @@ Lines come from price alerts. The connector can't draw permanent chart drawings,
 
 **DESK ALERT checklist** (all must be yes):
 
-1. Coin is core or in play, no open trade on this coin, fewer than 2 trades open, and at least 1% of the 15% open-risk budget left.
+1. Coin is core or in play, no open trade on this coin, and at least 1% of the 15% open-risk budget left.
 2. R:R at TP1 is at least 1.5.
 3. Stop is beyond structure and far enough from entry.
 4. Leverage is within the coin's cap and the stop is inside 80% of the liquidation distance.
@@ -349,6 +349,28 @@ Full thesis: `docs/strategy/LONG_TERM_THESIS.md`.
 - **Watchlist** (government-backed or on-thesis; bought only after promotion) and **avoid list** (entropy losers, tracked as paper shorts) live in `lt_universe`.
 - **Feedback loop.** The Saturday review scores the sleeve against SPY bought on the same dates, checks the FUD boost against plain DCA, grades the paper shorts, runs the entropy scan ("who just lost pricing power?") and checks each watchlist name's add-rule.
 
+### 4.6 Book 3 — Coinbase crypto trend book (2026-10-10)
+
+Full strategy, research and backtests: `docs/strategy/COINBASE_STRATEGY.md`. Machine form: `risk_config` (venue `coinbase`), `cb_universe`, `cb_signals`, `cb_backtest()`.
+
+- **What it is.** The agentic Coinbase account (started with $100), connected to Grokbot. It is spot only: long or cash (USDC). It works like Robinhood: Moonbag decides and hands off (`broker: coinbase`), Grok executes and reports, and everything shows on `/dashboard/coinbase`.
+- **Coins.** BTC-USD, ETH-USD, SOL-USD. New coins need their own backtest first.
+- **Regime, per coin.**
+  - **BULL:** a daily close above 1.02 × 200-day SMA.
+  - **BEAR:** a daily close below 0.97 × 200-day SMA. That means exit, cash, no longs.
+  - This is the "flip bearish" rule. Stavros's 100–105k BTC top is used as a profit-taking zone, not as a forecast.
+- **Entry.** A BULL coin closes above its prior 55-day high. Market buy after the 00:00 UTC close; Grok never pays more than 1% above the handed-off price.
+- **Stop.** 3 × ATR(14) below entry.
+- **Take profit and trail.** TP1 sells half at 3R. Then the stop on the rest goes to entry + 1.2%, and the runner trails the prior 20-day low (the 10-day low once BTC trades above 100k).
+- **Risk.**
+  - 5% of equity per trade, including fees.
+  - 15% max open risk; one position per coin, max 3.
+  - Risk halves after 3 straight losses.
+  - New entries pause if equity is 20% below its 30-day peak.
+  - The database enforces all of this (`moonbag_check_handoff_coinbase`).
+- **Why this system.** On Coinbase data with fees, 2021–26, it returned 29.6% a year with a −18.9% worst drawdown, against 19.6% a year and −76.7% for buy-and-hold. All 36 parameter variants tested were profitable in both 2017–20 and 2021–26.
+- **Separate from Book 1.** The Robinhood no-crypto rule stands. Coinbase is the only place Moonbag owns spot crypto.
+
 ---
 
 ## 5. Daily brief (one format, every day)
@@ -377,12 +399,21 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 | C-setup review | Auditor | Saturday 6:29 | Which component held back setups that worked |
 | Strategy review: backtests, calibration, R:R buckets, leverage, Moonbag vs own | Auditor | Saturday 6:59 | Strategy version, playbook status, minimum R:R, leverage ceilings |
 | Rotation re-rank | Scout | Daily | The 5 coins and the 2 in play |
+| Coinbase signals vs live fills (`cb_signals`), `cb_backtest` re-run, R:R buckets | Coinbase desk (daily) + Auditor (Saturday) | Daily / weekly | Coinbase rules; a risk-ladder proposal to Stavros after 15 closed trades |
 
 **Changes on evidence only:** 10+ resolved results, or a backtest that holds on two coins. Risk %, the 20x ceiling, the 2-trade / 15% open-risk limit and the 72h limit change only when Stavros says so.
 
 ---
 
 ## 7. Change log
+
+- **2026-10-10 (v7):** Book 3 — Coinbase crypto trend book (§4.6, COINBASE_STRATEGY.md).
+  - Spot BTC/ETH/SOL, regime-gated 55-day breakout, 5% risk, 15% open risk.
+  - Grok executes Moonbag handoffs (`broker: coinbase`). A new Coinbase desk (hourly) and the weekly review run the feedback loops.
+
+- **2026-10-10 (v6):** 2-open-trade cap removed (Stavros: "no 2 trade limit").
+  - Still in force: one trade per coin, 15% combined open risk to the stops (a risk-free trade counts 0), margin cap, 2-loss half-risk, 15% drawdown pause.
+  - Desk Lead: every fired MB alert gets an answer (touch line + one decision), runs at :02 after each 1h close, keeps the TradingView watchlist in sync.
 
 - **2026-10-09 (v5):** Long-term sleeve added (§4.5 and LONG_TERM_THESIS.md).
   - 25% of the Robinhood account, weekly DCA over 8 weeks, with its own rules.

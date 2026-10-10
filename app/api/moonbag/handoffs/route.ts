@@ -4,15 +4,17 @@ import type { HandoffStatus } from "@/lib/moonbag/types";
 
 export const dynamic = "force-dynamic";
 
-/** Grok polls this:  GET /api/moonbag/handoffs?status=pending */
+/** Grok polls this:  GET /api/moonbag/handoffs?status=pending  (add &broker=robinhood or &broker=coinbase to filter) */
 export const GET = withAgent(["claude", "grok"], async (req) => {
-  const status = (new URL(req.url).searchParams.get("status") as HandoffStatus) ?? undefined;
-  return json({ ok: true, handoffs: await listHandoffs(status) });
+  const p = new URL(req.url).searchParams;
+  const status = (p.get("status") as HandoffStatus) ?? undefined;
+  return json({ ok: true, handoffs: await listHandoffs(status, p.get("broker") ?? undefined) });
 });
 
 export const POST = withAgent(["claude"], async (req) => {
   const body = await readJson(req);
-  if ((body.action ?? "open") === "open") requireFields(body, ["thesis_id", "symbol", "direction"]);
+  // Coinbase opens come from the rule-based system (cb_signals) and may omit thesis_id.
+  if ((body.action ?? "open") === "open") requireFields(body, body.broker === "coinbase" ? ["symbol", "direction"] : ["thesis_id", "symbol", "direction"]);
   else requireFields(body, ["action", "trade_id"]);
   const handoff = await createHandoff(
     pick(body, [

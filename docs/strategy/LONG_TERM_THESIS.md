@@ -129,6 +129,14 @@ The Robinhood sleeve is only one part of what Stavros owns. The thesis is judged
 - **Entropy warning.** The Trap names nonbank credit as where stress spreads next, and much of DeFi yield *is* nonbank credit. So the DeFi bucket stays small, prefers T-bill-backed and AI-compute-backed yield, and is cut first if credit stress shows up.
 - **Monthly re-scan** (1st of each month, ownership review): refresh the tiers, record new rows, check for hacks or depegs, and say plainly "nothing worth the risk" when that's the answer.
 
+**Crypto, held through the trend (Book 3, 2026-10-10)**
+- The hard-money view says own scarce assets. For BTC, ETH and SOL that is done in the Coinbase account (spot), **not** the Robinhood sleeve, where the no-crypto rule stands.
+- These positions are held only while each coin's trend regime is BULL (a daily close above 1.02 × 200-day SMA) and sized by risk. Full rules: `COINBASE_STRATEGY.md`.
+- The reason is the data:
+  - BTC's last two cycles drew down 77–84%. Even the regime filter alone would have kept 50–65% drawdowns.
+  - The R-sized system kept the 2021–26 drawdown to about 19% and still beat buy-and-hold.
+- Idle USDC in that account is the natural first money for the DeFi bucket, but only after Stavros says it is deployable.
+
 ## 7. Evidence against (read before adding)
 
 - **Valuations already price in a lot of success.** SPCX is about $2.2T after a 50% post-IPO swing; TSLA is down 11% over 12 months and below its 200-day; NVDA is about $5.5T.
@@ -139,6 +147,7 @@ The Robinhood sleeve is only one part of what Stavros owns. The thesis is judged
 
 ## 8. Change log
 
+- **2026-10-10 v3:** Crypto exposure goes through Book 3 (the Coinbase trend book), held only while each coin's trend is up and sized by risk. The Robinhood no-crypto rule is unchanged.
 - **2026-10-09 v2:** Added the labor-to-assets principle, the real-estate ledger (rentals pay; personal homes count for net worth only), the whole-balance-sheet view, and the DeFi yield scan (first scan done; monthly from Nov 1; no money moves until crypto is deployable).
 - **2026-10-09 v1:** Created.
   - Sleeve set at 25%, 8-week weekly DCA.
