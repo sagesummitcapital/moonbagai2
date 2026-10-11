@@ -137,7 +137,9 @@ export function Delta({ v, d = 2, unit = "", prefix = "", arrow = true, classNam
   v: number | null | undefined; d?: number; unit?: string; prefix?: string; arrow?: boolean; className?: string;
 }) {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return <span className={`font-mono tabular-nums text-white/40 ${className}`}>—</span>;
-  const n = Number(v);
+  // A value that prints as 0.00 is shown as zero (grey, no sign) — never "−0.00" in red.
+  const raw = Number(v);
+  const n = Number(Math.abs(raw).toLocaleString("en-US", { maximumFractionDigits: d, useGrouping: false })) === 0 ? 0 : raw;
   const tone: Tone = n > 0 ? "green" : n < 0 ? "red" : "gray";
   const glyph = !arrow ? "" : n > 0 ? "▲ " : n < 0 ? "▼ " : "";
   const sign = n > 0 ? "+" : n < 0 ? "−" : "";
@@ -391,6 +393,64 @@ export const when = (iso?: string | null) =>
   iso
     ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Phoenix", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "—";
+
+export const TZ = "America/Phoenix";
+const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+
+/** "9:41 AM" today, "Oct 9, 1:30 PM" on any other day (Phoenix). `seconds` adds :07 for live feeds. */
+export const whenShort = (iso?: string | null, seconds = false, now = new Date()) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const time = d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) });
+  return dayKey(d) === dayKey(now) ? time : `${d.toLocaleDateString("en-US", { timeZone: TZ, month: "short", day: "numeric" })}, ${time}`;
+};
+
+/** Price formatter that keeps small-cap coins readable: 82,371.06 · 2,493.96 · 0.6190 · 0.000123. */
+export const px = (v: unknown) => {
+  if (v === null || v === undefined || v === "" || Number.isNaN(Number(v))) return "—";
+  const x = Math.abs(Number(v));
+  const d = x >= 10 ? 2 : x >= 1 ? 4 : x >= 0.01 ? 4 : 6;
+  return Number(v).toLocaleString("en-US", { minimumFractionDigits: x >= 1 ? 2 : 0, maximumFractionDigits: d });
+};
+
+/** Freshness tone for a stored record against the cadence it is supposed to be written at. */
+export function freshness(iso: string | null | undefined, cadenceH: number, now = Date.now()): { tone: Tone; ageMin: number | null } {
+  if (!iso) return { tone: "gray", ageMin: null };
+  const ageMin = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
+  const h = ageMin / 60;
+  return { tone: h <= cadenceH ? "green" : h <= cadenceH * 2 ? "amber" : "red", ageMin };
+}
+
+const STAMP_DOT: Record<Tone, string> = { green: "bg-accent-green", red: "bg-rose-400", amber: "bg-amber-300", cyan: "bg-accent-cyan", gray: "bg-white/30" };
+const STAMP_TEXT: Record<Tone, string> = { green: "text-white/50", red: "text-rose-300", amber: "text-amber-200", cyan: "text-accent-cyan", gray: "text-white/40" };
+
+/**
+ * "desk map · updated 2:04 AM (7h ago)" — the timestamp of the stored record a block is drawn from.
+ * Green inside the block's expected cadence, amber up to twice that, red beyond. Server-rendered.
+ */
+export function Updated({ at, label, cadenceH = 24, verb = "updated", className = "", title }: {
+  at: string | null | undefined; label?: ReactNode; cadenceH?: number; verb?: string; className?: string; title?: string;
+}) {
+  const f = freshness(at, cadenceH);
+  const rel = f.ageMin == null ? "" : f.ageMin < 1 ? "just now" : f.ageMin < 60 ? `${f.ageMin}m ago` : f.ageMin < 48 * 60 ? `${Math.round(f.ageMin / 60)}h ago` : `${Math.round(f.ageMin / 1440)}d ago`;
+  return (
+    <span
+      className={`inline-flex max-w-full flex-wrap items-center gap-x-1.5 font-mono text-[11.5px] leading-[18px] tabular-nums ${STAMP_TEXT[f.tone]} ${className}`}
+      title={title ?? (at ? `${label ? `${label} ` : ""}${verb} ${new Date(at).toLocaleString("en-US", { timeZone: TZ })} Phoenix · expected every ~${cadenceH}h` : "no record yet")}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STAMP_DOT[f.tone]}`} aria-hidden />
+      {label && <span className="whitespace-nowrap text-white/45">{label} ·</span>}
+      <span className="whitespace-nowrap">{at ? `${verb ? `${verb} ` : ""}${whenShort(at)}` : "no record yet"}</span>
+      {rel && <span className="whitespace-nowrap text-white/35">({rel})</span>}
+    </span>
+  );
+}
+
+/** Row of Updated chips under a header. */
+export function Stamps({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${className}`}>{children}</div>;
+}
 
 export const ago = (iso?: string | null) => {
   if (!iso) return "—";

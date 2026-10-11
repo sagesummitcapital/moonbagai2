@@ -3,7 +3,7 @@ import { GRADING_WEIGHTS } from "@/lib/moonbag/scoring";
 import { load } from "../_components/data";
 import { Bars, LineChart, Meter, ScoreBar } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, Table, Unit, num } from "../_components/ui";
+import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, Table, Unit, Updated, num } from "../_components/ui";
 
 const scoreTone = (v: number | null | undefined) => (v == null ? "gray" : v >= 70 ? "green" : v >= 50 ? "cyan" : "amber");
 
@@ -55,7 +55,7 @@ export default async function IntelligencePage() {
             value={<>{num(conf, 0)}<Unit>/ 100</Unit></>}
             tone={scoreTone(conf)}
             meter={<Meter value={conf} max={100} tone={scoreTone(conf)} height={6} labels={["0", "100"]} />}
-            sub={`${s?.forecasts_graded ?? 0} graded · reaches full weight at 20 graded forecasts`}
+            sub={<>{s?.forecasts_graded ?? 0} graded · reaches full weight at 20 graded forecasts · <Updated at={s?.computed_at} cadenceH={26} verb="computed" /></>}
           />
         </Card>
         <Card title="Component accuracy (30d)" className="md:col-span-2" right={<span>weight in the total score</span>}>

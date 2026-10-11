@@ -2,7 +2,7 @@ import { getSystemState, listTrades } from "@/lib/moonbag/db";
 import { load } from "../_components/data";
 import { DivergingBars, LineChart, Meter } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Delta, Empty, Id, Mono, Note, PageHeader, RMult, Stat, Table, Unit, biasGlyph, biasTone, money, num, when } from "../_components/ui";
+import { Badge, Card, Delta, Empty, Id, Mono, Note, PageHeader, RMult, Stat, Table, Unit, Updated, biasGlyph, biasTone, money, num, when } from "../_components/ui";
 
 const VENUE_LABEL: Record<string, string> = { robinhood: "Robinhood", blofin: "BloFin", coinbase: "Coinbase", other: "Other" };
 
@@ -36,7 +36,7 @@ export default async function PerformancePage() {
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
-      <PageHeader title="Performance" sub="Every closed trade across the three books, with the forecasting and execution scores that go with them." right={<Badge tone="gray">{closed.length} closed trades</Badge>} />
+      <PageHeader title="Performance" sub="Every closed trade across the three books, with the forecasting and execution scores that go with them. Closed trades are final records, so nothing here needs a live price." right={<><Badge tone="gray">{closed.length} closed trades</Badge><Updated label="last close" at={closed.map((t) => t.closed_at).filter(Boolean).sort().reverse()[0]} cadenceH={24 * 7} verb="" /></>} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Card><Stat label="Realized P&L" value={<Delta v={pnl} prefix="$" arrow={false} className="text-[26px] md:text-[30px]" />} sub={`${closed.length} closed trades`} /></Card>
@@ -55,7 +55,7 @@ export default async function PerformancePage() {
             label="Forecast accuracy"
             value={<>{num(data?.state?.avg_total_score, 0)}<Unit>/ 100</Unit></>}
             meter={<Meter value={Number(data?.state?.avg_total_score ?? 0)} max={100} tone="cyan" height={6} />}
-            sub="30-day avg graded score"
+            sub={<>30-day avg graded score · <Updated at={data?.state?.computed_at} cadenceH={26} verb="computed" /></>}
           />
         </Card>
         <Card>

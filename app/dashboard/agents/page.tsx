@@ -2,7 +2,7 @@ import { getAgentsBoard } from "@/lib/moonbag/agents";
 import { load } from "../_components/data";
 import { DivergingBars, Legend } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, StatGrid, Table, Tile, ago, num, when } from "../_components/ui";
+import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, StatGrid, Table, Tile, Updated, ago, num, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +108,7 @@ export default async function AgentsPage() {
         </div>
       </Card>
 
-      <Card title="Coins the Scout watches" right={<Mono>BTC/ETH always · top 5 rotation · max 2 in play</Mono>}>
+      <Card title="Coins the Scout watches" right={<><Mono>BTC/ETH always · top 5 rotation · max 2 in play</Mono><Updated label="ranked" at={data.universe.map((u) => u.updated_at).filter(Boolean).sort().reverse()[0]} cadenceH={26} verb="" /></>}>
         {rotation.length > 0 && (
           <DivergingBars
             className="mb-4"

@@ -1,10 +1,16 @@
 import type { DailyThesis } from "@/lib/moonbag/types";
+import type { LivePrice as LP, PriceKind } from "@/lib/moonbag/prices";
 import { LevelLadder, ScoreBar } from "./charts";
-import { Badge, Card, KV, LongText, Id, biasGlyph, biasTone, list, num, statusTone } from "./ui";
+import { LivePrice } from "./LivePrice";
+import { Badge, Card, KV, LongText, Id, Updated, biasGlyph, biasTone, list, num, statusTone } from "./ui";
 
 const DECISION_LABEL: Record<string, string> = { trade: "TRADE", no_trade: "NO TRADE", watch: "WATCH" };
 
-export function ThesisCard({ t, title }: { t: DailyThesis; title?: string }) {
+export function ThesisCard({ t, title, live, kind = "crypto" }: {
+  t: DailyThesis; title?: string;
+  /** Live price for the thesis asset (omit for MASTER / EQUITY). Marks the ladder and checks the invalidation. */
+  live?: LP | null; kind?: PriceKind;
+}) {
   const plan = t.trade_plan ?? {};
   const lv = t.levels ?? { support: [], resistance: [], breakout: null, invalidation: null };
   const anchor = (lv as unknown as { anchor?: string }).anchor;
@@ -12,14 +18,27 @@ export function ThesisCard({ t, title }: { t: DailyThesis; title?: string }) {
   const res = (lv.resistance ?? []).map(Number).filter(Number.isFinite);
   const regimeShort = !!t.market_regime && t.market_regime.length <= 24;
   const gradeTone = t.setup_grade === "A+" || t.setup_grade === "A" ? "green" : t.setup_grade === "B" ? "cyan" : "gray";
+  const livePx = live?.ok && live.price != null ? live.price : null;
+  const inv = lv.invalidation != null ? Number(lv.invalidation) : null;
+  const dir = String(plan.direction ?? (t.bias === "bearish" ? "short" : t.bias === "bullish" ? "long" : "")).toLowerCase();
+  // A short is dead once price is above its invalidation; a long once it is below. Only judged on a LIVE price.
+  const broken = livePx != null && inv != null && ((dir === "short" && livePx > inv) || (dir === "long" && livePx < inv));
   return (
     <Card
       title={title ?? t.asset}
+      tone={broken ? "warn" : undefined}
       right={
         <>
           <Badge tone={biasTone(t.bias)}>{biasGlyph(t.bias)} {t.bias}</Badge>
           <Badge tone={statusTone(t.decision)}>{DECISION_LABEL[t.decision] ?? t.decision}</Badge>
+          {broken && <Badge tone="red">price past invalidation</Badge>}
         </>
+      }
+      sub={
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Updated label={`thesis ${t.thesis_date}`} at={t.created_at} cadenceH={26} verb="written" />
+          {live && <LivePrice symbol={t.asset} kind={kind} initial={live} size="inline" showChange />}
+        </span>
       }
     >
       {/* the three numbers */}
@@ -39,7 +58,13 @@ export function ThesisCard({ t, title }: { t: DailyThesis; title?: string }) {
 
       {/* levels as a picture, then the exact numbers */}
       {(sup.length || res.length) && (sup.length + res.length) >= 2 ? (
-        <LevelLadder className="mt-3" price={null} below={sup.slice().sort((a, b) => b - a).slice(0, 3)} above={res.slice().sort((a, b) => a - b).slice(0, 3)} />
+        <LevelLadder
+          className="mt-3"
+          price={livePx}
+          below={sup.slice().sort((a, b) => b - a).slice(0, 3)}
+          above={res.slice().sort((a, b) => a - b).slice(0, 3)}
+          live={live ? { symbol: t.asset, kind, initial: live } : undefined}
+        />
       ) : null}
 
       <KV
@@ -49,7 +74,7 @@ export function ThesisCard({ t, title }: { t: DailyThesis; title?: string }) {
           ["Support", list(lv.support)],
           ["Resistance", list(lv.resistance)],
           ["Breakout", num(lv.breakout)],
-          ["Invalidation", num(lv.invalidation)],
+          ["Invalidation", broken ? <span key="inv" className="text-rose-300">{num(lv.invalidation)} ✕ broken</span> : num(lv.invalidation)],
           ...(plan.direction
             ? ([
                 ["Plan", <span key="p"><Badge tone={biasTone(plan.direction)}>{plan.direction}</Badge> entry {list(plan.entry_zone)}</span>],

@@ -1,9 +1,11 @@
 import { getActiveTheses, listAlerts, listHandoffs, moonbagDate } from "@/lib/moonbag/db";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { load } from "../_components/data";
+import { LiveMetric, LivePrice } from "../_components/LivePrice";
+import { NON_TRADABLE, best, cryptoSetFrom, kindFor, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { Meter } from "../_components/charts";
-import { Badge, Card, Id, Mono, PageHeader, Stat, StatGrid, Table, biasGlyph, biasTone, gradeName, gradeTone, list, num, statusTone, when } from "../_components/ui";
+import { Badge, Card, Id, Mono, PageHeader, Stat, StatGrid, Table, Updated, biasGlyph, biasTone, gradeName, gradeTone, list, num, statusTone, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -43,16 +45,21 @@ export default async function OpportunitiesPage() {
   });
   const prices = data?.prices ?? {};
   const today = moonbagDate();
+  // Live prices for every coin with a play and every thesis asset; the desk's hourly price is the stored fallback.
+  const cryptoSet = cryptoSetFrom(Object.keys(prices));
+  const live = await loadLive([...(data?.live ?? []).map((s) => s.asset), ...(data?.theses ?? []).map((t) => t.asset).filter((a) => !NON_TRADABLE.has(a))], cryptoSet);
+  const storedFor = (asset: string) => (prices[asset] ? storedOf(prices[asset].price, prices[asset].ts) : undefined);
+  const deskAt = Object.values(prices).map((x) => x.ts).sort().reverse()[0] ?? null;
   const setups = (data?.theses ?? [])
     .filter((t) => t.asset !== "MASTER" && t.asset !== "EQUITY")
     .map((t) => {
-      const p = prices[t.asset]?.price ?? null;
+      const { price: p, isLive } = best(live[t.asset], prices[t.asset]?.price ?? null);
       const dir = String(t.trade_plan?.direction ?? t.bias ?? "").toLowerCase();
       const inv = t.levels?.invalidation != null ? Number(t.levels.invalidation) : null;
       // A short is dead once price is above invalidation; a long once it is below.
       const broken = p != null && inv != null && ((dir === "short" && p > inv) || (dir === "long" && p < inv));
       const old = t.thesis_date < today;
-      return { t, p, broken, old };
+      return { t, p, isLive, broken, old };
     })
     .sort((a, b) => Number(a.broken) - Number(b.broken) || Number(b.t.setup_score ?? -1) - Number(a.t.setup_score ?? -1));
   const liveAlerts = (data?.alerts ?? []).filter((a) => ["active", "triggered", "stale"].includes(a.status));
@@ -60,12 +67,16 @@ export default async function OpportunitiesPage() {
 
   const livePlays = data?.live ?? [];
   const tradeable = setups.filter((x) => !x.broken && x.t.decision === "trade").length;
-  const maxDist = Math.max(1, ...livePlays.map((s) => { const p = prices[s.asset]?.price ?? null; const lvl = Number(s.trigger_price ?? s.entry); return p != null && lvl ? Math.abs(((lvl - p) / p) * 100) : 0; }));
+  const maxDist = Math.max(1, ...livePlays.map((s) => { const p = best(live[s.asset], prices[s.asset]?.price ?? null).price; const lvl = Number(s.trigger_price ?? s.entry); return p != null && lvl ? Math.abs(((lvl - p) / p) * 100) : 0; }));
 
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
-      <PageHeader title="Opportunities" sub="What is sitting on a level right now: the plays on the TradingView range lines, today's theses checked against live price, and what has been handed to Grok." />
+      <PageHeader
+        title="Opportunities"
+        sub="What is sitting on a level right now: the plays on the TradingView range lines, today's theses checked against live price, and what has been handed to Grok."
+        right={<Updated label="desk hourly map" at={deskAt} cadenceH={2} verb="checked" />}
+      />
 
       <StatGrid cols={4}>
         <Card><Stat label="Live plays" value={livePlays.length} size="md" tone={livePlays.length ? "cyan" : undefined} sub="on the range lines, last 36h" /></Card>
@@ -74,13 +85,13 @@ export default async function OpportunitiesPage() {
         <Card><Stat label="Live alerts" value={liveAlerts.length} size="md" sub="active, triggered or stale" /></Card>
       </StatGrid>
 
-      <Card title="Live plays (TradingView range lines)" right={<Mono>refreshed every hour by the Desk Lead</Mono>}>
+      <Card title="Live plays (TradingView range lines)" right={<Mono>plays set hourly by the Desk Lead · price and distance live</Mono>}>
         <Table
           head={["Coin", "Play", "Trigger", "Stop", "TP1", "Score", "Price now", "Distance to trigger", "Set"]}
           align={["l", "l", "r", "r", "r", "l", "r", "l", "l"]}
-          minWidth={960}
+          minWidth={1000}
           rows={livePlays.map((s) => {
-            const p = prices[s.asset]?.price ?? null;
+            const p = best(live[s.asset], prices[s.asset]?.price ?? null).price;
             const lvl = Number(s.trigger_price ?? s.entry);
             const dist = p != null && lvl ? ((lvl - p) / p) * 100 : null;
             return [
@@ -90,9 +101,9 @@ export default async function OpportunitiesPage() {
               <span key="st" className="text-rose-300/80">{num(s.stop)}</span>,
               <span key="tp" className="text-accent-green/80">{num(s.tp1)}</span>,
               <Badge key="s" tone={gradeTone(s.confidence_grade)}>{num(s.confidence_score, 0)} · {gradeName(s.confidence_grade) || "—"}</Badge>,
-              <span key="p">{num(p)}<div className="text-[11.5px] text-white/40">{ago(prices[s.asset]?.ts)}</div></span>,
+              <span key="p"><LivePrice symbol={s.asset} kind={kindFor(s.asset, cryptoSet)} initial={live[s.asset]} stored={storedFor(s.asset)} size="sm" />{prices[s.asset] && <div className="text-[11px] text-white/35">desk check {num(prices[s.asset].price)} · {ago(prices[s.asset].ts)}</div>}</span>,
               <span key="x" className="block min-w-[150px]">
-                <span className={`font-mono tabular-nums ${dist == null ? "text-white/40" : Math.abs(dist) < 1 ? "text-amber-200" : "text-white/70"}`}>{dist == null ? "—" : `${dist > 0 ? "▲ +" : "▼ −"}${num(Math.abs(dist), 2)}%`}</span>
+                <LiveMetric symbol={s.asset} kind={kindFor(s.asset, cryptoSet)} initial={live[s.asset]} stored={storedFor(s.asset)} metric="distPct" level={lvl} className={dist != null && Math.abs(dist) < 1 ? "rounded bg-amber-300/10 px-1" : ""} />
                 {dist != null && <Meter className="mt-1" value={maxDist - Math.abs(dist)} max={maxDist} tone={Math.abs(dist) < 1 ? "amber" : "gray"} height={4} />}
               </span>,
               <span key="ago" className="whitespace-nowrap text-white/60">{ago(s.created_at)}</span>,
@@ -100,15 +111,15 @@ export default async function OpportunitiesPage() {
           })}
           empty="No live plays on the range lines right now."
         />
-        {livePlays.length > 0 && <p className="mt-2 text-[12px] text-white/40">Distance bar: fuller = price is closer to the trigger (amber within 1%).</p>}
+        {livePlays.length > 0 && <p className="mt-2 text-[12px] text-white/40">Distance bar: fuller = price is closer to the trigger (amber within 1%) — the bar is set at page load, the figure keeps polling.</p>}
       </Card>
 
       <Card title="Daily theses" right={<Mono>written once a day · checked against live price</Mono>}>
         <Table
           head={["Asset", "Direction", "Setup score", "Entry", "Stop", "Targets", "Invalidation", "Price now", "Status"]}
           align={["l", "l", "l", "r", "r", "r", "r", "r", "l"]}
-          minWidth={960}
-          rows={setups.map(({ t, p, broken, old }) => [
+          minWidth={1020}
+          rows={setups.map(({ t, p, isLive, broken, old }) => [
             <span key="a" className={broken ? "opacity-50" : ""}><strong className="text-white">{t.asset}</strong><br /><Id>{t.thesis_id}</Id><div className="text-[11.5px] text-white/40">written {ago(t.created_at)}</div></span>,
             <Badge key="d" tone={biasTone(t.trade_plan?.direction ?? t.bias)}>{biasGlyph(t.trade_plan?.direction ?? t.bias)} {t.trade_plan?.direction ?? t.bias}</Badge>,
             <span key="s" className="whitespace-nowrap font-mono tabular-nums">{num(t.setup_score, 1)} {t.setup_grade && <Badge tone={t.setup_grade === "A+" || t.setup_grade === "A" ? "green" : t.setup_grade === "B" ? "cyan" : "gray"}>{t.setup_grade}</Badge>}</span>,
@@ -116,9 +127,9 @@ export default async function OpportunitiesPage() {
             <span key="stp" className="text-rose-300/80">{num(t.trade_plan?.stop)}</span>,
             <span key="tp" className="text-accent-green/80">{[t.trade_plan?.tp1, t.trade_plan?.tp2, t.trade_plan?.tp3].filter((x) => x != null).map((x) => num(x)).join(" · ") || "—"}</span>,
             num(t.levels?.invalidation),
-            num(p),
+            NON_TRADABLE.has(t.asset) ? <span key="p" className="text-white/40">—</span> : <LivePrice key="p" symbol={t.asset} kind={kindFor(t.asset, cryptoSet)} initial={live[t.asset]} stored={storedFor(t.asset)} size="sm" />,
             broken ? (
-              <span key="st"><Badge tone="red">BROKEN</Badge><div className="mt-1 max-w-[180px] text-[11.5px] leading-snug text-white/45">price is past invalidation — ignore this plan</div></span>
+              <span key="st"><Badge tone="red">BROKEN</Badge><div className="mt-1 max-w-[180px] text-[11.5px] leading-snug text-white/45">{isLive ? "live" : "stored"} price is past invalidation — ignore this plan</div></span>
             ) : (
               <span key="st"><Badge tone={statusTone(t.decision)}>{t.decision.replace("_", " ").toUpperCase()}</Badge>{old && <div className="mt-1 text-[11.5px] text-amber-200/70">from {t.thesis_date}</div>}</span>
             ),

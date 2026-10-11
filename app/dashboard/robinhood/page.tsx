@@ -1,9 +1,11 @@
 import { getRobinhoodBook } from "@/lib/moonbag/desk";
 import { load } from "../_components/data";
 import { Bars, DivergingBars, Meter, ScoreBar, budgetTone } from "../_components/charts";
+import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/LivePrice";
+import { NON_TRADABLE, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { ThesisCard } from "../_components/ThesisCard";
-import { Badge, Card, Empty, Expander, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, biasGlyph, biasTone, money, num, statusTone, when } from "../_components/ui";
+import { Badge, Card, Empty, Expander, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, px, statusTone, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,17 @@ export default async function RobinhoodPage() {
   const status = halted ? "Soft halt" : risk?.auto_execute ? "Auto within limits" : "Paused";
   const openRisk = (t: (typeof open)[number]) => Math.max(0, (Number(t.entry) - Number(t.current_stop ?? t.stop)) * Number(t.quantity ?? 0));
 
+  // Live quotes (Yahoo Finance) for everything held or watched; the account snapshot's market values are the stored fallback.
+  const cryptoSet = cryptoSetFrom();
+  const live = await loadLive(
+    [...open.map((t) => t.symbol), ...data.longTerm.sleeve.map((r) => r.symbol), ...data.tickerTheses.map((t) => t.asset).filter((a) => !NON_TRADABLE.has(a))],
+    cryptoSet,
+  );
+  const snapPx: Record<string, Stored> = {};
+  for (const p of (Array.isArray(snapshot?.positions) ? (snapshot!.positions as { symbol?: string; market_value?: number; quantity?: number }[]) : [])) {
+    if (p.symbol && Number(p.quantity) > 0 && Number(p.market_value) > 0) snapPx[p.symbol] = storedOf(Number(p.market_value) / Number(p.quantity), snapshot!.reported_at, "account snapshot");
+  }
+
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
@@ -37,7 +50,7 @@ export default async function RobinhoodPage() {
       {/* ------------------------------------------------ KPIs */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <Stat label="Account" value={snapshot ? money(equity) : "—"} sub={snapshot ? `Cash ${money(snapshot.cash)} · reported ${when(snapshot.reported_at)}` : "Waiting for Grokbot's account snapshot"} />
+          <Stat label="Account" value={snapshot ? money(equity) : "—"} sub={snapshot ? <>Cash {money(snapshot.cash)} · <Updated label="snapshot" at={snapshot.reported_at} cadenceH={30} verb="reported by Grokbot" /></> : "Waiting for Grokbot's account snapshot"} />
         </Card>
         <Card>
           <Stat
@@ -117,20 +130,28 @@ export default async function RobinhoodPage() {
                 items={data.longTerm.sleeve.map((r) => ({ label: r.symbol, sub: `${num(r.target_weight_pct, 0)}% · target ${money(r.target_dollars)}`, value: Number(r.cost_basis) }))}
               />
             </Section>
-            <Section title="Every name">
+            <Section title="Every name" right={<span>"now" is a live quote · value = shares × now</span>}>
               <Table
-                head={["Name", "Theme", "Target", "Target $", "Bought $", "Pending $", "Left to buy", "FUD boost"]}
-                align={["l", "l", "r", "r", "r", "r", "r", "l"]}
-                rows={data.longTerm.sleeve.map((r) => [
+                head={["Name", "Theme", "Target", "Target $", "Bought $", "Now", "Value · P&L", "Pending $", "Left to buy", "FUD boost"]}
+                align={["l", "l", "r", "r", "r", "r", "r", "r", "r", "l"]}
+                minWidth={1100}
+                rows={data.longTerm.sleeve.map((r) => {
+                  const qty = Number(r.qty ?? 0), cost = Number(r.cost_basis ?? 0);
+                  const avg = qty > 0 && cost > 0 ? cost / qty : null;
+                  return [
                   <span key="n"><strong className="text-white">{r.symbol}</strong><br /><span className="text-[12px] text-white/45">{r.name}</span></span>,
                   <Id key="t">{r.theme_id}</Id>,
                   `${num(r.target_weight_pct, 0)}%`,
                   money(r.target_dollars),
-                  <span key="b" className={Number(r.cost_basis) > 0 ? "text-accent-green" : "text-white/50"}>{money(r.cost_basis)}</span>,
+                  <span key="b" className={cost > 0 ? "text-accent-green" : "text-white/50"}>{money(r.cost_basis)}{avg != null && <div className="text-[11px] text-white/40">{num(qty, 4)} sh @ {px(avg)}</div>}</span>,
+                  <LivePrice key="now" symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} size="sm" />,
+                  qty > 0 && avg != null
+                    ? <span key="v"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pnl" entry={avg} qty={qty} tag={false} /><div className="text-[11px]"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pct" entry={avg} /></div></span>
+                    : <span key="v" className="text-white/40">—</span>,
                   money(r.pending_dollars),
                   money(Math.max(0, Number(r.gap_dollars))),
                   r.fud_boost ? <Badge key="f" tone="green">yes</Badge> : <span key="f" className="text-white/40">no</span>,
-                ])}
+                ]; })}
               />
             </Section>
           </>
@@ -154,12 +175,34 @@ export default async function RobinhoodPage() {
 
       {/* ------------------------------------------------ open positions */}
       <Card title="Open positions" right={open.length ? <Mono>{open.length} open · at risk {money(open.reduce((a, t) => a + openRisk(t), 0))}</Mono> : undefined}>
+        {open.length > 0 && (
+          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {open.map((t) => (
+              <Tile key={t.trade_id} tone="accent">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <strong className="text-[15px] text-white">{t.symbol}</strong>
+                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
+                    {(t as { sleeve?: string | null }).sleeve === "investments" && <Badge tone="cyan">long-term sleeve</Badge>}
+                    {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
+                  </div>
+                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
+                </div>
+                <TradeRail className="mt-2.5" compact symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1 ?? t.target} qty={t.quantity} equity={equity || null} />
+                {t.current_stop ?? t.stop ? null : <p className="mt-1.5 text-[11.5px] text-white/40">No stop on this lot (DCA position) — the rail shows entry → now only.</p>}
+              </Tile>
+            ))}
+          </div>
+        )}
         <Table
-          head={["Symbol", "Entry", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}
-          align={["l", "r", "r", "r", "r", "r", "l"]}
+          head={["Symbol", "Entry", "Now", "P&L", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}
+          align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
+          minWidth={900}
           rows={open.map((t) => [
             <span key="i"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
             num(t.entry),
+            <LivePrice key="n" symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} size="sm" />,
+            <span key="pl"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pnl" entry={t.entry} qty={t.quantity} direction={t.direction} tag={false} /><div className="text-[11px]"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pct" entry={t.entry} direction={t.direction} /></div></span>,
             <span key="s">{num(t.stop)} <span className="text-white/30">/</span> {num(t.current_stop)}</span>,
             [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2].map((x) => num(x)).join(" · "),
             money(openRisk(t)),
@@ -172,7 +215,7 @@ export default async function RobinhoodPage() {
 
       {!!data.tickerTheses.length && (
         <Card title="Ticker theses" right={<Badge tone="gray">{data.tickerTheses.length}</Badge>}>
-          <div className="grid gap-3 lg:grid-cols-2">{data.tickerTheses.map((t) => <ThesisCard key={t.thesis_id} t={t} />)}</div>
+          <div className="grid gap-3 lg:grid-cols-2">{data.tickerTheses.map((t) => <ThesisCard key={t.thesis_id} t={t} live={NON_TRADABLE.has(t.asset) ? undefined : live[t.asset] ?? null} kind="stock" />)}</div>
         </Card>
       )}
 

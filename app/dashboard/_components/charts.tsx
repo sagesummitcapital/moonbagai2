@@ -1,8 +1,10 @@
 // Hand-written SVG / CSS charts for the desk. Server-safe, no dependencies.
 // Every chart is drawn only from numbers the page already loads.
 import type { ReactNode } from "react";
+import type { LivePrice as LP, PriceKind } from "@/lib/moonbag/prices";
 import type { Tone } from "./ui";
 import { num } from "./ui";
+import { LadderMarker, type Stored } from "./LivePrice";
 
 const FILL: Record<Tone, string> = { green: "#3ef3a2", red: "#fda4af", amber: "#fde68a", cyan: "#36d1dc", gray: "rgba(255,255,255,0.55)" };
 const TEXT: Record<Tone, string> = { green: "text-accent-green", red: "text-rose-300", amber: "text-amber-200", cyan: "text-accent-cyan", gray: "text-white/60" };
@@ -199,7 +201,12 @@ export function Bars({ items, max, tone = "cyan", format = (v: number) => num(v,
  * Price ladder: nearest supports (left, rose) and resistances (right, green) with the live price marked.
  * Labels alternate above/below the rail so neighbours never collide.
  */
-export function LevelLadder({ price, below, above, className = "" }: { price: number | null; below: number[]; above: number[]; className?: string }) {
+export function LevelLadder({ price, below, above, className = "", live }: {
+  /** The price to mark. With `live`, this is the best price known at render (live if it answered, else stored). */
+  price: number | null; below: number[]; above: number[]; className?: string;
+  /** Keep the marker live: it then polls with the page's other live widgets and shows the stored price as a faint tick. */
+  live?: { symbol: string; kind?: PriceKind; initial: LP | null | undefined; stored?: Stored };
+}) {
   const pts = [...below, ...(price != null ? [price] : []), ...above];
   if (pts.length < 2) return null;
   const lo = Math.min(...pts), hi = Math.max(...pts);
@@ -216,11 +223,13 @@ export function LevelLadder({ price, below, above, className = "" }: { price: nu
           {i % 2 === 1 && <div className={`whitespace-nowrap font-mono text-[11.5px] tabular-nums ${TEXT[k.t]}`}>{num(k.x)}</div>}
         </div>
       ))}
-      {price != null && (
+      {live ? (
+        <LadderMarker symbol={live.symbol} kind={live.kind} initial={live.initial} stored={live.stored} lo={lo} hi={hi} />
+      ) : price != null ? (
         <div className="absolute top-[22px] -translate-x-1/2" style={{ left: `${pos(price)}%` }}>
           <div className="mx-auto h-[18px] w-[3px] rounded bg-white shadow-[0_0_0_2px_#0b0b0d]" title={`price ${num(price)}`} />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

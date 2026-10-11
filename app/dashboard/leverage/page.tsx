@@ -1,11 +1,14 @@
 import { fmtPct, fmtRR, getLeverageDesk, signalLabel, tradeMetrics, type LevHourly, type LevSignal } from "@/lib/moonbag/desk";
-import type { DailyThesis } from "@/lib/moonbag/types";
+import type { LivePrice as LP } from "@/lib/moonbag/prices";
+import type { DailyThesis, Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
+import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/LivePrice";
+import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import {
-  Badge, Card, Cell, DocText, Empty, Expander, KV, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, StatGrid, Table, Tile, Unit,
-  biasGlyph, biasTone, gradeTone, list, money, money0, num, when,
+  Badge, Card, Cell, DocText, Empty, Expander, KV, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, Updated,
+  ago, biasGlyph, biasTone, gradeTone, list, money, money0, num, px, when, whenShort,
 } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +33,7 @@ export default async function LeveragePage() {
   const { strategy, risk, equity, startingEquity, milestone, latest, signals, alerts, openTrades, closedTrades } = data;
   const rules = (strategy?.rules ?? {}) as Record<string, unknown>;
   const model = (strategy?.confidence_model ?? {}) as { components?: Record<string, number>; penalties?: Record<string, number>; grades?: Record<string, number> };
-  const live = signals.filter((s) => ["watching", "armed", "triggered", "taken"].includes(s.status) && !s.outcome);
+  const liveSetups = signals.filter((s) => ["watching", "armed", "triggered", "taken"].includes(s.status) && !s.outcome);
   const resolved = signals.filter((s) => s.outcome);
   const progress = milestone ? Math.max(0, Math.min(100, ((equity - startingEquity) / (milestone - startingEquity)) * 100)) : 100;
   const lastRun = data.hourly[0]?.ts;
@@ -39,6 +42,11 @@ export default async function LeveragePage() {
   const riskPct = Number(risk?.risk_per_trade_pct ?? 2);
   const seriesFor = (asset: string) => data.hourly.filter((h) => h.asset === asset).slice(0, 24).reverse().map((h) => Number(h.price));
   const compMax = Math.max(1, ...Object.values(model.components ?? {}).map((v) => (typeof v === "number" ? v : 0)));
+
+  // Live prices (Coinbase spot; BloFin perps track it within a few dollars) for every coin on this page.
+  const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
+  const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
+  const storedFor = (asset: string): Stored | undefined => (latest[asset] ? storedOf(latest[asset].price, latest[asset].ts) : undefined);
 
   return (
     <div className="space-y-5">
@@ -51,7 +59,7 @@ export default async function LeveragePage() {
         right={
           <>
             <Badge tone={openTrades.length ? "green" : "gray"} dot>{openTrades.length} open trade{openTrades.length === 1 ? "" : "s"}</Badge>
-            <Badge tone={live.length ? "cyan" : "gray"} dot>{live.length} setup{live.length === 1 ? "" : "s"} watched</Badge>
+            <Badge tone={liveSetups.length ? "cyan" : "gray"} dot>{liveSetups.length} setup{liveSetups.length === 1 ? "" : "s"} watched</Badge>
           </>
         }
       />
@@ -62,7 +70,7 @@ export default async function LeveragePage() {
           <Stat
             label="BloFin account"
             value={money(equity)}
-            sub={milestone ? `${data.equityReportedAt ? `Reported ${when(data.equityReportedAt)} · ` : ""}${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "All milestones reached"}
+            sub={<><Updated label="balance" at={data.equityReportedAt} cadenceH={30} verb="reported by Grokbot" /> {milestone ? `· ${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "· all milestones reached"}</>}
             meter={
               milestone ? (
                 <Meter value={equity - startingEquity} max={milestone - startingEquity} tone="green" height={8} labels={[money0(startingEquity), <>next milestone <b className="font-mono text-white/75">{money0(milestone)}</b></>]} />
@@ -90,10 +98,10 @@ export default async function LeveragePage() {
           <Stat
             label="Hourly watch"
             size="sm"
-            value={lastRun ? when(lastRun) : "not yet run"}
+            value={lastRun ? ago(lastRun) : "not yet run"}
             tone={stale ? "amber" : undefined}
             right={<Badge tone={stale ? "amber" : "green"} dot>{stale ? "late" : "running"}</Badge>}
-            sub={stale ? "No hourly entry in the last 2½ hours — check the scheduled task." : "Running. Pings DESK ALERTs (grade 3+ that pass the checklist)."}
+            sub={<><Updated at={lastRun} cadenceH={2} verb="last entry" /> — {stale ? "no hourly entry in the last 2½ hours: the stored prices and levels below are old; check the scheduled task. Prices marked live are still current." : "running. Pings DESK ALERTs (grade 3+ that pass the checklist)."}</>}
           />
         </Card>
       </div>
@@ -105,6 +113,7 @@ export default async function LeveragePage() {
             key={a}
             asset={a}
             h={latest[a]}
+            live={live[a]}
             series={seriesFor(a)}
             thesis={data.theses.find((t) => t.asset === a)}
             alerts={alerts.filter((x) => x.asset === a && x.status === "active")}
@@ -113,9 +122,9 @@ export default async function LeveragePage() {
       </div>
 
       {/* ------------------------------------------------ live signals */}
-      <Card title="Setups Moonbag is watching" right={<Badge tone="gray">{live.length} open</Badge>}>
-        {live.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">{live.map((s) => <SignalCard key={s.signal_id} s={s} max={model.components} />)}</div>
+      <Card title="Setups Moonbag is watching" right={<Badge tone="gray">{liveSetups.length} open</Badge>}>
+        {liveSetups.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">{liveSetups.map((s) => <SignalCard key={s.signal_id} s={s} max={model.components} live={live[s.asset]} stored={storedFor(s.asset)} />)}</div>
         ) : (
           <Empty>No setup forming right now. That is the normal state — Moonbag is waiting for price to reach a level.</Empty>
         )}
@@ -123,6 +132,12 @@ export default async function LeveragePage() {
 
       {/* ------------------------------------------------ open trades */}
       <Card title="Open BloFin trades" right={openTrades.length ? <Mono>{openTrades.length} open · risk {money(openTrades.reduce((a, t) => a + Number(t.risk_dollars ?? 0), 0))}</Mono> : undefined}>
+        {openTrades.length > 0 && (
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            {openTrades.map((t) => <OpenTradeTile key={t.trade_id} t={t} live={live[t.symbol]} stored={storedFor(t.symbol)} />)}
+          </div>
+        )}
+        {openTrades.length > 0 && <Section title="Every column" right={<span>plan, size and what has been banked</span>}><span /></Section>}
         <Table
           head={["Trade", "Side", "R : R", "Account % (stop / target)", "Entry", "Stop (orig / now)", "Targets", "Risk $", "Still open", "Banked", "Size · Lev", "Opened"]}
           align={["l", "l", "r", "r", "r", "r", "l", "r", "r", "r", "l", "l"]}
@@ -404,18 +419,23 @@ export default async function LeveragePage() {
   );
 }
 
-function AssetCard({ asset, h, series, thesis, alerts }: {
+function AssetCard({ asset, h, live, series, thesis, alerts }: {
   asset: string;
   h?: LevHourly;
+  live?: LP;
   series: number[];
   thesis?: DailyThesis;
   alerts: { alert_id: string; condition: string; trigger_price: number | null; direction: string | null; action: string; message: string | null }[];
 }) {
   const lv = (h?.levels ?? thesis?.levels ?? {}) as LevHourly["levels"];
-  const price = h ? Number(h.price) : null;
+  const stored = h ? storedOf(h.price, h.ts) : undefined;
+  // Nearest levels are picked around the LIVE price when we have it, so "support" is really below price now.
+  const now = best(live, h ? Number(h.price) : null);
+  const price = now.price;
   const sup = (lv.support ?? []).map(Number).filter((x) => Number.isFinite(x) && (price == null || x < price)).sort((a, b) => b - a).slice(0, 3);
   const res = (lv.resistance ?? []).map(Number).filter((x) => Number.isFinite(x) && (price == null || x > price)).sort((a, b) => a - b).slice(0, 3);
   const change = series.length >= 2 ? ((series[series.length - 1] - series[0]) / series[0]) * 100 : null;
+  const sinceCheck = now.isLive && h && Number(h.price) > 0 ? ((price! - Number(h.price)) / Number(h.price)) * 100 : null;
   return (
     <Card
       title={`${asset} — bias & levels`}
@@ -427,14 +447,25 @@ function AssetCard({ asset, h, series, thesis, alerts }: {
       }
     >
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div>
-          <div className="font-mono text-[28px] font-semibold leading-none tabular-nums text-white">{h ? num(h.price) : "—"}</div>
-          <div className="mt-1.5 text-[12px] text-white/45">{h ? `as of ${when(h.ts)}` : "waiting for first hourly entry"}</div>
+        <div className="min-w-0">
+          <LivePrice symbol={asset} kind="crypto" initial={live} stored={stored} size="hero" showChange />
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-[11.5px] tabular-nums text-white/40">
+            {h ? (
+              <>
+                <span>desk check</span>
+                <span className="text-white/60">{px(h.price)}</span>
+                <span>· {whenShort(h.ts)}</span>
+                {sinceCheck != null && <span className={sinceCheck >= 0 ? "text-accent-green/80" : "text-rose-300/80"}>({sinceCheck >= 0 ? "+" : "−"}{Math.abs(sinceCheck).toFixed(2)}% since)</span>}
+              </>
+            ) : (
+              <span>waiting for first hourly entry</span>
+            )}
+          </div>
         </div>
         {series.length >= 2 && (
           <div className="flex items-end gap-3">
             <div className="text-right text-[11.5px] leading-tight text-white/45">
-              last {series.length} checks<br />
+              last {series.length} hourly checks<br />
               <span className={`font-mono tabular-nums ${change != null && change >= 0 ? "text-accent-green" : "text-rose-300"}`}>{change == null ? "" : `${change >= 0 ? "▲ +" : "▼ −"}${Math.abs(change).toFixed(2)}%`}</span>
             </div>
             <Sparkline points={series} width={140} height={40} />
@@ -444,7 +475,7 @@ function AssetCard({ asset, h, series, thesis, alerts }: {
       {h?.note && <LongText text={h.note} max={190} className="mt-3 text-[13.5px] leading-relaxed text-white/75" />}
       {!h && thesis?.primary_scenario && <LongText text={thesis.primary_scenario} max={190} className="mt-3 text-[13.5px] leading-relaxed text-white/75" />}
 
-      {sup.length + res.length >= 2 && <LevelLadder className="mt-3" price={price} below={sup} above={res} />}
+      {sup.length + res.length >= 2 && <LevelLadder className="mt-3" price={price} below={sup} above={res} live={{ symbol: asset, kind: "crypto", initial: live, stored }} />}
 
       <KV
         className="mt-2"
@@ -477,12 +508,15 @@ function AssetCard({ asset, h, series, thesis, alerts }: {
         {alerts.length ? (
           <ul className="space-y-1.5 text-[13px]">
             {alerts.map((a) => (
-              <li key={a.alert_id} className="flex flex-wrap items-start gap-x-2 gap-y-1">
-                <Badge tone={a.action === "ENTER" ? biasTone(a.direction) : a.action === "EXIT" ? "amber" : "gray"}>
-                  {a.action === "ENTER" ? `${a.direction} trigger` : a.action === "EXIT" ? "trade level" : "level watch"}
-                </Badge>
-                <span className="font-mono tabular-nums text-white/90">{a.condition === "cross_up" ? "↑" : "↓"} {num(a.trigger_price)}</span>
-                <LongText text={a.message} max={90} className="min-w-0 flex-1 basis-full text-[12.5px] leading-snug text-white/55 sm:basis-auto" />
+              <li key={a.alert_id}>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Badge tone={a.action === "ENTER" ? biasTone(a.direction) : a.action === "EXIT" ? "amber" : "gray"}>
+                    {a.action === "ENTER" ? `${a.direction} trigger` : a.action === "EXIT" ? "trade level" : "level watch"}
+                  </Badge>
+                  <span className="font-mono tabular-nums text-white/90">{a.condition === "cross_up" ? "↑" : "↓"} {num(a.trigger_price)}</span>
+                  {a.trigger_price != null && <span className="inline-flex items-baseline gap-1 text-[12px] text-white/45">away <LiveMetric symbol={asset} kind="crypto" initial={live} stored={stored} metric="distPct" level={a.trigger_price} /></span>}
+                </div>
+                <LongText text={a.message} max={90} className="mt-0.5 text-[12.5px] leading-snug text-white/55" />
               </li>
             ))}
           </ul>
@@ -494,7 +528,7 @@ function AssetCard({ asset, h, series, thesis, alerts }: {
   );
 }
 
-function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) {
+function SignalCard({ s, max, live, stored }: { s: LevSignal; max?: Record<string, number>; live?: LP; stored?: Stored }) {
   // Components are numbers, but the desk sometimes stores a group (e.g. penalties: {} or {chasing: -10}).
   // Never render a raw object — React crashes the whole page on it. Sum groups; drop empty ones.
   const comps = Object.entries((s.confidence_components ?? {}) as Record<string, unknown>)
@@ -522,6 +556,14 @@ function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) 
       </div>
       <div className="mt-1 text-[12.5px] text-white/50"><Mono className="text-white/60">{s.setup_id}</Mono>{s.timeframe ? ` · ${s.timeframe}` : ""}</div>
       {s.trigger_condition && <LongText text={s.trigger_condition} label="Trigger:" max={150} className="mt-2 text-[13.5px] leading-snug text-white/85" />}
+
+      {/* where price is against this plan, right now */}
+      <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-white/[0.07] bg-black/20 px-2.5 py-1.5 text-[12.5px]">
+        <span className="text-white/45">now</span>
+        <LivePrice symbol={s.asset} kind="crypto" initial={live} stored={stored} size="inline" />
+        <span className="text-white/45">to trigger {px(s.trigger_price ?? s.entry)}</span>
+        <LiveMetric symbol={s.asset} kind="crypto" initial={live} stored={stored} metric="distPct" level={s.trigger_price ?? s.entry} />
+      </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Cell k="Entry" v={num(s.entry)} />
@@ -556,3 +598,44 @@ function SignalCard({ s, max }: { s: LevSignal; max?: Record<string, number> }) 
   );
 }
 
+
+/** One open trade as a picture: stop → entry → target rail with the live price, R now and what is still open. */
+function OpenTradeTile({ t, live, stored }: { t: Trade; live?: LP; stored?: Stored }) {
+  const m = tradeMetrics(t);
+  const riskFree = t.direction === "short" ? Number(t.current_stop) <= Number(t.entry) : Number(t.current_stop) >= Number(t.entry);
+  return (
+    <Tile tone="accent">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <strong className="text-[15px] text-white">{t.symbol}</strong>
+          <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
+          <Badge tone="gray">{num(t.leverage, 0)}x</Badge>
+          {riskFree && <Badge tone="green">risk-free</Badge>}
+          {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
+        </div>
+        <span className="font-mono text-[12px] text-white/50">plan R:R <strong className="text-white">{fmtRR(m.rr)}</strong></span>
+      </div>
+      <TradeRail
+        className="mt-3"
+        symbol={t.symbol}
+        kind="crypto"
+        initial={live}
+        stored={stored}
+        direction={t.direction}
+        entry={t.entry}
+        stop={t.current_stop ?? t.stop}
+        origStop={t.stop}
+        target={t.current_tp1 ?? t.tp1 ?? t.target}
+        qty={t.qty_open ?? t.quantity}
+        equity={t.account_equity}
+      />
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11.5px] tabular-nums text-white/45">
+        <span>risk {money(t.risk_dollars)} <span className="text-rose-300/80">{fmtPct(m.riskPct)}</span> / <span className="text-accent-green/80">{fmtPct(m.rewardPct)}</span> acct</span>
+        <span>open {num(t.qty_open ?? t.quantity, 4)}{t.quantity ? ` (${num((100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity), 0)}%)` : ""}</span>
+        {Number(t.banked_pnl) ? <span className={Number(t.banked_pnl) > 0 ? "text-accent-green" : "text-rose-300"}>banked {Number(t.banked_pnl) > 0 ? "+" : ""}{money(t.banked_pnl)}</span> : null}
+        <span>opened {whenShort(t.opened_at)}</span>
+        <Id>{t.trade_id}</Id>
+      </div>
+    </Tile>
+  );
+}

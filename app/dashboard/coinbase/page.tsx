@@ -1,8 +1,10 @@
 import { getCoinbaseBook } from "@/lib/moonbag/desk";
 import { load } from "../_components/data";
 import { DivergingBars, Legend, Meter, Strip } from "../_components/charts";
+import { LiveMetric, LivePrice, TradeRail } from "../_components/LivePrice";
+import { cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Delta, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Unit, money, num, statusTone, when } from "../_components/ui";
+import { Badge, Card, Delta, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, statusTone, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,7 @@ export default async function CoinbasePage() {
   const { data, error } = await load(getCoinbaseBook);
   if (!data) return <DataNotice error={error} />;
   const { risk, snapshot, equity, peak30, open, closed, universe, signals, handoffs, stats, paper } = data;
-  const live = universe.filter((u) => u.live);
+  const liveCoins = universe.filter((u) => u.live);
   const paperOnly = universe.filter((u) => !u.live);
   const riskPct = Number(risk?.risk_per_trade_pct ?? 5) / 100;
   const maxOpen = Number((risk as { max_open_risk_pct?: number } | null)?.max_open_risk_pct ?? 15);
@@ -26,6 +28,13 @@ export default async function CoinbasePage() {
   const bulls = universe.filter((u) => u.regime === "bull").length;
   const bears = universe.filter((u) => u.regime === "bear").length;
   const closedPaper = paper.filter((p) => p.status === "closed" && p.r != null);
+
+  // Live spot for every coin in the universe (one call per coin, no 24 h change); the daily close is the stored fallback.
+  const cryptoSet = cryptoSetFrom(universe.map((u) => u.symbol), open.map((t) => t.symbol));
+  const live = await loadLive([...universe.map((u) => u.symbol), ...open.map((t) => t.symbol)], cryptoSet, { change: false });
+  const closeOf = (sym: string) => { const u = universe.find((x) => x.symbol === sym); return u ? storedOf(u.close, u.as_of ? `${u.as_of}T00:00:00Z` : u.updated_at, "daily close") : undefined; };
+  const closeDay = universe.map((u) => u.as_of).filter(Boolean).sort().reverse()[0] ?? null;
+  const closeAt = closeDay ? new Date(Date.parse(`${closeDay}T00:00:00Z`) + 86400_000).toISOString() : null;
 
   return (
     <div className="space-y-5">
@@ -46,7 +55,7 @@ export default async function CoinbasePage() {
       {/* ------------------------------------------------ KPIs */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <Stat label="Account" value={money(equity)} sub={snapshot ? `Cash ${money(snapshot.cash)} · reported ${when(snapshot.reported_at)}` : `Start ${money(risk?.starting_equity)} · waiting for Grokbot's first snapshot`} />
+          <Stat label="Account" value={money(equity)} sub={snapshot ? <>Cash {money(snapshot.cash)} · <Updated label="snapshot" at={snapshot.reported_at} cadenceH={30} verb="reported by Grokbot" /></> : `Start ${money(risk?.starting_equity)} · waiting for Grokbot's first snapshot`} />
         </Card>
         <Card>
           <Stat
@@ -77,23 +86,23 @@ export default async function CoinbasePage() {
       </div>
 
       {/* ------------------------------------------------ regime strip */}
-      <Card title="Universe regime" right={<Mono>updated after each 00:00 UTC daily close by the Coinbase desk</Mono>}>
+      <Card title="Universe regime" right={<Updated label="regimes" at={closeAt} cadenceH={26} verb={`daily close ${closeDay ?? ""} · processed`} title="Regimes and triggers are recomputed by the Coinbase desk after each 00:00 UTC daily close" />}>
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="font-mono text-[22px] font-semibold tabular-nums text-accent-green">{bulls} <span className="text-[13px] font-normal text-white/50">bull</span></span>
           <span className="font-mono text-[22px] font-semibold tabular-nums text-rose-300">{bears} <span className="text-[13px] font-normal text-white/50">bear</span></span>
-          <span className="text-[12.5px] text-white/45">of {universe.length} coins · {live.length} live · {paperOnly.length} paper-only · {open.length} held</span>
+          <span className="text-[12.5px] text-white/45">of {universe.length} coins · {liveCoins.length} live · {paperOnly.length} paper-only · {open.length} held</span>
         </div>
         <Meter className="mt-3" value={bulls} max={universe.length || 1} tone="green" height={6} />
         <Strip className="mt-3" items={universe.map((u) => ({ label: u.symbol, tone: open.some((t) => t.symbol === u.symbol) ? "cyan" : regimeTone(u.regime), title: `${u.symbol} · ${u.regime ?? "—"} since ${u.regime_since ?? "—"}` }))} />
         <Legend className="mt-2" items={[{ tone: "green", label: "bull — buys above its 55-day high" }, { tone: "red", label: "bear — cash, no longs" }, { tone: "cyan", label: "held" }]} />
       </Card>
 
-      <Card title={`Live coins (${live.length}) — regime and triggers`} sub="Core coins run at full risk, alts at half. Stop and TP1 are what the trade would get if it triggered at the 55-day high today.">
+      <Card title={`Live coins (${liveCoins.length}) — regime and triggers`} sub="Core coins run at full risk, alts at half. Stop and TP1 are what the trade would get if it triggered at the 55-day high today. Regimes and triggers come from the daily close; 'now' is live Coinbase spot.">
         <Table
-          head={["Coin", "Regime", "Close", "Bear line (0.97 × 200D)", "Entry trigger (55-day high)", "If it triggers: stop · TP1", "Size at its risk"]}
-          align={["l", "l", "r", "r", "r", "r", "r"]}
-          minWidth={900}
-          rows={live.map((u) => {
+          head={["Coin", "Regime", "Daily close", "Now", "Bear line (0.97 × 200D)", "Entry trigger (55-day high)", "If it triggers: stop · TP1", "Size at its risk"]}
+          align={["l", "l", "r", "r", "r", "r", "r", "r"]}
+          minWidth={1040}
+          rows={liveCoins.map((u) => {
             const stop = u.trigger_px != null && u.atr14 != null ? Number(u.trigger_px) - 3 * Number(u.atr14) : null;
             const tp1 = u.trigger_px != null && stop != null ? Number(u.trigger_px) + 3 * (Number(u.trigger_px) - stop) : null;
             const dist = u.trigger_px != null && stop != null ? (Number(u.trigger_px) - stop) / Number(u.trigger_px) + 0.012 : null;
@@ -103,8 +112,9 @@ export default async function CoinbasePage() {
               <span key="s"><strong className="text-white">{u.symbol}</strong> <Badge tone={u.tier === "core" ? "cyan" : "gray"}>{u.tier === "core" ? "core · full risk" : "alt · half risk"}</Badge><br /><Id>{u.product_id}</Id>{u.tier !== "core" && <div className="text-[11.5px] text-white/40">paper {u.paper_n} @ {num(u.paper_avg_r, 2)}R · RS vs BTC {u.rs90 != null ? `${num(u.rs90, 0)}%` : "—"}</div>}</span>,
               <span key="r"><Badge tone={regimeTone(u.regime)} dot>{u.regime ?? "—"}</Badge><div className="mt-1 text-[11.5px] text-white/45">since {u.regime_since ?? "—"}</div></span>,
               <span key="c">{num(u.close)}<div className="text-[11.5px] text-white/40">{u.as_of ?? ""}</div></span>,
+              <LivePrice key="now" symbol={u.symbol} kind="crypto" initial={live[u.symbol]} stored={closeOf(u.symbol)} size="sm" />,
               <span key="b">{num(u.bear_line)}<div className="text-[11.5px] text-rose-300/70">{signed(pct(u.bear_line, u.close))} from close</div></span>,
-              <span key="t">{holding ? <Badge tone="cyan">holding</Badge> : num(u.trigger_px)}<div className="text-[11.5px] text-white/40">{holding ? "" : `${signed(pct(u.trigger_px, u.close))} to go`}</div></span>,
+              <span key="t">{holding ? <Badge tone="cyan">holding</Badge> : num(u.trigger_px)}{!holding && u.trigger_px != null && <div className="text-[11.5px]"><LiveMetric symbol={u.symbol} kind="crypto" initial={live[u.symbol]} stored={closeOf(u.symbol)} metric="distPct" level={u.trigger_px} /> <span className="text-white/40">to go · {signed(pct(u.trigger_px, u.close))} at close</span></div>}</span>,
               <span key="p"><span className="text-rose-300/80">{num(stop)}</span> <span className="text-white/30">·</span> <span className="text-accent-green/80">{num(tp1)}</span></span>,
               <span key="z">{size ? money(size) : "—"}</span>,
             ];
@@ -119,7 +129,7 @@ export default async function CoinbasePage() {
 
       <Card title={`Paper-only coins (${paperOnly.length}) — scanned and paper-traded, not live yet`} right={<Mono>live after 4+ paper trades averaging +0.5R</Mono>}>
         <Table
-          head={["Coin", "Regime", "Paper record", "Last 4", "RS vs BTC (90d)", "Trigger", "Status"]}
+          head={["Coin", "Regime", "Paper record", "Last 4", "RS vs BTC (90d)", "Trigger (live distance)", "Status"]}
           align={["l", "l", "r", "r", "r", "r", "l"]}
           dense
           maxHeight={520}
@@ -129,7 +139,7 @@ export default async function CoinbasePage() {
             <span key="p">{u.paper_n} trades · {u.paper_avg_r != null ? <RMult v={u.paper_avg_r} /> : "—"}</span>,
             u.paper_last4 != null ? <RMult key="l" v={u.paper_last4} /> : "—",
             <span key="rs">{u.rs90 != null ? `${num(u.rs90, 0)}%` : "—"}</span>,
-            <span key="t">{num(u.trigger_px)}<div className="text-[11.5px] text-white/40">{signed(pct(u.trigger_px, u.close))} to go</div></span>,
+            <span key="t">{num(u.trigger_px)}{u.trigger_px != null && <div className="text-[11.5px]"><LiveMetric symbol={u.symbol} kind="crypto" initial={live[u.symbol]} stored={closeOf(u.symbol)} metric="distPct" level={u.trigger_px} /> <span className="text-white/40">to go · {signed(pct(u.trigger_px, u.close))} at close</span></div>}</span>,
             <LongText key="st" text={u.status !== "active" ? `paused: ${u.notes ?? ""}` : u.live_reason ?? ""} max={70} className="min-w-[160px] text-[12px] leading-snug text-white/55" />,
           ])}
           empty="Every coin is live."
@@ -168,15 +178,35 @@ export default async function CoinbasePage() {
       </Card>
 
       <Card title="Open positions" right={open.length ? <Mono>{open.length} open</Mono> : undefined}>
+        {open.length > 0 && (
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            {open.map((t) => (
+              <Tile key={t.trade_id} tone="accent">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <strong className="text-[15px] text-white">{t.symbol}</strong>
+                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
+                    {Number(t.current_stop ?? t.stop) >= Number(t.entry) && <Badge tone="green">risk-free</Badge>}
+                  </div>
+                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
+                </div>
+                <TradeRail className="mt-2.5" symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1} qty={t.qty_open ?? t.quantity} equity={equity || null} />
+              </Tile>
+            ))}
+          </div>
+        )}
         <Table
-          head={["Trade", "Entry", "Stop now", "TP1 (half)", "Still open", "Banked", "Opened"]}
-          align={["l", "r", "r", "r", "r", "r", "l"]}
+          head={["Trade", "Entry", "Now", "R now", "Stop now", "TP1 (half)", "Still open", "Banked", "Opened"]}
+          align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
+          minWidth={900}
           rows={open.map((t) => {
             const r1 = Number(t.entry) - Number(t.stop);
             const riskFree = Number(t.current_stop ?? t.stop) >= Number(t.entry);
             return [
               <span key="i"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
               num(t.entry),
+              <LivePrice key="n" symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} size="sm" />,
+              <LiveMetric key="r" symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} metric="r" entry={t.entry} stop={t.stop} direction={t.direction} />,
               <span key="s">{num(t.current_stop ?? t.stop)} {riskFree && <Badge tone="green">risk-free</Badge>}</span>,
               <span key="t">{num(t.current_tp1 ?? t.tp1)}<div className="text-[11.5px] text-white/40">{r1 > 0 ? `${num((Number(t.current_tp1 ?? t.tp1) - Number(t.entry)) / r1, 1)}R` : ""}</div></span>,
               num(t.qty_open ?? t.quantity, 6),
