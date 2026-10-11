@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <ClerkProvider appearance={clerkAppearance} afterSignOutUrl="/">
       <div className="relative min-h-screen bg-black text-white">
         <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-3 md:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-5 py-3 md:px-8">
             <div className="flex items-center justify-between">
               <Link href="/dashboard" className="font-semibold tracking-tight">
                 moonbag<span className="text-gradient">.ai</span>
@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-5 py-8 md:px-8">
+        <main className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
           {!access.allowed ? (
             <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
               <h1 className="text-xl font-semibold">This desk is private.</h1>

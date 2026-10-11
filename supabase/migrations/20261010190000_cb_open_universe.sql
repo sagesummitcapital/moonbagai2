@@ -340,3 +340,11 @@ alter table public.risk_config add column if not exists alts_live boolean not nu
 --    cb_run(): v_live := u.tier = 'core' or (coalesce(cfg.alts_live, false) and v_pn >= 4 and v_pavg >= 0.5);
 --    live_reason for a qualifying alt: 'paper only - alts are off for live trading; record would qualify: ...'
 update public.cb_universe set live = false where tier = 'alt';
+
+-- 6. 2026-10-11 - Leverage desk (Stavros): 2R minimum, 4% max risk, silent range lines, no-chase cooling.
+--    Applied live:
+--    risk_config blofin: risk_per_trade_pct 4, risk_tiers [{"risk_pct":4}], allowed_instruments text updated.
+--    moonbag_lev_signal_check(): 'if new.rr_tp1 < 1.5' -> 'if new.rr_tp1 < 1.995' (minimum 2R).
+--    lev_strategy v13 (rules: min_rr_tp1 2, risk_pct_by_grade core {3:2,4:4,5:4}, rotation {3:1,4:2,5:4},
+--    cooling, alerts_policy silent lines, input_recipe). strategy_doc v11.
+update public.risk_config set risk_per_trade_pct = 4, risk_tiers = '[{"risk_pct":4}]'::jsonb where venue = 'blofin';

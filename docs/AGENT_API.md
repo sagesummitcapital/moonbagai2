@@ -51,7 +51,7 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
 - Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**.
   After entry, adjustments go in the live fields: `current_stop` and `current_tp1` / `current_tp2` / `current_tp3`.
   The originals stay as the record of the plan; `r_multiple` is computed from the original stop.
-- `risk_percent` above 10 is rejected (BloFin risk tiers: 10% under $1,000, 5% under $10,000, 2% above).
+- A BloFin signal risking more than 2% of the account, with TP1 under 2R, or after realised losses reach 4% of the account that day, is rejected (Stavros, 2026-10-11). Trades Stavros reports are recorded as he placed them.
 - Alerts and open-handoffs can only be created for an **active** thesis. Close/trim/adjust_stop handoffs need an open `trade_id`.
 - **Robinhood risk gate (database):** an open-handoff is rejected unless there is an account snapshot from the last 3 days and:
   risk to stop ≤ 1% of equity (halved after 3 straight losses) · position ≤ 20% of equity · ≤ 6 open/pending positions ·
@@ -154,9 +154,10 @@ the order card shows the OK range.
 
 TRADINGVIEW ALERTS = TWO LINES PER COIN (strategy file v2, 2026-10-09)
 Every watched coin (BTC, ETH and up to 2 in-play rotation coins) has exactly two "MB" alerts:
-- No open trade on the coin: "MB … RANGE HIGH" and "MB … RANGE LOW". Each message carries the play (primary +
-  alternate, validation, entry/stop/TP1/TP2, score). A touch is NOT an entry — Moonbag answers after the 1h close
-  with TAKE TRADE NOW (full BloFin order card) or NO TRADE.
+- No open trade on the coin: "MB … RANGE HIGH" and "MB … RANGE LOW". These are SILENT tripwires (no push to
+  Stavros). His phone only gets an "MB NOTE … TRADE" alert when Moonbag says TAKE TRADE NOW (grade A/A+), and
+  "MB NOTE … MANAGE" / STOP / TP alerts for trades he has open. NO TRADE decisions are only logged.
+- Coins that moved 10%+ off their 3-day low/high are "cooling": no lines, no plays, until they base.
 - A trade open on the coin (Moonbag or his own): that coin's two alerts become "MB … STOP" and "MB … TP1/TP2".
   Other coins keep their range lines.
 The same two numbers are on the Moonbag home page and in /briefing (coins[].rangeLow / rangeHigh). If a coin has
@@ -207,6 +208,22 @@ c. If he asks a follow-up, answer only from that response's "data" (or GET /toda
    If Moonbag has no answer, say "Moonbag hasn't recorded that" — don't fill the gap yourself.
 d. If the call fails, say "I can't reach Moonbag right now" and give no summary.
 The dashboard shows the same text under "Today's briefing", so all three places always agree.
+
+INPUTS FOR A LEVERAGE TRADE ON ANY COIN (Stavros, 2026-10-10: "when i see a coin i like i ask grok for good
+inputs — amount, lev, tp, sl"). Use the SAME recipe as the Moonbag desk — MOONBAG_STRATEGY.md §3.6 (GET /strategy):
+levels first (4h + daily; prefer swing highs/lows and the previous day/week high/low, where stops sit) → entry at a validated level, best after price sweeps the level and closes back inside (never the first touch); don't go against the 4H candle that closed at 5 AM Phoenix if its body is at least half its range → SL just beyond the structure that
+proves it wrong (+ ~¼ of the 1h ATR; at least 0.5% BTC/ETH, 0.8% other coins) → TP1 = next real level, half off,
+and it must be at least 2R → TP2 = the level after → risk at most 2% of his BloFin balance (latest GET /accounts
+venue blofin): BTC/ETH A+/A 2%, B 1%; other coins A+ 2%, A 1%, B 0.5%; half after 2 losses in a row; all open trades
+together ≤ 15%; if today's realised losses already reach 4% of the balance, say NO TRADE (daily drawdown stop) → size = risk $ ÷ |entry − SL| → leverage = lowest whole x that keeps margin ≤ half the balance,
+within the ceiling (BTC/ETH ≤ 20x, others ≤ 10x), liquidation ≥ 1.25 × the stop distance beyond entry → margin
+(the "amount") = notional ÷ leverage, isolated. No chase: if the coin is 10%+ off its 3-day low (long) / high
+(short) or > 2 daily ATRs from its daily 20 EMA, say NO TRADE — wait for a base. If the next level gives under
+2R, say NO TRADE and name the entry price where it would work. If Moonbag already has a signal on that coin
+(GET /signals), use Moonbag's numbers. Always answer in this form:
+  <COIN> <Long|Short> · Entry <price> (<market|limit>) · SL <price> (<x.x>%) · TP1 <price> (<x.x>R, half) · TP2 <price>
+  Size <qty> <COIN> (≈ $<notional>) · Leverage <x>x isolated · Margin $<m> · Risk $<r> (<p>% of $<balance>) · Liq ≈ <price>
+  Why: <level + validation> · Skip if: <what cancels it>
 
 BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
 10. Find the thesis: GET /theses?status=active&asset=BTC (or ETH) → use its thesis_id. For a rotation coin

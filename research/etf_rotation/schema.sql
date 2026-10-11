@@ -1,0 +1,5 @@
+create table if not exists public.theme_map (id bigserial primary key, phase int not null, years text, phase_name text, sector text not null, tickers text[] not null, proxy_etf text, source text default 'Stavros 2026-10-11 roadmap graphic', created_at timestamptz default now(), unique (phase, sector));
+create table if not exists public.etf_watch (symbol text primary key, name text, invests_in text, cagr_5y_stated numeric, source text, phase int, as_of_stated date default '2026-10-02', created_at timestamptz default now());
+create table if not exists public.sector_rotation (id bigserial primary key, as_of date not null, symbol text not null, phase int, ret_1m numeric, ret_3m numeric, ret_6m numeric, rs_3m_vs_spy numeric, above_200d boolean, rank int, note text, created_at timestamptz default now(), unique (as_of, symbol));
+alter table public.theme_map enable row level security; alter table public.etf_watch enable row level security; alter table public.sector_rotation enable row level security;
+select 1;

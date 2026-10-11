@@ -2,7 +2,8 @@ import { getActiveTheses, listAlerts, listHandoffs, moonbagDate } from "@/lib/mo
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Mono, Table, biasTone, list, num, statusTone, when } from "../_components/ui";
+import { Meter } from "../_components/charts";
+import { Badge, Card, Id, Mono, PageHeader, Stat, StatGrid, Table, biasGlyph, biasTone, gradeName, gradeTone, list, num, statusTone, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,6 @@ const ago = (iso?: string | null) => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   return m < 60 ? `${m}m ago` : m < 48 * 60 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
-const gradeName = (g?: number | null) => (g == null ? "" : g >= 5 ? "A+" : g >= 4 ? "A" : g >= 3 ? "B" : "C");
 
 export default async function OpportunitiesPage() {
   const { data, error } = await load(async () => {
@@ -58,46 +58,67 @@ export default async function OpportunitiesPage() {
   const liveAlerts = (data?.alerts ?? []).filter((a) => ["active", "triggered", "stale"].includes(a.status));
   const openHandoffs = (data?.handoffs ?? []).filter((h) => ["pending", "acknowledged"].includes(h.status));
 
+  const livePlays = data?.live ?? [];
+  const tradeable = setups.filter((x) => !x.broken && x.t.decision === "trade").length;
+  const maxDist = Math.max(1, ...livePlays.map((s) => { const p = prices[s.asset]?.price ?? null; const lvl = Number(s.trigger_price ?? s.entry); return p != null && lvl ? Math.abs(((lvl - p) / p) * 100) : 0; }));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <DataNotice error={error} />
+      <PageHeader title="Opportunities" sub="What is sitting on a level right now: the plays on the TradingView range lines, today's theses checked against live price, and what has been handed to Grok." />
+
+      <StatGrid cols={4}>
+        <Card><Stat label="Live plays" value={livePlays.length} size="md" tone={livePlays.length ? "cyan" : undefined} sub="on the range lines, last 36h" /></Card>
+        <Card><Stat label="Theses in play" value={setups.filter((x) => !x.broken).length} size="md" sub={`${setups.filter((x) => x.broken).length} broken · ${tradeable} marked TRADE`} /></Card>
+        <Card><Stat label="Open handoffs" value={openHandoffs.length} size="md" tone={openHandoffs.length ? "green" : undefined} sub="pending or acknowledged by Grok" /></Card>
+        <Card><Stat label="Live alerts" value={liveAlerts.length} size="md" sub="active, triggered or stale" /></Card>
+      </StatGrid>
+
       <Card title="Live plays (TradingView range lines)" right={<Mono>refreshed every hour by the Desk Lead</Mono>}>
         <Table
-          head={["Coin", "Play", "Trigger", "Stop", "TP1", "Score", "Price now", "Distance", "Set"]}
-          rows={(data?.live ?? []).map((s) => {
+          head={["Coin", "Play", "Trigger", "Stop", "TP1", "Score", "Price now", "Distance to trigger", "Set"]}
+          align={["l", "l", "r", "r", "r", "l", "r", "l", "l"]}
+          minWidth={960}
+          rows={livePlays.map((s) => {
             const p = prices[s.asset]?.price ?? null;
             const lvl = Number(s.trigger_price ?? s.entry);
             const dist = p != null && lvl ? ((lvl - p) / p) * 100 : null;
             return [
-              <span key="a"><strong className="text-white">{s.asset}</strong><br /><Mono>{s.signal_id}</Mono></span>,
-              <Badge key="d" tone={biasTone(s.direction)}>{s.direction}</Badge>,
-              <span key="t" className="font-mono">{num(lvl, 0)}</span>,
-              num(s.stop),
-              num(s.tp1),
-              <span key="s" className="font-mono">{num(s.confidence_score, 0)} <span className="text-accent-green">{gradeName(s.confidence_grade)}</span></span>,
-              <span key="p" className="font-mono">{num(p)}<div className="text-[11px] text-white/40">{ago(prices[s.asset]?.ts)}</div></span>,
-              <span key="x" className="font-mono text-white/70">{dist == null ? "—" : `${dist > 0 ? "+" : ""}${num(dist, 2)}%`}</span>,
-              ago(s.created_at),
+              <span key="a"><strong className="text-white">{s.asset}</strong><br /><Id>{s.signal_id}</Id></span>,
+              <Badge key="d" tone={biasTone(s.direction)}>{biasGlyph(s.direction)} {s.direction}</Badge>,
+              <strong key="t" className="text-white">{num(lvl, 0)}</strong>,
+              <span key="st" className="text-rose-300/80">{num(s.stop)}</span>,
+              <span key="tp" className="text-accent-green/80">{num(s.tp1)}</span>,
+              <Badge key="s" tone={gradeTone(s.confidence_grade)}>{num(s.confidence_score, 0)} · {gradeName(s.confidence_grade) || "—"}</Badge>,
+              <span key="p">{num(p)}<div className="text-[11.5px] text-white/40">{ago(prices[s.asset]?.ts)}</div></span>,
+              <span key="x" className="block min-w-[150px]">
+                <span className={`font-mono tabular-nums ${dist == null ? "text-white/40" : Math.abs(dist) < 1 ? "text-amber-200" : "text-white/70"}`}>{dist == null ? "—" : `${dist > 0 ? "▲ +" : "▼ −"}${num(Math.abs(dist), 2)}%`}</span>
+                {dist != null && <Meter className="mt-1" value={maxDist - Math.abs(dist)} max={maxDist} tone={Math.abs(dist) < 1 ? "amber" : "gray"} height={4} />}
+              </span>,
+              <span key="ago" className="whitespace-nowrap text-white/60">{ago(s.created_at)}</span>,
             ];
           })}
           empty="No live plays on the range lines right now."
         />
+        {livePlays.length > 0 && <p className="mt-2 text-[12px] text-white/40">Distance bar: fuller = price is closer to the trigger (amber within 1%).</p>}
       </Card>
 
       <Card title="Daily theses" right={<Mono>written once a day · checked against live price</Mono>}>
         <Table
           head={["Asset", "Direction", "Setup score", "Entry", "Stop", "Targets", "Invalidation", "Price now", "Status"]}
+          align={["l", "l", "l", "r", "r", "r", "r", "r", "l"]}
+          minWidth={960}
           rows={setups.map(({ t, p, broken, old }) => [
-            <span key="a" className={broken ? "opacity-50" : ""}><strong className="text-white">{t.asset}</strong><br /><Mono>{t.thesis_id}</Mono><div className="text-[11px] text-white/40">written {ago(t.created_at)}</div></span>,
-            <Badge key="d" tone={biasTone(t.trade_plan?.direction ?? t.bias)}>{t.trade_plan?.direction ?? t.bias}</Badge>,
-            <span key="s" className="font-mono">{num(t.setup_score, 1)} <span className="text-accent-green">{t.setup_grade}</span></span>,
+            <span key="a" className={broken ? "opacity-50" : ""}><strong className="text-white">{t.asset}</strong><br /><Id>{t.thesis_id}</Id><div className="text-[11.5px] text-white/40">written {ago(t.created_at)}</div></span>,
+            <Badge key="d" tone={biasTone(t.trade_plan?.direction ?? t.bias)}>{biasGlyph(t.trade_plan?.direction ?? t.bias)} {t.trade_plan?.direction ?? t.bias}</Badge>,
+            <span key="s" className="whitespace-nowrap font-mono tabular-nums">{num(t.setup_score, 1)} {t.setup_grade && <Badge tone={t.setup_grade === "A+" || t.setup_grade === "A" ? "green" : t.setup_grade === "B" ? "cyan" : "gray"}>{t.setup_grade}</Badge>}</span>,
             list(t.trade_plan?.entry_zone),
-            num(t.trade_plan?.stop),
-            [t.trade_plan?.tp1, t.trade_plan?.tp2, t.trade_plan?.tp3].filter((x) => x != null).map((x) => num(x)).join(" · ") || "—",
+            <span key="stp" className="text-rose-300/80">{num(t.trade_plan?.stop)}</span>,
+            <span key="tp" className="text-accent-green/80">{[t.trade_plan?.tp1, t.trade_plan?.tp2, t.trade_plan?.tp3].filter((x) => x != null).map((x) => num(x)).join(" · ") || "—"}</span>,
             num(t.levels?.invalidation),
-            <span key="p" className="font-mono">{num(p)}</span>,
+            num(p),
             broken ? (
-              <span key="st"><Badge tone="red">BROKEN</Badge><div className="mt-1 text-[11.5px] text-white/45">price is past invalidation — ignore this plan</div></span>
+              <span key="st"><Badge tone="red">BROKEN</Badge><div className="mt-1 max-w-[180px] text-[11.5px] leading-snug text-white/45">price is past invalidation — ignore this plan</div></span>
             ) : (
               <span key="st"><Badge tone={statusTone(t.decision)}>{t.decision.replace("_", " ").toUpperCase()}</Badge>{old && <div className="mt-1 text-[11.5px] text-amber-200/70">from {t.thesis_date}</div>}</span>
             ),
@@ -106,31 +127,37 @@ export default async function OpportunitiesPage() {
         />
       </Card>
 
-      <Card title="Grok handoffs (Robinhood)">
-        <Table
-          head={["Handoff", "Symbol", "Direction", "Entry condition", "Invalidation", "Score", "Status"]}
-          rows={openHandoffs.map((h) => [
-            <Mono key="i">{h.handoff_id}</Mono>, h.symbol,
-            <Badge key="d" tone={biasTone(h.direction)}>{h.direction}</Badge>,
-            h.entry_condition ?? "—", h.invalidation ?? "—", num(h.setup_score, 1),
-            <Badge key="s" tone={statusTone(h.status)}>{h.status}</Badge>,
-          ])}
-          empty="No open handoffs for Grok."
-        />
-      </Card>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card title="Grok handoffs (Robinhood)">
+          <Table
+            head={["Handoff", "Symbol", "Direction", "Entry condition", "Invalidation", "Score", "Status"]}
+            align={["l", "l", "l", "l", "l", "r", "l"]}
+            rows={openHandoffs.map((h) => [
+              <Id key="i">{h.handoff_id}</Id>, <strong key="s" className="text-white">{h.symbol}</strong>,
+              <Badge key="d" tone={biasTone(h.direction)}>{biasGlyph(h.direction)} {h.direction}</Badge>,
+              <span key="e" className="text-white/70">{h.entry_condition ?? "—"}</span>, <span key="v" className="text-white/70">{h.invalidation ?? "—"}</span>, num(h.setup_score, 1),
+              <Badge key="st" tone={statusTone(h.status)} dot>{h.status}</Badge>,
+            ])}
+            empty="No open handoffs for Grok."
+          />
+        </Card>
 
-      <Card title="TradingView alerts">
-        <Table
-          head={["Alert", "Asset", "Condition", "Trigger", "Action", "Status", "Updated"]}
-          rows={liveAlerts.map((a) => [
-            <span key="i"><Mono>{a.alert_id}</Mono><br /><Mono>{a.thesis_id}</Mono></span>,
-            a.tv_symbol ?? a.asset, a.condition, num(a.trigger_price), a.action,
-            <span key="s"><Badge tone={statusTone(a.status)}>{a.status}</Badge>{a.status_reason && <div className="mt-1 text-[12px] text-white/45">{a.status_reason}</div>}</span>,
-            when(a.updated_at),
-          ])}
-          empty="No live alerts recorded."
-        />
-      </Card>
+        <Card title="TradingView alerts" right={<Badge tone="gray">{liveAlerts.length}</Badge>}>
+          <Table
+            head={["Alert", "Asset", "Condition", "Trigger", "Action", "Status", "Updated"]}
+            align={["l", "l", "l", "r", "l", "l", "l"]}
+            dense
+            maxHeight={520}
+            rows={liveAlerts.map((a) => [
+              <span key="i"><Id>{a.alert_id}</Id><br /><Id>{a.thesis_id}</Id></span>,
+              <strong key="as" className="text-white">{a.tv_symbol ?? a.asset}</strong>, <span key="c" className="whitespace-nowrap">{a.condition === "cross_up" ? "↑ " : a.condition === "cross_down" ? "↓ " : ""}{a.condition}</span>, num(a.trigger_price), <Badge key="ac" tone={a.action === "ENTER" ? "green" : a.action === "EXIT" ? "amber" : "gray"}>{a.action}</Badge>,
+              <span key="s"><Badge tone={statusTone(a.status)} dot>{a.status}</Badge>{a.status_reason && <div className="mt-1 max-w-[220px] text-[12px] leading-snug text-white/45">{a.status_reason}</div>}</span>,
+              <span key="u" className="whitespace-nowrap text-white/60">{when(a.updated_at)}</span>,
+            ])}
+            empty="No live alerts recorded."
+          />
+        </Card>
+      </div>
     </div>
   );
 }

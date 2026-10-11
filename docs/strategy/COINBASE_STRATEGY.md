@@ -256,6 +256,7 @@ Grok posts a Coinbase account snapshot at least daily. Without one under 2 days 
 
 ## 8. Change log
 
+- **2026-10-11 v2.2:** risk per trade 5% → 2% and a 4% daily drawdown stop (Stavros, all books). The backtest at 3% risk returned 19.4%/yr with a −13% worst drawdown, so 2% means lower returns and shallower drawdowns.
 - **2026-10-10 v2.1:** alts off for live trading (Stavros); paper tracking continues.
 - **2026-10-10 v2.0:** open universe (§4b). 36 coins scanned and paper-traded; alts trade live only after 4+ paper trades averaging +0.5R, at half risk, while BTC is bull; core coins first. Strategist now heads Book 3 (with Robinhood); Grok executes both.
 - **2026-10-10 v1.0:** book created. Research covered Coinbase capabilities, macro, and 36-variant backtests on BTC/ETH/SOL from 2016–2026.

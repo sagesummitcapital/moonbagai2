@@ -5,7 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, Mono, Table, biasTone, money, num, when } from "../_components/ui";
+import { DivergingBars } from "../_components/charts";
+import { Badge, Card, Empty, Id, Mono, Note, PageHeader, Table, biasGlyph, biasTone, money, num, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -91,10 +92,22 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const ownLow = tally(scored.filter((t) => Number(t.moonbag_score) < 55).map(tradeRow));
 
   const href = (mm: string, b = book) => `/dashboard/tracker?m=${mm}${b !== "all" ? `&book=${b}` : ""}`;
-  const statTable = (rows: (ReturnType<typeof tally> & { name: string })[], first: string, empty: string) => (
+  const statTable = (rows: (ReturnType<typeof tally> & { name: string })[], first: string, empty: string, bars = true) => {
+    const live = rows.filter((r) => r.trades > 0);
+    return (
+    <>
+      {bars && live.length > 0 && (
+        <DivergingBars
+          className="mb-4"
+          labelWidth="minmax(110px, 34%)"
+          format={(v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}R`}
+          items={live.map((r) => ({ label: r.name, sub: `${r.trades} trade${r.trades === 1 ? "" : "s"}`, value: r.totalR }))}
+        />
+      )}
     <Table
       head={[first, "PnL %", "Total R", "Win rate", "Wins", "Losses", "BE", "Trades"]}
-      rows={rows.filter((r) => r.trades > 0).map((r) => [
+      align={["l", "r", "r", "r", "r", "r", "r", "r"]}
+      rows={live.map((r) => [
         <strong key="n" className="text-white">{r.name}</strong>,
         <span key="p" className={`font-mono ${tone(r.pct)}`}>{signed(r.pct, 2, "%")}</span>,
         <span key="r" className={`font-mono ${tone(r.totalR)}`}>{signed(r.totalR, 2, "R")}</span>,
@@ -106,32 +119,34 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
       ])}
       empty={empty}
     />
-  );
+    </>
+    );
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <DataNotice error={error} />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold text-white">Trade tracker</h1>
-          <p className="mt-1 text-[13.5px] text-white/55">Every closed trade, logged from the database. Nothing is left out or added by hand.</p>
-        </div>
-        <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
-          {[["all", "All books"], ["blofin", "Leverage"], ["robinhood", "Long-term"], ["coinbase", "Coinbase"]].map(([k, label]) => (
-            <Link key={k} href={href(m, k)} className={`rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Trade tracker"
+        sub="Every closed trade, logged from the database. Nothing is left out or added by hand."
+        right={
+          <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
+            {[["all", "All books"], ["blofin", "Leverage"], ["robinhood", "Long-term"], ["coinbase", "Coinbase"]].map(([k, label]) => (
+              <Link key={k} href={href(m, k)} className={`whitespace-nowrap rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] font-medium text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
+            ))}
+          </div>
+        }
+      />
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 text-[13px]">
+      <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 text-[13px]">
         {months.map((k) => (
-          <Link key={k} href={href(k)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${k === m ? "border border-amber-300/50 bg-amber-300/10 text-white" : "text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
+          <Link key={k} href={href(k)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${k === m ? "border border-amber-300/50 bg-amber-300/10 font-medium text-white" : "text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <Tile label="PnL %" value={signed(total.pct, 2, "%")} cls={tone(total.pct)} />
+        <Tile label="PnL %" value={signed(total.pct, 2, "%")} cls={tone(total.pct)} wide />
         <Tile label="Total R" value={signed(total.totalR, 2, "R")} cls={tone(total.totalR)} />
         <Tile label="Win rate" value={total.winRate == null ? "—" : `${total.winRate.toFixed(1)}%`} cls={total.winRate == null ? "text-white/60" : total.winRate >= 50 ? "text-accent-green" : "text-rose-300"} />
         <Tile label="Wins" value={String(total.wins)} cls="text-accent-green" />
@@ -139,42 +154,44 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         <Tile label="BE" value={String(total.be)} cls="text-white/60" />
         <Tile label="Trades" value={String(total.trades)} cls="text-amber-200" />
       </div>
-      <p className="-mt-3 text-[12px] text-white/40">
-        PnL % = each trade&apos;s result after fees as a share of the account at the time, added up. R = result ÷ the risk to the original stop. Win rate leaves out breakevens (within {BE_BAND}R of zero). Net for {monthLabel(m)}: {money(total.pnl)}.
-      </p>
+      <Note className="-mt-2">
+        PnL % = each trade&apos;s result after fees as a share of the account at the time, added up. R = result ÷ the risk to the original stop. Win rate leaves out breakevens (within {BE_BAND}R of zero). Net for {monthLabel(m)}: <span className="font-mono tabular-nums text-white/70">{money(total.pnl)}</span>.
+      </Note>
 
       <Card title="Books">{statTable(books, "Book", `No closed trades in ${monthLabel(m)}.`)}</Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card title="By market">{statTable(group((t) => t.symbol), "Symbol", "No closed trades this month.")}</Card>
-        <Card title="By side">{statTable(group((t) => (t.direction === "short" ? "Short" : "Long")), "Side", "No closed trades this month.")}</Card>
+        <Card title="By side">{statTable(group((t) => (t.direction === "short" ? "Short" : "Long")), "Side", "No closed trades this month.", false)}</Card>
       </div>
       <Card title="By setup">{statTable(group((t) => t.setup_type ?? "Off-plan / untagged"), "Setup", "No closed trades this month.")}</Card>
 
       <Card title="Moonbag's calls — the benchmark" right={<Mono>followed on paper, taken or not</Mono>}>
         {statTable(calls, "Signal grade", "No Moonbag signals finished this month yet.")}
-        <p className="mt-3 text-[12.5px] text-white/45">If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</p>
+        <Note>If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</Note>
       </Card>
 
       <Card title="Moonbag vs your calls — leverage" right={<Mono>all closed BloFin trades</Mono>}>
         {statTable(head2head, "Who called it", "No closed leverage trades yet.")}
-        <p className="mt-3 text-[12.5px] text-white/45">
+        <Note>
           {scored.length
             ? `Your own trades that Moonbag would have scored 55+: ${ownHigh.trades} (${signed(ownHigh.totalR, 2, "R")}). Scored under 55: ${ownLow.trades} (${signed(ownLow.totalR, 2, "R")}). If the under-55 group keeps winning, the scoring is missing something you see — the weekly review turns that into a rule.`
             : "Each of your own trades is scored after the fact with Moonbag's rubric, so we can see whether the scoring misses setups you catch. Results build up as trades close."}
-        </p>
+        </Note>
       </Card>
 
       <Card title={`Trade log — ${monthLabel(m)}`}>
         {shown.length ? (
           <Table
             head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
+            align={["l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
+            minWidth={1100}
             rows={shown.map((t) => {
               const x = tradeMetrics(t);
               return [
-                <span key="c">{when(t.closed_at)}<br /><Mono>{t.trade_id}</Mono></span>,
+                <span key="c"><span className="whitespace-nowrap">{when(t.closed_at)}</span><br /><Id>{t.trade_id}</Id></span>,
                 <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
-                <Badge key="d" tone={biasTone(t.direction)}>{t.direction}</Badge>,
+                <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
                 <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
                 <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
                 <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
@@ -195,11 +212,11 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   );
 }
 
-function Tile({ label, value, cls }: { label: string; value: string; cls: string }) {
+function Tile({ label, value, cls, wide = false }: { label: string; value: string; cls: string; wide?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] border-b-amber-300/40 bg-white/[0.025] px-4 py-3.5">
-      <div className="text-[12px] text-white/50">{label}</div>
-      <div className={`mt-2 font-mono text-[20px] font-semibold ${cls}`}>{value}</div>
+    <div className={`min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-3.5 ${wide ? "col-span-2 md:col-span-1" : ""}`}>
+      <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">{label}</div>
+      <div className={`mt-2 break-words font-mono text-[22px] font-semibold leading-none tabular-nums ${cls}`}>{value}</div>
     </div>
   );
 }
