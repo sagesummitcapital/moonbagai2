@@ -2,6 +2,7 @@ import { fmtPct, fmtRR, getLeverageDesk, signalLabel, tradeMetrics, type LevHour
 import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import type { DailyThesis, Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
+import { getLossJournal } from "@/lib/moonbag/lossJournal";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
 import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/LivePrice";
 import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
@@ -45,6 +46,7 @@ export default async function LeveragePage() {
 
   // Live prices (Coinbase spot; BloFin perps track it within a few dollars) for every coin on this page.
   const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
+  const journal = await getLossJournal(12).catch(() => null);
   const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
   const storedFor = (asset: string): Stored | undefined => (latest[asset] ? storedOf(latest[asset].price, latest[asset].ts) : undefined);
 
@@ -162,6 +164,46 @@ export default async function LeveragePage() {
           empty="No open trade. Tell Moonbag (or Grokbot) when you take one and it shows up here with its next levels."
         />
       </Card>
+
+      {/* ------------------------------------------------ loss journal (Stavros + Grok, 2026-10-12) */}
+      {journal && (
+        <Card
+          title="Loss journal"
+          sub="Every loss and near-miss, why it happened, and the check that catches it next time. Grok and the desk read this before giving trade inputs."
+          right={<Badge tone={journal.patterns.length ? "amber" : "gray"}>{journal.entries.length} entries</Badge>}
+        >
+          {journal.patterns.length > 0 && (
+            <Section title="Pre-trade checks" right={<span>most repeated first</span>}>
+              <div className="grid gap-2 md:grid-cols-2">
+                {journal.patterns.map((p) => (
+                  <div key={p.tag} className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={p.losses ? "red" : "amber"}>{p.tag.replace(/_/g, " ")}</Badge>
+                      <span className="text-[12px] text-white/50">{p.times}x{p.losses ? ` · ${p.losses} loss${p.losses > 1 ? "es" : ""} ${money(p.cost_usd)}` : " · no cost yet"}</span>
+                    </div>
+                    {p.latest_check && <p className="mt-1.5 text-[13px] leading-snug text-white/80">{p.latest_check}</p>}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+          <Section title="Entries" right={<span>newest first</span>}>
+            <Table
+              head={["Date", "Trade", "Result", "Why", "Lesson"]}
+              align={["l", "l", "r", "l", "l"]}
+              minWidth={760}
+              rows={journal.entries.map((e) => [
+                <span key="d" className="whitespace-nowrap text-white/60">{e.trade_date ?? whenShort(e.created_at)}</span>,
+                <span key="t"><strong className="text-white">{e.symbol ?? "—"}</strong>{e.direction ? ` ${e.direction}` : ""} <Badge tone={e.kind === "loss" ? "red" : "amber"}>{e.kind === "loss" ? "loss" : "near-miss"}</Badge></span>,
+                <span key="r" className={e.pnl != null && Number(e.pnl) < 0 ? "text-rose-300" : "text-white/50"}>{e.pnl != null ? money(e.pnl) : "—"}{e.r_multiple != null ? ` · ${num(e.r_multiple)}R` : ""}</span>,
+                <span key="w" className="text-white/80">{e.why_lost ?? e.what_happened}</span>,
+                <span key="l" className="text-white/70">{e.lesson ?? "—"}</span>,
+              ])}
+              empty="No losses journaled yet."
+            />
+          </Section>
+        </Card>
+      )}
 
       {/* ------------------------------------------------ strategy */}
       <Card

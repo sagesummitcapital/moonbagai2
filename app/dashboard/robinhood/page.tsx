@@ -77,7 +77,7 @@ export default async function RobinhoodPage() {
             size="sm"
             value={status}
             tone={halted ? "red" : undefined}
-            sub={`A setups only (score ≥ ${num(risk?.min_setup_score, 0)}) · halt at ${money(risk?.soft_halt_equity)} · never ${(risk?.blocked_symbols ?? []).join(", ") || "—"} · no crypto`}
+            sub={`A full size, B half (score ≥ ${num(risk?.min_setup_score, 1)}) · halt at ${money(risk?.soft_halt_equity)} · never ${(risk?.blocked_symbols ?? []).join(", ") || "—"} · no crypto`}
           />
         </Card>
       </div>

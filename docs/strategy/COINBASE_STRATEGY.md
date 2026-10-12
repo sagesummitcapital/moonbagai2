@@ -111,7 +111,7 @@ Universe (v1): `cb_universe` = BTC-USD, ETH-USD, SOL-USD. **Superseded by v2 (§
 
 **Size:**
 
-- Risk is **5% of Coinbase equity** per trade, measured to the stop and including about 1.2% of fees. That works out to roughly 40–65% of the account per position at today's volatility.
+- Risk is **2% of Coinbase equity** per trade (Stavros, 2026-10-11; was 5%), measured to the stop and including about 1.2% of fees. That works out to roughly 15–25% of the account per position at today's volatility.
 - A trade's size is also capped by the open-risk budget left, cash, and 100% of equity (no margin).
 
 **Take profit (TP1):**
@@ -135,11 +135,11 @@ Universe (v1): `cb_universe` = BTC-USD, ETH-USD, SOL-USD. **Superseded by v2 (§
 
 **Today's triggers (if the daily close is above):**
 
-| Coin | Trigger | Planned stop | TP1 (3R) | Approx. position at 5% risk on $100 |
+| Coin | Trigger | Planned stop | TP1 (3R) | Approx. position at 2% risk on $100 |
 |---|---|---|---|---|
-| BTC | 87,397 | 81,331 | 105,594 | $61 |
-| ETH | 2,807 | 2,575 | 3,503 | $53 |
-| SOL | 124.93 | 111.31 | 165.80 | $41 |
+| BTC | 87,397 | 81,331 | 105,594 | $24 |
+| ETH | 2,807 | 2,575 | 3,503 | $21 |
+| SOL | 124.93 | 111.31 | 165.80 | $16 |
 
 The backtest system is already long all three, in its paper record: ETH and SOL since 19 Aug, BTC since 21 Sep, with SOL past TP1. The live account starts flat and only takes fresh signals. Chasing old entries was not part of the test.
 
@@ -174,11 +174,11 @@ everything but only trades what has proven itself.
 1. **Scan and paper-trade every coin.** All 36 coins in `cb_universe` run the exact v1 rules on paper in `cb_paper`, every
    day, with no portfolio limits. The paper book was seeded with each coin's backtest record (311 trades through 2026-10-09)
    and continues live from there.
-2. **Core coins trade live:** BTC, ETH, SOL, at 5% risk (unchanged).
+2. **Core coins trade live:** BTC, ETH, SOL, at full risk (2% since 2026-10-11).
 3. **An alt goes live only when its own paper record earns it:** 4+ closed paper trades averaging **+0.5R or better**.
    It drops back to paper automatically if its average falls below that. (Tested thresholds: +0.3R and +0.5R held in every
    window; +0.75R and +1.0R were worse.)
-4. **Alts trade at half risk** (2.5% — `cb_universe.risk_mult` 0.5) and **only while BTC's regime is bull**.
+4. **Alts trade at half risk** (1% — `cb_universe.risk_mult` 0.5) and **only while BTC's regime is bull**.
 5. **Priority when several coins break out on the same day:** core coins first, then alts by 90-day strength vs BTC.
 6. **Unchanged:** 15% max open risk, max 3 positions, one per coin, losing-streak halving, 20% drawdown pause, the 1% price gate,
    stops/TP1/trail/regime exits.
@@ -247,14 +247,16 @@ Grok posts a Coinbase account snapshot at least daily. Without one under 2 days 
 
 ## 7. Risk ladder (Stavros decides; agents only propose)
 
-- Start at **5% risk per trade, 15% max open risk**.
+- Now at **2% risk per trade, 4% daily drawdown stop, 15% max open risk** (Stavros, 2026-10-11).
 - **Proposal at 15 closed live trades:**
-  - if average R ≥ +0.5 and live results track the backtest within 1R in total, consider 7.5% per trade;
-  - if average R < 0, go to 3% and review.
+  - if average R ≥ +0.5 and live results track the backtest within 1R in total, consider 3% per trade;
+  - if average R < 0, go to 1% and review.
 - Gains compound automatically because size is a percentage of current equity.
 - Adding more money is Stavros's call. The system re-sizes from the next account snapshot.
 
 ## 8. Change log
+
+- **2026-10-11 v2.3:** Stavros's zone buys. Stavros can call an accumulation zone himself (first one: BTC from ~83k to 79k, invalid below 75k; ETH stop 2,330 under its 30-day low). Claude turns it into a normal Coinbase open handoff (`setup_type` `cb_zone_buy`, market buy with a price gate, stop under the structure he names, TP1 at 2R for half). The same 2% risk, one position per coin and every other limit apply, and `cb_run()` manages the trade exactly like a breakout trade (stop, TP1, trail, regime exit).
 
 - **2026-10-11 v2.2:** risk per trade 5% → 2% and a 4% daily drawdown stop (Stavros, all books). The backtest at 3% risk returned 19.4%/yr with a −13% worst drawdown, so 2% means lower returns and shallower drawdowns.
 - **2026-10-10 v2.1:** alts off for live trading (Stavros); paper tracking continues.

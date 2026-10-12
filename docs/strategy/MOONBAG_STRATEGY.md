@@ -53,7 +53,7 @@ The same for every book:
    - **Breakout and hold.** A 1h candle closes beyond the level and the next 1h candle does not close back through it (or a retest holds).
    Never enter on the first touch or a wick.
 3. **Direction.** With the 4h trend, or at a range edge. Against the trend only after a reclaim. Trading against the 5 AM Phoenix 4H candle (when its body is at least half its range) costs 10 points.
-4. **Stop.** Just past the swept wick or the far side of the level, plus a quarter of the 1h ATR. At least 0.5% from entry on BTC/ETH, 0.8% on other coins.
+4. **Stop.** Beyond the 4h/daily structure that proves the idea wrong (the swept wick or the far side of the level, never a 15m/1h micro-swing), plus half the 1h ATR. At least 0.8% from entry on BTC/ETH and 1.5% on other coins, and never less than 1.5 × the 1h ATR. A wider stop means a smaller position and lower leverage, not more risk.
 5. **Targets.** TP1 = the next real level, placed just in front of it, never beyond it. It must be 2R or more. TP2 = the level after that.
 6. **Grade (the Gate's 0-100 score).** 85+ = A+. 70-84 = A. 55-69 = B. Only A and A+ reach the phone.
 
@@ -69,7 +69,7 @@ The same for every book:
 - Leverage = the lowest whole number that keeps margin at or under half the balance. Ceilings halve in a hot market.
 - Liquidation must sit at least 1.25× the stop distance past entry. Isolated margin.
 
-**Management.** TP1 is a limit order for half. When it fills, move the stop to entry. Trail the rest behind the last 1h swing, then the 4h swing after +3R. Out at TP2, the trailed stop or 72 hours. Do not close by hand in front of a working target.
+**Management.** TP1 is a limit order for half. When it fills, move the stop to entry. Trail the rest behind the last 1h swing, then the 4h swing after +3R. Out at TP2 or the trailed stop. Aim for about 72 hours, but there is no time stop: at 72h the desk sends one review line (idea intact → hold; idea broken → suggest closing). Do not close by hand in front of a working target.
 
 **Alerts.** Range lines are silent. The phone only gets TAKE TRADE NOW (A or A+) and the stop / target alerts of an open trade.
 
@@ -83,7 +83,7 @@ When Stavros asks "give me inputs for <coin>", run this checklist in order. The 
 2. **Not cooling.** Is the coin within 10% of its 3-day low and high, and within 2 daily ATRs of its daily 20 EMA?
 3. **Level.** Is price at a real 4h/daily level (not mid-range)?
 4. **Trigger.** Has a 1h candle closed back inside after a sweep, or closed beyond the level and held? If not, give a limit order at the level only when the trigger has already printed; otherwise NO TRADE.
-5. **Stop.** Past the structure plus a quarter of the 1h ATR, and at least 0.5% (BTC/ETH) or 0.8% (others) from entry.
+5. **Stop = invalidation.** Below the 4h/daily support (long) or above the resistance (short) that the trade depends on, plus half the 1h ATR, at least 0.8% (BTC/ETH) or 1.5% (others) from entry and at least 1.5 × the 1h ATR. Wider stop = smaller size and lower leverage, same 2% risk. Never pull the stop closer to make 2R work: if TP1 is under 2R with the real stop, it is NO TRADE.
 6. **Reward.** Is the next real level 2R or more away? TP1 goes just in front of it.
 7. **No major US data** (CPI, FOMC, jobs, ISM) within 2 hours.
 8. **Grade and risk.** If the Moonbag desk has a live signal on this coin, use its grade and the table above. If it has none, Grok does not score it: treat it as B (1% on BTC/ETH, 0.5% on any other coin). Halve it after 2 losses in a row.
@@ -170,7 +170,7 @@ Tested or tried, and rejected:
 - Stops just beyond the fair value gap: much worse than stops beyond the sweep.
 - Mechanical 1h entries with no level, and the trend pullback to the 20 EMA: negative in every backtest. Paper only.
 - Any trade planned under 2R: 0 for 4 on paper, and the cause of the week's only full loss.
-- Leverage above 20x, stops tighter than 0.5%, and closing by hand in front of a working target.
+- Leverage above 20x, stops tighter than 0.8% (BTC/ETH) or 1.5% (others), and closing by hand in front of a working target.
 - Coinbase: all 36 coins at full risk (drawdown −64%), and the BTC 20-week EMA gate (it whipsawed).
 - Double buys on gold and silver: made silver worse.
 - Chasing a coin after a 10% move.
@@ -205,7 +205,7 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 | Cartographer | Each coin's two lines: range high + range low · one TradingView alert per line carrying the play |
 | Gate | Check validation on closed 1h candles · score 0–100 + 8-point checklist · TAKE TRADE NOW or NO TRADE |
 | Risk Officer | Size to the risk tier and open-risk budget · leverage inside the ceiling · BloFin order card |
-| Exit Clerk | Swap a coin's lines to stop + target when a trade opens · TP1 → breakeven, trail · 72h · restore lines after close |
+| Exit Clerk | Swap a coin's lines to stop + target when a trade opens · TP1 → breakeven, trail · 72h review (no time stop) · restore lines after close |
 | Publisher | Morning-brief X post · trade opened / closed X posts (templates, filled by the website) |
 | Level Watch | Robinhood levels during market hours — messages only when something changed |
 | Coinbase Desk | The Strategist's Coinbase arm: daily candles for 36 coins · `cb_run()` — regime, paper book, live status, entries, stops/TP1/trail · hands orders to Grok |
@@ -249,9 +249,9 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 ### 3.2 Hard rules (do not bend)
 
 - **One trade per coin, no cap on the number of open trades, combined risk to the stops ≤ 15% of the account** (Stavros, 2026-10-09; 2-trade cap removed 2026-10-10). A trade on one coin never changes another coin's lines. Each extra trade is sized to fit what is left of the 15% (below 1% left = NO TRADE). Risk on a trade drops to 0 once its stop is at or past entry.
-- Hold 72 hours maximum (time stop).
+- Aim to be done within about 72 hours; there is no time stop (Stavros, 2026-10-12). At 72h the desk sends one review line.
 - Stavros places every order.
-- Stop beyond real structure and at least 0.5% from entry (0.8% for rotation coins). The stop must sit inside 80% of the distance to liquidation.
+- Stop beyond real 4h/daily structure plus half the 1h ATR, at least 0.8% from entry (1.5% for rotation coins) and at least 1.5 × the 1h ATR. The stop must sit inside 80% of the distance to liquidation.
 - **Reward to TP1 at least 2R** (Stavros, 2026-10-10: "i want 2:1 r:r"). No exceptions below 2R.
 - Isolated margin. Margin at most half the account.
 - **Leverage ceiling:** 20x for BTC/ETH, 10x for rotation coins (database-enforced).
@@ -338,7 +338,7 @@ Lines come from price alerts. The connector can't draw permanent chart drawings,
 3. Stop is beyond structure and far enough from entry.
 4. Leverage is within the coin's cap and the stop is inside 80% of the liquidation distance.
 5. The trade is with the 4h trend, at a range edge, or counter-trend only after a reclaim.
-6. The plan fits within 72h.
+6. The plan should play out in about 72h (an aim, not a limit).
 7. No major US data release within 2h.
 8. The setup is not retired.
 9. The coin is not cooling (no chase after a 10% move).
@@ -378,7 +378,7 @@ Whoever gives Stavros inputs for a BloFin trade uses this exact recipe, so both 
    - breakout: a 1h close beyond the level and the next 1h holds (or a retest holds);
    - rejection or reclaim: a sweep beyond the level, then a 1h close back inside.
    Use a market order only if price is within a quarter of the 1h ATR of the level. Otherwise use a limit at the level.
-3. **Stop loss** just beyond the structure that proves the idea wrong (the swept wick, or the far side of the level), plus a small buffer of about a quarter of the 1h ATR. At least 0.5% from entry on BTC/ETH and 0.8% on other coins.
+3. **Stop loss = invalidation:** just beyond the structure that proves the idea wrong — below the support a long depends on, above the resistance a short depends on (the swept wick, or the far side of the level), plus a buffer of half the 1h ATR. Use the 4h/daily structure, never a 15m/1h micro-swing. At least 0.8% from entry on BTC/ETH and 1.5% on other coins, and at least 1.5 × the 1h ATR. If TP1 is then under 2R, it is not a trade — never move the stop closer to make the numbers work.
 4. **Take profit.** TP1 = the next real level in the trade's direction; take half there. TP2 = the level after that; the runner goes there.
 5. **R:R at least 2:1** from entry to TP1 against entry to stop. If the next level is closer than 2R, there is no trade from here: wait for a limit at a better level, or skip.
 6. **Risk at most 2% of the BloFin balance**, using the §3.2 table, and stop for the day at a 4% drawdown:
@@ -392,7 +392,7 @@ Whoever gives Stavros inputs for a BloFin trade uses this exact recipe, so both 
 9. **Leverage.** Use the lowest whole leverage that keeps margin at or below half the balance, within the ceiling (§3.5: BTC/ETH up to 20x, other coins up to 10x, lower for lower grades, halved in a hot market).
    - Liquidation must sit at least 1.25× the stop distance beyond entry. If it doesn't, cut leverage.
    - Margin = notional ÷ leverage. Isolated margin.
-10. **Time and management.** The plan must fit 72 hours. At TP1, take half and move the stop to entry, then trail the runner (§3.7).
+10. **Time and management.** Aim for about 72 hours; there is no time stop. At TP1, take half and move the stop to entry, then trail the runner (§3.7).
 
 **The inputs, always in this form:**
 
@@ -432,7 +432,7 @@ After TP1 fills: move the stop on the rest to entry. Skip if: <reason>.
 1. TP1 is a limit order for half the position. Let it fill; don't close by hand in front of it.
 2. When TP1 fills, move the stop on the rest to entry.
 3. Trail the runner behind the last 1h swing until it is +3R, then behind the last 4h swing.
-4. TP2 is the next 4h/daily level. Exit at TP2, the trailed stop, or 72 hours.
+4. TP2 is the next 4h/daily level. Exit at TP2 or the trailed stop (no time stop; one review at 72h).
 5. If Stavros moves a target or stop, the live fields (`current_stop`, `current_tp1–3`) are updated and the alerts follow.
 
 **Lock-in: breakeven stops and partial profits (Stavros's usual management, 2026-10-09).** He often moves the stop to entry and takes 25–50% off before TP1, so gains aren't given back. The system supports it fully:
@@ -684,12 +684,14 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 | Rotation re-rank | Scout | Daily | The 5 coins and the 2 in play |
 | Coinbase signals vs live fills (`cb_signals`), `cb_backtest` re-run, R:R buckets | Coinbase desk (daily) + Auditor (Saturday) | Daily / weekly | Coinbase rules; a risk-ladder proposal to Stavros after 15 closed trades |
 
-**Changes on evidence only:** 10+ resolved results, or a backtest that holds on two coins. Risk %, the 20x ceiling, the 2-trade / 15% open-risk limit and the 72h limit change only when Stavros says so.
+**Changes on evidence only:** 10+ resolved results, or a backtest that holds on two coins. Risk %, the 20x ceiling, the 2-trade / 15% open-risk limit and the stop minimums change only when Stavros says so.
 
 ---
 
 ## 7. Change log
 
+- **2026-10-12 (v17):** The stop is the invalidation (Stavros: "stops being below levels, essentially invalidation — they were too close on last stop"): below the support a long depends on / above the resistance a short depends on, never pulled closer to reach 2R. Current levels, alerts and setups are relayed from GET /levels in one fixed format.
+- **2026-10-12 (v16):** Wider stops and no time stop (Stavros: "stop losses might be too tight"; "no time limit but that is what we aim for"). Evidence: 11 of 12 resolved desk signals were stopped and 7 of those were +0.5R or better first; his BTC long of 2026-10-12 (stop 0.51%, 5x) was stopped in 14 minutes. Backtest (breakout engine, 1h, 2R target): avg R went from −0.31 (BTC) / −0.31 (ETH) with a 1 × ATR stop to −0.10 / −0.16 with 1.5 × ATR, on both coins. New stop: beyond 4h/daily structure + ½ × 1h ATR, minimum 0.8% BTC/ETH and 1.5% other coins, and at least 1.5 × the 1h ATR. Risk stays 2%: a wider stop means a smaller position and lower leverage. Fewer setups will clear 2R; that is intended. The 72h time stop is gone: aim for about 72h, one review line at 72h.
 - **2026-10-11 (v15):** Theme roadmap and sector rotation (§4.7):
   - `theme_map`, `etf_watch` and the weekly `sector_rotation` scoreboard;
   - rotation-tailwind theme point for equity setups;
