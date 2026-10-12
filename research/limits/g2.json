@@ -1,0 +1,5 @@
+[{"entry":"deep","fresh":false},{"entry":"deep","fresh":false,"max_r":2.5},
+ {"entry":"deep","deep":0.5},{"entry":"deep","deep":0.75},{"entry":"deep","deep":0.5,"fresh":false},
+ {"entry":"deep","src":"htf"},{"entry":"deep","src":"swing"},{"entry":"deep","src":"daily"},
+ {"entry":"deep","dtrend":true},{"entry":"deep","dtrend":true,"fresh":false},
+ {"entry":"deep","deep":0.5,"dtrend":true},{"entry":"deep","deep":0.5,"max_r":2.5,"fresh":false}]

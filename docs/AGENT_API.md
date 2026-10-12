@@ -20,6 +20,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /signals?days=14&asset=BTC` | both | Desk history for audits: every leverage signal with its label (DESK ALERT / RESEARCH ONLY / PASS) and outcome, paper trades, 24h lookbacks, recent backtests, active strategy |
 | `GET /levels` | both | Current TradingView levels: per coin the open trade, every live TradingView alert (stop / target / level), the trade setups and the range — one fixed `text` to relay word for word |
 | `GET /journal/losses` · `POST /journal/losses` | both | Loss journal: every losing trade and near-miss mistake with why, tags, lesson and the pre-trade check; GET also returns the repeated-mistake checks as fixed `text` |
+| `GET /limits` · `POST /limits` · `PATCH /limits/{limit_id}` | both / Grok+Claude | Resting limit orders: his own (origin own), Moonbag picks he placed (moonbag) and Moonbag's paper limits; GET returns fixed `text`, the scoreboard and recent outcomes |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
 | `GET /yesterday[?date=YYYY-MM-DD]` | Claude | Yesterday's theses + evaluations + trades + everything still ungraded |
 | `GET /theses?date=&status=&asset=` | both | List theses |
@@ -225,6 +226,29 @@ b. Reply with the "text" field EXACTLY as returned: same wording, numbers and or
    only that coin's block (its lines exactly as returned) plus the first two header lines.
 c. Don't add levels, stops or setups of your own. If something isn't in the response, say "Moonbag hasn't set that".
 d. If the call fails, say "I can't reach Moonbag right now".
+
+LIMIT ORDERS (Stavros, 2026-10-12: "I set limit orders on a few coins to DCA in ... I will give Grok my limit orders, entries,
+size etc. ... store this and set up TradingView alerts to let me know if the limit hits")
+a. Whenever Stavros tells you about a resting limit (new, moved or cancelled), record it in Moonbag right away:
+   POST /limits {"symbol","direction","limit_price","quantity","leverage","stop","tp1","tp2","risk_dollars","risk_percent",
+   "expires_at" (null = good till cancelled),"notes","origin":"own" (or "moonbag" if it was a Moonbag LIMIT SETUP)}.
+   A DCA ladder goes in one call: {"group_id":"<COIN>-dca-<date>","orders":[{rung 1},{rung 2},...]} — every rung carries the
+   same stop. Moonbag's sync then puts a TradingView alert at each limit price ("MB … LIMIT BUY/SELL"), lists the coin under
+   "Open limits" in the Moonbag – Crypto Futures watchlist, and pings his phone when price reaches it.
+b. Moved / resized / cancelled: PATCH /limits/{limit_id} {"limit_price"|"quantity"|"stop"|"tp1"|"status":"cancelled"}.
+c. Filled: record the trade as usual (POST /trades, entry = fill price). Moonbag links it to the limit automatically (same coin
+   and side, within 0.4%) and swaps the LIMIT alert for the trade's STOP/TP alerts. A partial ladder fill: record the filled
+   size as the trade and keep the other rungs working.
+d. "What limits do I have?" → GET /limits and reply with the "text" field exactly.
+e. LIMIT INPUTS (same playbook as market trades, backtested 2026-10-12 on BTC/ETH/SOL + the rotation top 5): put the limit HALF
+   A 1h ATR BEYOND the level — below a 4h swing low / previous day or week low for a long, above the high for a short — so it
+   only fills when price sweeps the level (a limit AT the level lost money in the test; through it made +0.13R per trade).
+   The level should be 0.3–2 daily ATRs from price, and only on the side of the daily 50 EMA trend. Stop = the invalidation:
+   at least 0.8% (BTC/ETH/SOL) or 1.5% (others) and 1.5 × the 1h ATR beyond the fill. TP1 = the next opposite level and at least
+   2R (the test averaged 3R). Move the stop to entry after +1.5R. Cancel if not filled within 24h, or if price reaches TP1
+   before filling. Never on a cooling coin (10%+ off its 3-day low/high). Risk: 2% max for the whole order; for a DCA ladder
+   the 2% is for ALL rungs together, sized so that if every rung fills and the shared stop hits, he loses at most 2%.
+   Check the loss journal first, as for any trade. Answer in the usual card with "LIMIT" in front of the entry.
 
 LOSS JOURNAL — SHARED WITH MOONBAG (Stavros, 2026-10-12: "I am going to journal on losing trades with grok — I want Claude to also have this data and use it")
 The journal lives in Moonbag, not in your own files: POST /journal/losses and GET /journal/losses are the record. (A local copy is

@@ -1,0 +1,8 @@
+[{"entry":"deep","deep":0.5,"fresh":false},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5},
+ {"entry":"deep","deep":0.5,"fresh":false,"dtrend":true},
+ {"entry":"deep","deep":0.75,"fresh":false},
+ {"entry":"deep","deep":0.5,"fresh":false,"manage":"runner"},
+ {"entry":"deep","deep":0.5,"fresh":false,"expiry_h":24},
+ {"entry":"deep","deep":0.5,"fresh":false,"min_r":2.5}]

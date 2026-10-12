@@ -98,9 +98,11 @@ Size <qty> <COIN> (≈ $<notional>) · Leverage <x>x isolated · Margin $<m> · 
 Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
 ```
 
-**Worked example** ($250 balance, desk grade A, BTC): long 83,000, stop 82,500 (0.6%). Risk 2% = $5. Size = 5 ÷ 500 = 0.01 BTC = $830. Leverage 7x, margin about $119, liquidation near 71,100. TP1 must be 84,000 or higher. With no desk grade the same trade is 1% = $2.50, 0.005 BTC, 4x.
+**Worked example** ($250 balance, desk grade A, BTC): long 83,000, stop 82,300 under the 4h support (0.84%). Risk 2% = $5. Size = 5 ÷ 700 = 0.0071 BTC = $593. Leverage 5x, margin about $119, liquidation near 66,400. TP1 must be 84,400 or higher. With no desk grade the same trade is 1% = $2.50, 0.0036 BTC, 3x.
 
 **NO TRADE** when: no level, no 1h close, reward under 2R, coin cooling, no risk budget, 4% daily drawdown hit, or data within 2 hours. Say it in one line with the price that would change it.
+
+**LIMIT ORDERS (2026-10-12, §3.12).** Same levels, entered by a resting limit instead of at market: put the limit half a 1h ATR *through* the level (below the support for a long, above the resistance for a short) so it only fills on a sweep; level 0.3–2 daily ATRs from price, on the side of the daily 50 EMA; stop and minimums as above; TP1 the next opposite level, at least 2R (aim 3R); stop to entry at +1.5R; cancel after 24 hours or if price reaches TP1 first. A DCA ladder shares one stop and the 2% is for all rungs together. Grok records every resting limit in Moonbag (POST /limits) so it gets a TradingView alert and a line under "Open limits".
 
 ### 0.3 Coinbase spot (Grok executes)
 
@@ -492,6 +494,33 @@ Tested and **not** adopted:
 
 Not part of the strategy at all: prop-firm and income claims. Risk was later set to 2% per trade with a 4% daily drawdown stop (Stavros, 2026-10-11).
 
+### 3.12 Limit orders — resting orders at the levels (Stavros, 2026-10-12)
+
+Stavros: "I want to introduce limit orders ... it should overall be similar to market trades, but these should make it better and should have really good R:R and win %."
+
+**What was tested** (research/limits, BTC/ETH/SOL + rotation top 5 NEAR/TIA/ENA/SEI/SUI, 1h bars Jan–Oct 2026, maker 0.02% / taker 0.06% + slippage, a fill and a stop in the same bar counted as a loss). Every 4 hours, per coin: the nearest support (long) or resistance (short) from the 4h swings of the last 10 days and the previous day and week high/low, 0.3–2 daily ATRs from price.
+
+| Variant (same levels, stop rule and targets) | Trades | Avg R | Profit factor | Both halves |
+|---|---|---|---|---|
+| Market entry after a 1h close back (the desk's validated bounce) | 203 | −0.03 | 0.96 | no |
+| Limit AT the level (no trend filter, no break-even move) | 517 | −0.08 | 0.90 | no |
+| Limit half a 1h ATR THROUGH the level (adopted) + daily-EMA50 trend + break-even at 1.5R | 278 | **+0.13** | **1.24** | **yes (+0.09 / +0.17)** |
+
+Outcomes of the adopted version: 24.5% reach the target (average +2.75R), 23.4% scratch at break-even, 52.2% stop. It is an R:R strategy, not a high win-rate one: about 1 trade in 4 pays 2.75R, about half of the rest are scratched. The edge comes from where the order fills: a limit through the level only fills when the level is swept, which is exactly where the market entries in §3.6 kept being stopped. Without the no-chase filter the result was −0.16R; placing only every 8h instead of every 4h dropped it to +0.08R; every 12h, 0R.
+
+**The recipe** (Moonbag and Grok use the same one):
+1. Level: 4h swing low/high of the last 10 days, previous day or previous week low/high, 0.3–2 × ATR14(1D) from price.
+2. Trend: longs only above the daily 50 EMA, shorts only below. Never on a cooling coin.
+3. Limit: 0.5 × ATR14(1h) through the level.
+4. Stop: the larger of 0.8% (BTC/ETH/SOL) / 1.5% (others) and 1.5 × ATR14(1h) beyond the fill.
+5. TP1: the next opposite level, at least 2R. Stop to entry (plus fees) once price has been +1.5R.
+6. Cancel after 24 hours, or as soon as price reaches TP1 before filling (backtest: a 24h expiry gave +0.11R, 48h +0.13R; 24h keeps the orders close to price).
+7. Risk 2% (BTC/ETH/SOL) / 1% (others) while the setup is at paper stage; a DCA ladder shares one stop and one 2% budget.
+
+**How it runs.** lev_limit_plan() runs this recipe on the stored 1h candles after every 4h close and places one *paper* limit per coin; lev_limit_resolve() replays them (fill, break-even, target, stop, expiry). The Desk Lead sends at most 3 LIMIT SETUP messages a day (plan ≥ 2.5R, BTC/ETH/SOL or an in-play coin). His own resting limits are recorded by Grok (POST /limits); the sync puts a TradingView alert at each limit price and lists the coin under "Open limits" in the Moonbag – Crypto Futures watchlist. A trade recorded at a limit's price fills that limit automatically.
+
+**Feedback loop.** The Saturday review compares paper results with the backtest (step 3e), by level type, side and coin, and his own limits against the recipe. Playbook 'limit_sweep' moves from paper to live after 10 resolved paper limits averaging above 0R, and is retired after 20 averaging below −0.1R. Parameter changes only through a research rerun that holds on both halves and on core and alts.
+
 ### 3.10 X posts (Publisher → Grok)
 
 Posts are filled from fixed templates by the website. No model writes them. **R and % only**: no dollar amounts or account size (Stavros, 2026-10-09). Grok fetches `GET /api/moonbag/x-posts`, posts them and marks them posted.
@@ -690,6 +719,7 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 
 ## 7. Change log
 
+- **2026-10-12 (v18):** Limit orders (§3.12, §0.2): resting limits half a 1h ATR through the level, backtested +0.13R per trade (PF 1.24, both halves positive) vs −0.03R for market entries on the same levels; paper loop via lev_limit_plan()/lev_limit_resolve(); his limits recorded via /limits with TradingView alerts and an "Open limits" watchlist section. Worked example in §0.2 updated to the v16 stop minimum.
 - **2026-10-12 (v17):** The stop is the invalidation (Stavros: "stops being below levels, essentially invalidation — they were too close on last stop"): below the support a long depends on / above the resistance a short depends on, never pulled closer to reach 2R. Current levels, alerts and setups are relayed from GET /levels in one fixed format.
 - **2026-10-12 (v16):** Wider stops and no time stop (Stavros: "stop losses might be too tight"; "no time limit but that is what we aim for"). Evidence: 11 of 12 resolved desk signals were stopped and 7 of those were +0.5R or better first; his BTC long of 2026-10-12 (stop 0.51%, 5x) was stopped in 14 minutes. Backtest (breakout engine, 1h, 2R target): avg R went from −0.31 (BTC) / −0.31 (ETH) with a 1 × ATR stop to −0.10 / −0.16 with 1.5 × ATR, on both coins. New stop: beyond 4h/daily structure + ½ × 1h ATR, minimum 0.8% BTC/ETH and 1.5% other coins, and at least 1.5 × the 1h ATR. Risk stays 2%: a wider stop means a smaller position and lower leverage. Fewer setups will clear 2R; that is intended. The 72h time stop is gone: aim for about 72h, one review line at 72h.
 - **2026-10-11 (v15):** Theme roadmap and sector rotation (§4.7):

@@ -1,0 +1,5 @@
+[{"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"expiry_h":24},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"expiry_h":24,"dtrend":true},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true},
+ {"mode":"market","fresh":false,"be1":1.5,"expiry_h":24},
+ {"mode":"market","fresh":false,"be1":1.5,"expiry_h":24,"dtrend":true}]

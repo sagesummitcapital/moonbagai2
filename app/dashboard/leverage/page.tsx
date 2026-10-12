@@ -3,6 +3,7 @@ import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import type { DailyThesis, Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { getLossJournal } from "@/lib/moonbag/lossJournal";
+import { getLimits } from "@/lib/moonbag/limits";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
 import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/LivePrice";
 import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
@@ -47,6 +48,7 @@ export default async function LeveragePage() {
   // Live prices (Coinbase spot; BloFin perps track it within a few dollars) for every coin on this page.
   const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
   const journal = await getLossJournal(12).catch(() => null);
+  const limits = await getLimits().catch(() => null);
   const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
   const storedFor = (asset: string): Stored | undefined => (latest[asset] ? storedOf(latest[asset].price, latest[asset].ts) : undefined);
 
@@ -164,6 +166,47 @@ export default async function LeveragePage() {
           empty="No open trade. Tell Moonbag (or Grokbot) when you take one and it shows up here with its next levels."
         />
       </Card>
+
+      {/* ------------------------------------------------ limit orders (Stavros, 2026-10-12) */}
+      {limits && (
+        <Card
+          title="Open limits"
+          sub="Your resting BloFin limit orders (Grok records them; each has a TradingView alert at its price) and Moonbag's paper limits testing the backtested limit recipe."
+          right={<Badge tone={limits.open.some((o) => o.origin !== "paper") ? "cyan" : "gray"}>{limits.open.filter((o) => o.origin !== "paper").length} yours · {limits.open.filter((o) => o.origin === "paper").length} paper</Badge>}
+        >
+          <Table
+            head={["Coin", "Side", "Limit", "Stop", "TP1", "R : R", "Size", "Status", "Expires"]}
+            align={["l", "l", "r", "r", "r", "r", "r", "l", "l"]}
+            minWidth={820}
+            rows={limits.open.map((o) => [
+              <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge><br /><Id>{o.limit_id}</Id></span>,
+              <Badge key="d" tone={biasTone(o.direction)}>{biasGlyph(o.direction)} {o.direction === "long" ? "buy" : "sell"}</Badge>,
+              <span key="l" className="font-mono tabular-nums text-white">{num(o.limit_price, 6)}</span>,
+              <span key="s" className="font-mono tabular-nums text-rose-300">{num(o.current_stop ?? o.stop, 6)}</span>,
+              <span key="t" className="font-mono tabular-nums text-accent-green">{num(o.tp1, 6)}</span>,
+              <strong key="r" className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong>,
+              <span key="q" className="text-white/70">{o.quantity != null ? num(o.quantity, 6) : "—"}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</span>,
+              <Badge key="st" tone={o.status === "touched" ? "amber" : "gray"}>{o.status === "touched" ? "touched — filled?" : "working"}</Badge>,
+              <span key="e" className="whitespace-nowrap text-white/60">{o.expires_at ? whenShort(o.expires_at) : "until cancelled"}</span>,
+            ])}
+            empty="No resting limits. Tell Grok when you place one and it shows up here with a TradingView alert at its price."
+          />
+          {limits.scoreboard.length > 0 && (
+            <Section title="Limit scoreboard" right={<span>feeds the Saturday review</span>}>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {limits.scoreboard.map((b) => (
+                  <div key={b.origin} className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-[13px]">
+                    <div className="text-[11px] uppercase tracking-[0.12em] text-white/45">{b.origin === "paper" ? "Moonbag paper" : b.origin === "moonbag" ? "Moonbag picks you placed" : "Your own limits"}</div>
+                    <div className="mt-1 text-white/85">{b.placed} placed · {b.filled} filled · {b.closed} closed</div>
+                    <div className="text-white/70">{b.targets} target · {b.breakevens} break-even · {b.stops} stop</div>
+                    <div className={Number(b.avg_r) > 0 ? "text-accent-green" : Number(b.avg_r) < 0 ? "text-rose-300" : "text-white/50"}>avg {b.avg_r == null ? "—" : `${Number(b.avg_r).toFixed(2)}R`} · total {b.total_r == null ? "—" : `${Number(b.total_r).toFixed(1)}R`}</div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+        </Card>
+      )}
 
       {/* ------------------------------------------------ loss journal (Stavros + Grok, 2026-10-12) */}
       {journal && (

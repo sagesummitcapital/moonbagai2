@@ -1,0 +1,6 @@
+[{"entry":"deep"},{"entry":"front"},{"entry":"ladder"},
+ {"trend":"with"},{"trend":"with","entry":"deep"},
+ {"max_r":2.5},{"max_r":2.0},{"max_r":2.5,"entry":"deep"},
+ {"expiry_h":24},{"manage":"runner"},
+ {"dmin":0.6,"dmax":3.0},{"dmin":1.0,"dmax":3.0},
+ {"fresh":false},{"cool":false},{"sides":"long"},{"sides":"short"}]
