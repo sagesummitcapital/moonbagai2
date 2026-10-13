@@ -41,6 +41,10 @@ The same for every book:
 7. **Gains compound by themselves.** Size is a percent of the current balance, so it grows with the account. Never raise the percent after a win.
 8. **Only Stavros changes a risk number.**
 
+**Strategy of the week (2026-10-13).** Every Saturday the review scores every approach on one board (his own calls, Moonbag picks he took, the desk's paper signals, the limit recipe full-target and quick mode) and names ONE winner for next week: 10+ trades in 4 weeks and positive R in both halves; anything losing over 10+ trades can't win. The Monday week plan opens with it and its rule. Grok builds inputs with it first; if his idea uses another approach, Grok still gives the inputs and says in one line which approach is winning. No winner yet → "too early".
+
+**No trade cap (2026-10-13).** No limit on the number of trades per day or per week — never suggest one. The limits are 2% per trade, the 4% daily stop, 15% combined open risk, one trade per coin, half size after 2 losses in a row.
+
 ### 0.2 BloFin leverage (Stavros places every order)
 
 **Coins.** BTC and ETH always. Plus at most 2 "in play" coins from the top 5 the market is rotating into. Never a cooling coin (10%+ off its 3-day low or high, or more than 2 daily ATRs from its daily 20 EMA).
@@ -746,6 +750,7 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 
 ## 7. Change log
 
+- **2026-10-13 (v21):** §0.1: strategy of the week (weekly league picks one winner) and no trade cap.
 - **2026-10-13 (v20):** §3.13 — 15m scalps (trend pullback, sweep-and-reclaim, NY opening range) and the Monday range tested: not adopted (negative after fees / no gain). Limit levels allowed from 0.15 daily ATR (was 0.3): +0.12R over 386 trades, BTC/ETH/SOL +0.21R. Quick mode (2R target, break-even at +1R) added as an option.
 - **2026-10-12 (v19):** Monday is plan day (Stavros: "it seems to work better than force market"): no TAKE TRADE NOW or LIMIT SETUP pushes on Mondays; the daily cycle writes a WEEK PLAN (bias, levels, the 2–3 setups to hunt, events, risk for the week) that Tuesday–Friday follow. Trading-hours board on the leverage page, refreshed hourly 5 AM–3 PM Phoenix on weekdays (lev_board_refresh()): BTC/ETH/SOL and the top-5 movers each show a range low (long zone) and range high (short zone) = the TradingView RANGE lines, with the limit-sweep plan, grade (A+ = with the daily trend, ≥ 3R, 0.3–2 daily ATRs away) and how close price is. A+ setups are shown only from strategies with a positive record. (The limit backtest itself showed no Monday weakness — +0.29R on 27 Monday trades — so the paper loop keeps running on Mondays and the weekly review tracks whether plan days help his own trading.)
 - **2026-10-12 (v18):** Limit orders (§3.12, §0.2): resting limits half a 1h ATR through the level, backtested +0.13R per trade (PF 1.24, both halves positive) vs −0.03R for market entries on the same levels; paper loop via lev_limit_plan()/lev_limit_resolve(); his limits recorded via /limits with TradingView alerts and an "Open limits" watchlist section. Worked example in §0.2 updated to the v16 stop minimum.
