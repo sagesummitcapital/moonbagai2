@@ -4,6 +4,8 @@ import type { DailyThesis, Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { getLossJournal } from "@/lib/moonbag/lossJournal";
 import { getLimits } from "@/lib/moonbag/limits";
+import { getBoard, tradingWindow } from "@/lib/moonbag/board";
+import { Board, type APlus } from "../_components/Board";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
 import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/LivePrice";
 import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
@@ -49,6 +51,30 @@ export default async function LeveragePage() {
   const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
   const journal = await getLossJournal(12).catch(() => null);
   const limits = await getLimits().catch(() => null);
+  const board = await getBoard().catch(() => null);
+  const win = tradingWindow();
+  // A+ setups — only from strategies with a positive record (backtest or resolved signals).
+  const paperScore = limits?.scoreboard.find((x) => x.origin === "paper");
+  const limitRecord = `limit-sweep recipe · backtest +0.13R/trade (278) · paper ${paperScore?.closed ? `${paperScore.closed} closed, ${Number(paperScore.avg_r ?? 0).toFixed(2)}R avg` : "just started"}`;
+  const aplus: APlus[] = [];
+  for (const r of [...(board?.core ?? []), ...(board?.movers ?? [])]) {
+    for (const [side, p] of [["long", r.long_plan], ["short", r.short_plan]] as const) {
+      if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord });
+    }
+  }
+  for (const o of limits?.open ?? []) {
+    if (o.origin === "paper" && o.grade === "A+" && !aplus.some((x) => x.coin === o.symbol && x.side === o.direction)) {
+      aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), rr: o.plan_r == null ? null : Number(o.plan_r), strategy: "Paper limit (24h order)", record: limitRecord });
+    }
+  }
+  for (const sg of signals) {
+    if (sg.outcome || !["watching", "armed"].includes(sg.status) || Number(sg.confidence_grade) < 5) continue;
+    const st = data.setups.find((x) => x.setup_id === sg.setup_id);
+    const rec = st ? (Number(st.bt_avg_r) > 0 || Number(st.signal_avg_r) > 0) : false;
+    if (!rec) continue;
+    aplus.push({ key: `s-${sg.signal_id}`, coin: sg.asset, side: sg.direction, entry: Number(sg.entry), stop: Number(sg.stop), tp1: sg.tp1 == null ? null : Number(sg.tp1), rr: sg.rr_tp1 == null ? null : Number(sg.rr_tp1), strategy: st?.name ?? String(sg.setup_id), record: `backtest ${st?.bt_avg_r == null ? "—" : `${Number(st.bt_avg_r).toFixed(2)}R`} · signals ${st?.resolved ?? 0} resolved ${st?.signal_avg_r == null ? "" : `${Number(st.signal_avg_r).toFixed(2)}R`}` });
+  }
+  const boardUpdated = [...(board?.core ?? []), ...(board?.movers ?? [])].map((r) => r.updated_at).sort().pop() ?? null;
   const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
   const storedFor = (asset: string): Stored | undefined => (latest[asset] ? storedOf(latest[asset].price, latest[asset].ts) : undefined);
 
@@ -58,7 +84,7 @@ export default async function LeveragePage() {
 
       <PageHeader
         title="Leverage desk"
-        kicker="BloFin · BTC & ETH"
+        kicker="BloFin · BTC, ETH, SOL + top 5 movers"
         sub="Moonbag checks the market every hour and records it here. You place every order. No trade is the default."
         right={
           <>
@@ -67,6 +93,8 @@ export default async function LeveragePage() {
           </>
         }
       />
+
+      {board && <Board core={board.core} movers={board.movers} weekPlan={board.weekPlan} window={win} aplus={aplus} updatedAt={boardUpdated} />}
 
       {/* ------------------------------------------------ KPIs */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">

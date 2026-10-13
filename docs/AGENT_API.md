@@ -227,6 +227,9 @@ b. Reply with the "text" field EXACTLY as returned: same wording, numbers and or
 c. Don't add levels, stops or setups of your own. If something isn't in the response, say "Moonbag hasn't set that".
 d. If the call fails, say "I can't reach Moonbag right now".
 
+MONDAY = PLAN DAY (Stavros, 2026-10-12: "monday as a planning and strategy day then base the rest of my week accordingly").
+If he asks for trade inputs on a Monday (Phoenix), give them, but start with one line: "Monday is your plan day — this fits the week plan: <yes/no, why>" (GET /reports, latest title "MOONBAG WEEK PLAN"). Tuesday–Friday, check new inputs against that week plan the same way.
+
 LIMIT ORDERS (Stavros, 2026-10-12: "I set limit orders on a few coins to DCA in ... I will give Grok my limit orders, entries,
 size etc. ... store this and set up TradingView alerts to let me know if the limit hits")
 a. Whenever Stavros tells you about a resting limit (new, moved or cancelled), record it in Moonbag right away:
