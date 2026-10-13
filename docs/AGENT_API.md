@@ -246,12 +246,15 @@ d. "What limits do I have?" → GET /limits and reply with the "text" field exac
 e. LIMIT INPUTS (same playbook as market trades, backtested 2026-10-12 on BTC/ETH/SOL + the rotation top 5): put the limit HALF
    A 1h ATR BEYOND the level — below a 4h swing low / previous day or week low for a long, above the high for a short — so it
    only fills when price sweeps the level (a limit AT the level lost money in the test; through it made +0.13R per trade).
-   The level should be 0.3–2 daily ATRs from price, and only on the side of the daily 50 EMA trend. Stop = the invalidation:
+   The level should be 0.15–2 daily ATRs from price, and only on the side of the daily 50 EMA trend. Stop = the invalidation:
    at least 0.8% (BTC/ETH/SOL) or 1.5% (others) and 1.5 × the 1h ATR beyond the fill. TP1 = the next opposite level and at least
    2R (the test averaged 3R). Move the stop to entry after +1.5R. Cancel if not filled within 24h, or if price reaches TP1
    before filling. Never on a cooling coin (10%+ off its 3-day low/high). Risk: 2% max for the whole order; for a DCA ladder
    the 2% is for ALL rungs together, sized so that if every rung fills and the shared stop hits, he loses at most 2%.
    Check the loss journal first, as for any trade. Answer in the usual card with "LIMIT" in front of the entry.
+   QUICK MODE (when he wants a scalp): same entry and stop, TP1 at exactly 2R, stop to entry at +1R (backtest: +0.09R per trade,
+   1 in 4 hits 2R, 1 in 3 scratched). Smaller timeframes and higher leverage don't make a scalp better: 15m scalps tested negative
+   after fees (§3.13). Leverage only changes size, never the stop rule.
 
 LOSS JOURNAL — SHARED WITH MOONBAG (Stavros, 2026-10-12: "I am going to journal on losing trades with grok — I want Claude to also have this data and use it")
 The journal lives in Moonbag, not in your own files: POST /journal/losses and GET /journal/losses are the record. (A local copy is

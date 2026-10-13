@@ -59,12 +59,17 @@ def levels_at(t, h, d1, w1, sw, lookback_days=10, src='all'):
     S, R = [], []
     s = sw[(sw.known <= t) & (sw.known > t - pd.Timedelta(days=lookback_days))]
     for _, r in s.iterrows():
-        if src in ('all', 'swing'): (S if r.kind == 'S' else R).append((r.px, r.known))
+        if src in ('all', 'swing', 'all_mon'): (S if r.kind == 'S' else R).append((r.px, r.known))
     day = t.normalize()
     pd_ = d1[d1.index == day - pd.Timedelta(days=1)]
-    if len(pd_) and src in ('all', 'daily', 'htf'): S.append((pd_.l.iloc[0], day)); R.append((pd_.h.iloc[0], day))
+    if len(pd_) and src in ('all', 'daily', 'htf', 'all_mon', 'htf_mon'): S.append((pd_.l.iloc[0], day)); R.append((pd_.h.iloc[0], day))
     wk = w1[w1.index <= day - pd.Timedelta(days=7)].tail(1)
-    if len(wk) and src in ('all', 'weekly', 'htf'): S.append((wk.l.iloc[0], wk.index[0] + pd.Timedelta(days=7))); R.append((wk.h.iloc[0], wk.index[0] + pd.Timedelta(days=7)))
+    if len(wk) and src in ('all', 'weekly', 'htf', 'all_mon', 'htf_mon'): S.append((wk.l.iloc[0], wk.index[0] + pd.Timedelta(days=7))); R.append((wk.h.iloc[0], wk.index[0] + pd.Timedelta(days=7)))
+    # this week's Monday high/low (UTC day), known from Tuesday 00:00 (Stavros 2026-10-13: "what if you use monday high / low range")
+    mon = day - pd.Timedelta(days=day.weekday())
+    if day > mon and src in ('all_mon', 'monday', 'htf_mon'):
+        md = d1[d1.index == mon]
+        if len(md): S.append((md.l.iloc[0], mon + pd.Timedelta(days=1))); R.append((md.h.iloc[0], mon + pd.Timedelta(days=1)))
     return S, R
 
 
@@ -77,7 +82,7 @@ def untouched(h, px, since, t, side):
 def run(c, P, data):
     h, d1, h4, w1, sw = data
     core = c in CORE
-    min_pct = 0.008 if core else 0.015
+    min_pct = P.get('min_core', 0.008) if core else P.get('min_alt', 0.015)
     trades, busy_until = [], h.index[0]
     places = [x for x in h4.index[60:] if x.hour % P.get('every', 4) == 0]
     idx = h.index
@@ -119,7 +124,7 @@ def run(c, P, data):
             avg = float(np.mean(entries))
             stop = lvl - sgn * 0.5 * a1
             ref = min(entries) if side == 'long' else max(entries)
-            need = max(min_pct * ref, 1.5 * a1)
+            need = max(min_pct * ref, P.get('atr_stop', 1.5) * a1)
             if abs(ref - stop) < need: stop = ref - sgn * need
             risk = abs(avg - stop)
             opp = [px for px, _ in (R if side == 'long' else S) if (px > avg + risk if side == 'long' else px < avg - risk)]

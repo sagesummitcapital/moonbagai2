@@ -102,7 +102,7 @@ Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
 
 **NO TRADE** when: no level, no 1h close, reward under 2R, coin cooling, no risk budget, 4% daily drawdown hit, or data within 2 hours. Say it in one line with the price that would change it.
 
-**LIMIT ORDERS (2026-10-12, §3.12).** Same levels, entered by a resting limit instead of at market: put the limit half a 1h ATR *through* the level (below the support for a long, above the resistance for a short) so it only fills on a sweep; level 0.3–2 daily ATRs from price, on the side of the daily 50 EMA; stop and minimums as above; TP1 the next opposite level, at least 2R (aim 3R); stop to entry at +1.5R; cancel after 24 hours or if price reaches TP1 first. A DCA ladder shares one stop and the 2% is for all rungs together. Grok records every resting limit in Moonbag (POST /limits) so it gets a TradingView alert and a line under "Open limits".
+**LIMIT ORDERS (2026-10-12, §3.12).** Same levels, entered by a resting limit instead of at market: put the limit half a 1h ATR *through* the level (below the support for a long, above the resistance for a short) so it only fills on a sweep; level 0.15–2 daily ATRs from price, on the side of the daily 50 EMA; stop and minimums as above; TP1 the next opposite level, at least 2R (aim 3R); stop to entry at +1.5R; cancel after 24 hours or if price reaches TP1 first. A DCA ladder shares one stop and the 2% is for all rungs together. Grok records every resting limit in Moonbag (POST /limits) so it gets a TradingView alert and a line under "Open limits".
 
 ### 0.3 Coinbase spot (Grok executes)
 
@@ -509,7 +509,7 @@ Stavros: "I want to introduce limit orders ... it should overall be similar to m
 Outcomes of the adopted version: 24.5% reach the target (average +2.75R), 23.4% scratch at break-even, 52.2% stop. It is an R:R strategy, not a high win-rate one: about 1 trade in 4 pays 2.75R, about half of the rest are scratched. The edge comes from where the order fills: a limit through the level only fills when the level is swept, which is exactly where the market entries in §3.6 kept being stopped. Without the no-chase filter the result was −0.16R; placing only every 8h instead of every 4h dropped it to +0.08R; every 12h, 0R.
 
 **The recipe** (Moonbag and Grok use the same one):
-1. Level: 4h swing low/high of the last 10 days, previous day or previous week low/high, 0.3–2 × ATR14(1D) from price.
+1. Level: 4h swing low/high of the last 10 days, previous day or previous week low/high, 0.15–2 × ATR14(1D) from price (was 0.3 until 2026-10-13 — closer levels fill more often and did better, §3.13).
 2. Trend: longs only above the daily 50 EMA, shorts only below. Never on a cooling coin.
 3. Limit: 0.5 × ATR14(1h) through the level.
 4. Stop: the larger of 0.8% (BTC/ETH/SOL) / 1.5% (others) and 1.5 × ATR14(1h) beyond the fill.
@@ -520,6 +520,33 @@ Outcomes of the adopted version: 24.5% reach the target (average +2.75R), 23.4% 
 **How it runs.** lev_limit_plan() runs this recipe on the stored 1h candles after every 4h close and places one *paper* limit per coin; lev_limit_resolve() replays them (fill, break-even, target, stop, expiry). The Desk Lead sends at most 3 LIMIT SETUP messages a day (plan ≥ 2.5R, BTC/ETH/SOL or an in-play coin). His own resting limits are recorded by Grok (POST /limits); the sync puts a TradingView alert at each limit price and lists the coin under "Open limits" in the Moonbag – Crypto Futures watchlist. A trade recorded at a limit's price fills that limit automatically.
 
 **Feedback loop.** The Saturday review compares paper results with the backtest (step 3e), by level type, side and coin, and his own limits against the recipe. Playbook 'limit_sweep' moves from paper to live after 10 resolved paper limits averaging above 0R, and is retired after 20 averaging below −0.1R. Parameter changes only through a research rerun that holds on both halves and on core and alts.
+
+### 3.13 Scalps, 15-minute entries and the Monday range — tested 2026-10-13
+
+Stavros: "the A+ setups are range edges and they are not as likely to hit — I want smaller time frames, smaller scalps, higher leverage is OK ... what about 1h or 4h bias using 15m for entry? ... what if you use the Monday high/low range?"
+
+Tested on Binance perps with fees (taker 0.06% + slippage on market orders and stops, maker 0.02% on limits and targets).
+
+| Idea | Data | Trades | Avg R after fees | Verdict |
+|---|---|---|---|---|
+| 15m trend pullback under a 4h + 1h trend (5 AM–3 PM) | BTC/ETH/SOL 15m, Aug–Oct | 120 | −0.29 (−0.08 before fees) | no |
+| 15m sweep-and-reclaim of 1h / day / Asia levels, 4h trend | same | 780 | −0.22 (+0.07 before fees) | no |
+| same, limit back at the swept level | same | 647 | −0.16 | no |
+| same, 0.6% minimum stop | same | 532 | −0.07 | no |
+| New York opening-range breakout (13:30–14:00 UTC) | same | 81 | −0.12 (0.00 before fees) | no |
+| Monday high/low as the only levels (limit recipe) | 8 coins 1h, Jan–Oct | 199 | −0.17 | no |
+| Monday high/low added to the normal levels | same | 276 | +0.12 (vs +0.13 without) | no gain |
+| Tighter limit stops (0.4–0.5%, 1 × 1h ATR) for higher leverage | same | 305 | +0.02 | worse |
+| **Limit recipe with levels from 0.15 daily ATR (closer)** | same | **386** | **+0.12 (BTC/ETH/SOL +0.21)** | **adopted** |
+| **Quick mode: target capped at 2R, stop to entry at +1R** | same | **362** | **+0.09, max drawdown 14R** | **option** |
+
+Why scalps fail here: on a 0.4–0.5% stop, the round trip of fees is 0.25–0.3R, so a setup needs more than that in raw edge just to break even. The best 15m setup (sweep-and-reclaim) had about +0.07R. Leverage does not change this: it changes size, not R. Getting more trades that hit comes from closer levels and a nearer target, not a smaller timeframe.
+
+What the closer levels change: the limit can sit at a level 0.15 daily ATRs away (for BTC about 0.35% from price instead of 0.7%), so more orders fill during the session; both halves stayed positive (+0.14 / +0.10R) and BTC/ETH/SOL improved to +0.21R per trade. Quick mode suits his scalping style: about 1 in 4 hits 2R, about 1 in 3 is scratched at entry, and its worst drawdown was 14R against 19.5R for the full-target version.
+
+Stavros's own trades (11 to 2026-10-13): +4.9R in total, +0.45R average — better than every system so far, on a small sample. His winners were entries at a range edge with a ~0.5% BTC stop (10/6 short +2.1R; 10/9 long trailed to +2.65R). What cost him: closing four winners by hand at +0.19 to +0.29R before the target, and two entries with no trigger (−1R each). The loss journal tracks both.
+
+The feedback loop: the 15m scalp setups are in the playbook as 'scalp_15m' (retired) and are re-tested monthly while 15m history builds up (TradingView gives about 10 weeks of 15m bars); they come back only if net positive on both halves. The limit recipe and quick mode are tracked weekly in step 3e of the Saturday review.
 
 ### 3.10 X posts (Publisher → Grok)
 
@@ -719,6 +746,7 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 
 ## 7. Change log
 
+- **2026-10-13 (v20):** §3.13 — 15m scalps (trend pullback, sweep-and-reclaim, NY opening range) and the Monday range tested: not adopted (negative after fees / no gain). Limit levels allowed from 0.15 daily ATR (was 0.3): +0.12R over 386 trades, BTC/ETH/SOL +0.21R. Quick mode (2R target, break-even at +1R) added as an option.
 - **2026-10-12 (v19):** Monday is plan day (Stavros: "it seems to work better than force market"): no TAKE TRADE NOW or LIMIT SETUP pushes on Mondays; the daily cycle writes a WEEK PLAN (bias, levels, the 2–3 setups to hunt, events, risk for the week) that Tuesday–Friday follow. Trading-hours board on the leverage page, refreshed hourly 5 AM–3 PM Phoenix on weekdays (lev_board_refresh()): BTC/ETH/SOL and the top-5 movers each show a range low (long zone) and range high (short zone) = the TradingView RANGE lines, with the limit-sweep plan, grade (A+ = with the daily trend, ≥ 3R, 0.3–2 daily ATRs away) and how close price is. A+ setups are shown only from strategies with a positive record. (The limit backtest itself showed no Monday weakness — +0.29R on 27 Monday trades — so the paper loop keeps running on Mondays and the weekly review tracks whether plan days help his own trading.)
 - **2026-10-12 (v18):** Limit orders (§3.12, §0.2): resting limits half a 1h ATR through the level, backtested +0.13R per trade (PF 1.24, both halves positive) vs −0.03R for market entries on the same levels; paper loop via lev_limit_plan()/lev_limit_resolve(); his limits recorded via /limits with TradingView alerts and an "Open limits" watchlist section. Worked example in §0.2 updated to the v16 stop minimum.
 - **2026-10-12 (v17):** The stop is the invalidation (Stavros: "stops being below levels, essentially invalidation — they were too close on last stop"): below the support a long depends on / above the resistance a short depends on, never pulled closer to reach 2R. Current levels, alerts and setups are relayed from GET /levels in one fixed format.

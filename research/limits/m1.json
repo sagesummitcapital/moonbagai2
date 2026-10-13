@@ -1,0 +1,6 @@
+[{"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"src":"all_mon"},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"src":"monday"},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"src":"monday"},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"min_core":0.004,"min_alt":0.008,"atr_stop":1.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"min_core":0.005,"min_alt":0.01,"atr_stop":1.0,"min_r":3}]

@@ -112,7 +112,7 @@ export function Board({ core, movers, weekPlan, window, aplus, updatedAt }: {
             ))}
           </div>
         ) : (
-          <p className="text-[13px] text-white/50">No A+ setup right now. A+ = with the daily trend, R:R 3 or better, entry 0.3–2 daily ranges away, coin not cooling.</p>
+          <p className="text-[13px] text-white/50">No A+ setup right now. A+ = with the daily trend, R:R 3 or better, entry 0.15–2 daily ranges away, coin not cooling.</p>
         )}
       </div>
 

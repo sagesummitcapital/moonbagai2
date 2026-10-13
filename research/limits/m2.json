@@ -1,0 +1,5 @@
+[{"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"dmin":0.15,"dmax":1.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"dmin":0.15,"dmax":2.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"max_r":2.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"max_r":2.5},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.0,"dtrend":true,"max_r":2.0}]

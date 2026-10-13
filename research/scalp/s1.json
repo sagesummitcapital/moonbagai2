@@ -1,0 +1,10 @@
+[{"setup":"swp","trend":"h4","hours":"all","entry":"retest"},
+ {"setup":"swp","trend":"h4","hours":"all","entry":"retest","tp_r":3},
+ {"setup":"swp","trend":"h4","hours":"all","entry":"retest","src":"monday"},
+ {"setup":"swp","trend":"h4","hours":"all","entry":"retest","src":"no_monday"},
+ {"setup":"swp","trend":"h4","hours":"all","src":"monday"},
+ {"setup":"swp","trend":"none","hours":"all","entry":"retest","src":"monday"},
+ {"setup":"swp","trend":"h4","hours":"his","entry":"retest"},
+ {"setup":"swp","trend":"h4","hours":"all","entry":"retest","be_r":1.0},
+ {"setup":"swp","trend":"h4","hours":"all","entry":"retest","min_stop":0.006},
+ {"setup":"swp","trend":"both","hours":"all","entry":"retest"}]
