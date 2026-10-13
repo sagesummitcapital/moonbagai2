@@ -2,7 +2,7 @@
 // the range low (long zone) and range high (short zone) with the limit plan for each, what is getting close, and the
 // A+ setups from strategies with a positive record. Same lines as TradingView.
 import type { BoardPlan, BoardRow, WeekPlan } from "@/lib/moonbag/board";
-import { Badge, Card, num, whenShort } from "./ui";
+import { Badge, Card, px2, whenShort } from "./ui";
 
 const gradeTone = (g?: string | null) => (g === "A+" ? "green" : g === "A" ? "cyan" : g === "B" ? "amber" : "gray");
 const pct = (v: number | null | undefined) => (v == null ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}%`);
@@ -21,9 +21,9 @@ function Zone({ side, p }: { side: "long" | "short"; p: BoardPlan | null }) {
       </div>
       {live ? (
         <div className="mt-1 grid grid-cols-4 gap-1 font-mono text-[12.5px] tabular-nums">
-          <span><span className="block text-[10.5px] uppercase text-white/40">{p.order === "market" ? "Market" : "Limit"}</span><span className="text-white">{num(p.entry, 6)}</span></span>
-          <span><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="text-rose-300">{num(p.stop, 6)}</span></span>
-          <span><span className="block text-[10.5px] uppercase text-white/40">TP1</span><span className="text-accent-green">{num(p.tp1, 6)}</span></span>
+          <span><span className="block text-[10.5px] uppercase text-white/40">{p.order === "market" ? "Market" : "Limit"}</span><span className="text-white">{px2(p.entry)}</span></span>
+          <span><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="text-rose-300">{px2(p.stop)}</span></span>
+          <span><span className="block text-[10.5px] uppercase text-white/40">TP1</span><span className="text-accent-green">{px2(p.tp1)}</span></span>
           <span><span className="block text-[10.5px] uppercase text-white/40">R : R</span><span className="text-white">{p.rr == null ? "—" : `${p.rr.toFixed(1)}R`}</span></span>
         </div>
       ) : (
@@ -43,8 +43,8 @@ function RangeBar({ r }: { r: BoardRow }) {
         <div className="absolute -top-1 h-4 w-[3px] rounded bg-white shadow-[0_0_0_2px_#0b0b0d]" style={{ left: `calc(${x}% - 1.5px)` }} />
       </div>
       <div className="mt-1 flex justify-between font-mono text-[11.5px] tabular-nums">
-        <span className="text-accent-green">{num(lo, 6)} <span className="text-white/35">range low</span></span>
-        <span className="text-rose-300"><span className="text-white/35">range high</span> {num(hi, 6)}</span>
+        <span className="text-accent-green">{px2(lo)} <span className="text-white/35">range low</span></span>
+        <span className="text-rose-300"><span className="text-white/35">range high</span> {px2(hi)}</span>
       </div>
     </div>
   );
@@ -56,7 +56,7 @@ function CoinCard({ r, compact = false }: { r: BoardRow; compact?: boolean }) {
     <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <strong className="text-[15px] text-white">{r.asset}</strong>
-        <span className="font-mono text-[14px] tabular-nums text-white">{num(r.price, 6)}</span>
+        <span className="font-mono text-[14px] tabular-nums text-white">{px2(r.price)}</span>
         <span className={`font-mono text-[12px] ${Number(r.change_24h) >= 0 ? "text-accent-green" : "text-rose-300"}`}>{pct(r.change_24h)} 24h</span>
         <span className="text-[12px] text-white/45">{r.trend === "up" ? "▲ daily uptrend" : r.trend === "down" ? "▼ daily downtrend" : ""}</span>
         <span className="ml-auto">{status}</span>
@@ -106,7 +106,7 @@ export function Board({ core, movers, weekPlan, window, aplus, updatedAt }: {
               <div key={a.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-accent-green/30 bg-accent-green/[0.05] px-3 py-2 text-[13px]">
                 <Badge tone="green">A+</Badge>
                 <strong className="text-white">{a.coin} {a.side === "long" ? "▲ LONG" : "▼ SHORT"}</strong>
-                <span className="font-mono tabular-nums text-white/85">limit {num(a.entry, 6)} · SL {num(a.stop, 6)} · TP1 {num(a.tp1, 6)} · {a.rr == null ? "—" : `${a.rr.toFixed(1)}R`}</span>
+                <span className="font-mono tabular-nums text-white/85">limit {px2(a.entry)} · SL {px2(a.stop)} · TP1 {px2(a.tp1)} · {a.rr == null ? "—" : `${a.rr.toFixed(1)}R`}</span>
                 <span className="w-full text-[11.5px] text-white/50">{a.strategy} · {a.record}</span>
               </div>
             ))}

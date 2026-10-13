@@ -12,7 +12,7 @@ import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import {
   Badge, Card, Cell, DocText, Empty, Expander, KV, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, Updated,
-  ago, biasGlyph, biasTone, gradeTone, list, money, money0, num, px, when, whenShort,
+  ago, biasGlyph, biasTone, gradeTone, list, money, money0, num, px, px2, when, whenShort,
 } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
@@ -209,11 +209,11 @@ export default async function LeveragePage() {
             rows={limits.open.map((o) => [
               <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge><br /><Id>{o.limit_id}</Id></span>,
               <Badge key="d" tone={biasTone(o.direction)}>{biasGlyph(o.direction)} {o.direction === "long" ? "buy" : "sell"}</Badge>,
-              <span key="l" className="font-mono tabular-nums text-white">{num(o.limit_price, 6)}</span>,
-              <span key="s" className="font-mono tabular-nums text-rose-300">{num(o.current_stop ?? o.stop, 6)}</span>,
-              <span key="t" className="font-mono tabular-nums text-accent-green">{num(o.tp1, 6)}</span>,
+              <span key="l" className="font-mono tabular-nums text-white">{px2(o.limit_price)}</span>,
+              <span key="s" className="font-mono tabular-nums text-rose-300">{px2(o.current_stop ?? o.stop)}</span>,
+              <span key="t" className="font-mono tabular-nums text-accent-green">{px2(o.tp1)}</span>,
               <strong key="r" className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong>,
-              <span key="q" className="text-white/70">{o.quantity != null ? num(o.quantity, 6) : "—"}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</span>,
+              <span key="q" className="text-white/70">{o.quantity != null ? num(o.quantity, 4) : "—"}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</span>,
               <Badge key="st" tone={o.status === "touched" ? "amber" : "gray"}>{o.status === "touched" ? "touched — filled?" : "working"}</Badge>,
               <span key="e" className="whitespace-nowrap text-white/60">{o.expires_at ? whenShort(o.expires_at) : "until cancelled"}</span>,
             ])}

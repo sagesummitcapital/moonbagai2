@@ -407,6 +407,13 @@ export const whenShort = (iso?: string | null, seconds = false, now = new Date()
 };
 
 /** Price formatter that keeps small-cap coins readable: 82,371.06 · 2,493.96 · 0.6190 · 0.000123. */
+/** Price with 2 decimals (coins under $1 get 4 so they stay readable). Stavros, 2026-10-13: "only show .00 decimal points". */
+export const px2 = (v: unknown) => {
+  if (v === null || v === undefined || v === "" || Number.isNaN(Number(v))) return "—";
+  const d = Math.abs(Number(v)) >= 1 ? 2 : 4;
+  return Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+};
+
 export const px = (v: unknown) => {
   if (v === null || v === undefined || v === "" || Number.isNaN(Number(v))) return "—";
   const x = Math.abs(Number(v));
