@@ -1,0 +1,4 @@
+[{"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"dmin":0.15,"dmax":2.0},
+ {"entry":"deep","deep":0.5,"fresh":false,"dtrend":true,"dmin":0.15,"dmax":2.0,"p1r":true},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"dmin":0.15,"dmax":2.0,"src":"all_sess"},
+ {"entry":"deep","deep":0.5,"fresh":false,"be1":1.5,"dtrend":true,"dmin":0.15,"dmax":2.0,"src":"sess"}]

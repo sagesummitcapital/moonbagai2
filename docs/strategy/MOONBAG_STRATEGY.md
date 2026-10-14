@@ -748,8 +748,22 @@ Every coin shows its price, bias, its **range lines low / high** (the same two l
 
 ---
 
+## 6b. New strategy ideas — the workflow (Stavros, 2026-10-14)
+
+Stavros: "I don't want you to blindly change anything we have live — but backtest and layer into our existing strategy anything that makes sense ... have a section where it logs changes to strategy. Make this the workflow for all strategy ideas that I send."
+
+1. **Log it.** Every idea he sends (posts, videos, guides, his own) gets a row in `strategy_ideas` with the raw text and a short summary.
+2. **Split it into parts.** Entry model, levels, filters, management, risk rules and process rules are judged separately — an idea is rarely all good or all bad.
+3. **Test each testable part against what we run live**, on our coins and our fees, with honest rules: no look-ahead, both halves of the period, core and alts, sample size stated. Parts that change something we already do (a management rule, extra levels, a filter) are tested as overlays on the live recipe, so the comparison is always "better or worse than what we have".
+4. **Verdict per part:** adopted (beats the live version on both halves), already ours, keep testing (too few trades — re-tested monthly), proposed (sensible but not backtestable — needs his OK), or rejected.
+5. **Change log.** Every adoption, rejection and proposal goes into `strategy_changes` with the reason and the evidence, and anything adopted also gets a new strategy-doc version. Nothing live changes on an idea alone.
+6. **Report back** in a few lines: what was tested, the numbers, what changed (usually nothing), what is waiting for his OK.
+
+The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's verdict, the change log and the strategy league.
+
 ## 7. Change log
 
+- **2026-10-14 (v22):** §6b: the workflow for new strategy ideas (log → split → test against live → verdict per part → change log → report). First two ideas from X tested: VWAP pullback (+0.01R, no edge), 50% off at 1R (cut the limit recipe from +0.12R to +0.02R), Asia/London day profiles (−0.15R and −0.12R), session levels (−0.01R) — none adopted. Proposed for his OK: A+ only on CPI/FOMC/NFP days; the 3-line plan (bias because / entering when / wrong if) at the top of every input card.
 - **2026-10-13 (v21):** §0.1: strategy of the week (weekly league picks one winner) and no trade cap.
 - **2026-10-13 (v20):** §3.13 — 15m scalps (trend pullback, sweep-and-reclaim, NY opening range) and the Monday range tested: not adopted (negative after fees / no gain). Limit levels allowed from 0.15 daily ATR (was 0.3): +0.12R over 386 trades, BTC/ETH/SOL +0.21R. Quick mode (2R target, break-even at +1R) added as an option.
 - **2026-10-12 (v19):** Monday is plan day (Stavros: "it seems to work better than force market"): no TAKE TRADE NOW or LIMIT SETUP pushes on Mondays; the daily cycle writes a WEEK PLAN (bias, levels, the 2–3 setups to hunt, events, risk for the week) that Tuesday–Friday follow. Trading-hours board on the leverage page, refreshed hourly 5 AM–3 PM Phoenix on weekdays (lev_board_refresh()): BTC/ETH/SOL and the top-5 movers each show a range low (long zone) and range high (short zone) = the TradingView RANGE lines, with the limit-sweep plan, grade (A+ = with the daily trend, ≥ 3R, 0.3–2 daily ATRs away) and how close price is. A+ setups are shown only from strategies with a positive record. (The limit backtest itself showed no Monday weakness — +0.29R on 27 Monday trades — so the paper loop keeps running on Mondays and the weekly review tracks whether plan days help his own trading.)

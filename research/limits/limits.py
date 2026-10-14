@@ -59,17 +59,22 @@ def levels_at(t, h, d1, w1, sw, lookback_days=10, src='all'):
     S, R = [], []
     s = sw[(sw.known <= t) & (sw.known > t - pd.Timedelta(days=lookback_days))]
     for _, r in s.iterrows():
-        if src in ('all', 'swing', 'all_mon'): (S if r.kind == 'S' else R).append((r.px, r.known))
+        if src in ('all', 'swing', 'all_mon', 'all_sess'): (S if r.kind == 'S' else R).append((r.px, r.known))
     day = t.normalize()
     pd_ = d1[d1.index == day - pd.Timedelta(days=1)]
-    if len(pd_) and src in ('all', 'daily', 'htf', 'all_mon', 'htf_mon'): S.append((pd_.l.iloc[0], day)); R.append((pd_.h.iloc[0], day))
+    if len(pd_) and src in ('all', 'daily', 'htf', 'all_mon', 'htf_mon', 'all_sess'): S.append((pd_.l.iloc[0], day)); R.append((pd_.h.iloc[0], day))
     wk = w1[w1.index <= day - pd.Timedelta(days=7)].tail(1)
-    if len(wk) and src in ('all', 'weekly', 'htf', 'all_mon', 'htf_mon'): S.append((wk.l.iloc[0], wk.index[0] + pd.Timedelta(days=7))); R.append((wk.h.iloc[0], wk.index[0] + pd.Timedelta(days=7)))
+    if len(wk) and src in ('all', 'weekly', 'htf', 'all_mon', 'htf_mon', 'all_sess'): S.append((wk.l.iloc[0], wk.index[0] + pd.Timedelta(days=7))); R.append((wk.h.iloc[0], wk.index[0] + pd.Timedelta(days=7)))
     # this week's Monday high/low (UTC day), known from Tuesday 00:00 (Stavros 2026-10-13: "what if you use monday high / low range")
     mon = day - pd.Timedelta(days=day.weekday())
     if day > mon and src in ('all_mon', 'monday', 'htf_mon'):
         md = d1[d1.index == mon]
         if len(md): S.append((md.l.iloc[0], mon + pd.Timedelta(days=1))); R.append((md.h.iloc[0], mon + pd.Timedelta(days=1)))
+    if src in ('all_sess', 'sess'):
+        for h0, h1_ in ((0, 4), (6, 9)):
+            if t >= day + pd.Timedelta(hours=h1_):
+                seg = h[(h.index >= day + pd.Timedelta(hours=h0)) & (h.index < day + pd.Timedelta(hours=h1_))]
+                if len(seg): S.append((seg.l.min(), day + pd.Timedelta(hours=h1_))); R.append((seg.h.max(), day + pd.Timedelta(hours=h1_)))
     return S, R
 
 
@@ -201,6 +206,19 @@ def manage(h, start, side, fills, b, P, fee_in):
     for m in range(start, n):
         hi, lo = h.h.iloc[m], h.l.iloc[m]
         if half_done is None:
+            if P.get('p1r') and stop == b['stop']:
+                avg1 = sum(e * w for e, w in fills) / sum(w for _, w in fills); r1 = abs(avg1 - b['stop'])
+                if (side == 'long' and hi >= avg1 + r1) or (side == 'short' and lo <= avg1 - r1):
+                    a1r = close(fills, avg1 + sgn * r1, side, b, 'target', h.index[m], fee_in, MAKER)
+                    rest_stop = avg1 + sgn * 0.002 * avg1
+                    for m2 in range(m + 1, n):
+                        if (side == 'long' and h.l.iloc[m2] <= rest_stop) or (side == 'short' and h.h.iloc[m2] >= rest_stop):
+                            z = close(fills, rest_stop, side, b, 'be', h.index[m2], fee_in, TAKER + SLIP); break
+                        if (side == 'long' and h.h.iloc[m2] >= tgt) or (side == 'short' and h.l.iloc[m2] <= tgt):
+                            z = close(fills, tgt, side, b, 'target', h.index[m2], fee_in, MAKER); break
+                    else:
+                        z = close(fills, h.c.iloc[n - 1], side, b, 'eod', h.index[n - 1], fee_in, TAKER)
+                    a1r['R'] = 0.5 * a1r['R'] + 0.5 * z['R']; a1r['why'] = 'p1r+' + z['why']; a1r['end'] = z['end']; return a1r
             if P.get('be1') and stop == b['stop']:
                 avg0 = sum(e * w for e, w in fills) / sum(w for _, w in fills); r0 = abs(avg0 - b['stop'])
                 if (side == 'long' and h.h.iloc[m - 1] >= avg0 + P['be1'] * r0) or (side == 'short' and h.l.iloc[m - 1] <= avg0 - P['be1'] * r0):
