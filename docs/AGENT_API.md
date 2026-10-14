@@ -21,6 +21,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /levels` | both | Current TradingView levels: per coin the open trade, every live TradingView alert (stop / target / level), the trade setups and the range — one fixed `text` to relay word for word |
 | `GET /journal/losses` · `POST /journal/losses` | both | Loss journal: every losing trade and near-miss mistake with why, tags, lesson and the pre-trade check; GET also returns the repeated-mistake checks as fixed `text` |
 | `GET /limits` · `POST /limits` · `PATCH /limits/{limit_id}` | both / Grok+Claude | Resting limit orders: his own (origin own), Moonbag picks he placed (moonbag) and Moonbag's paper limits; GET returns fixed `text`, the scoreboard and recent outcomes |
+| `GET /ideas` · `POST /ideas` | both / Grok+Claude | Strategy lab: submit an idea he shares (word for word); GET returns the queue and verdicts as fixed `text` |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
 | `GET /yesterday[?date=YYYY-MM-DD]` | Claude | Yesterday's theses + evaluations + trades + everything still ungraded |
 | `GET /theses?date=&status=&asset=` | both | List theses |
@@ -240,9 +241,15 @@ a. When he asks for inputs, build them with the strategy of the week first (e.g.
 b. If his own calls are the winner, the week plan names the habit that made the difference — remind him of it.
 c. Never invent a winner: if the week plan says "too early", say so.
 
-STRATEGY IDEAS (Stavros, 2026-10-14). When he shares a strategy idea (a post, a video, a guide), don't adopt any of it in your
-inputs. Tell him "send it to Claude for the Strategy lab": Claude tests each part against what runs live and logs the verdict
-and any change (moonbag.ai/dashboard/lab, GET /strategy §6b). Until a change is logged as adopted, the current rules apply.
+STRATEGY IDEAS (Stavros, 2026-10-14: "I can give Grok my idea — let's add that and track it").
+a. When he shares a strategy idea with you (a post, a video, a guide, his own rule), save it right away:
+   POST /ideas {"title": short name, "raw_text": the idea WORD FOR WORD as he gave it (no summary, no edits),
+   "source": where it came from ("X post", "YouTube", "Stavros"), "note": what he wants from it, if he said}.
+   Reply with the "text" field of the response (it gives the IDEA id).
+b. Don't use any of it in your inputs until it's tested: Claude tests each part against what runs live, logs a verdict
+   per part and any change (moonbag.ai/dashboard/lab, GET /strategy §6b). Until a change is logged as adopted, the
+   current rules apply.
+c. "How's my idea doing?" / "what's in the lab?" → GET /ideas and reply with the "text" field exactly.
 
 NO TRADE CAP (Stavros, 2026-10-13: "i dont want a 4 trade cap"). There is no limit on the number of trades per day or per
 week — never suggest one. The limits are: 2% risk per trade, the 4% daily drawdown stop, 15% combined open risk to the
@@ -302,7 +309,16 @@ within the ceiling (BTC/ETH ≤ 20x, others ≤ 10x). No time stop: aim for abou
 (short) or > 2 daily ATRs from its daily 20 EMA, say NO TRADE — wait for a base. If the next level gives under
 2R, say NO TRADE and name the entry price where it would work. If Moonbag already has a signal on that coin
 (GET /signals), use Moonbag's numbers and grade. If it has none, don't grade it yourself: treat it as B
-(1% risk on BTC/ETH, 0.5% on any other coin). Always answer in this form:
+(1% risk on BTC/ETH, 0.5% on any other coin).
+RED-FOLDER DAYS (Stavros, 2026-10-14: "A+ setups only on CPI/FOMC/jobs-report days. or half risk"). The first lines of
+GET /levels say whether today (Phoenix date) is a red-folder day — US CPI, FOMC rate decision or the jobs report (NFP).
+On a red-folder day: grade A+ keeps full risk; EVERY other grade (A, B, no desk grade) is HALF its usual risk; and no new
+entry within 2 hours of the release. Same for limit orders (a limit that could fill in that window waits). If /levels says the calendar wasn't checked yet, check the US calendar yourself before sizing.
+3-LINE PLAN (Stavros, 2026-10-14: "yes 3 line plan"). Every input card starts with these three lines. If any of them
+can't be filled honestly, the answer is NO TRADE. Limit-order cards too. Always answer in this form:
+  Bias: <long|short> because <the level / trend in one line>
+  Entering when: <the exact trigger or limit price>
+  Wrong if: <the price or event that kills the idea = the stop>
   <COIN> <Long|Short> · Entry <price> (<market|limit>) · SL <price> (<x.x>%) · TP1 <price> (<x.x>R, half) · TP2 <price>
   Size <qty> <COIN> (≈ $<notional>) · Leverage <x>x isolated · Margin $<m> · Risk $<r> (<p>% of $<balance>) · Liq ≈ <price>
   Why: <level + validation> · Skip if: <what cancels it>

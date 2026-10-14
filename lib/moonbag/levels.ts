@@ -5,6 +5,7 @@
 
 import { fmtRR, getLeverageDesk } from "./desk";
 import { getLimits, type LimitOrder } from "./limits";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const n = (v: unknown, d = 2) =>
   v === null || v === undefined || v === "" || Number.isNaN(Number(v))
@@ -33,8 +34,19 @@ export type LevelCoin = {
   resistance: number[];
 };
 
+// Red-folder day (CPI / FOMC / NFP), Phoenix date — written by the daily task into econ_days (Stavros, 2026-10-14).
+export async function getEconDay(): Promise<{ day: string; red: boolean; events: string | null; known: boolean } | null> {
+  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+  try {
+    const { data } = await supabaseAdmin().from("econ_days").select("day, red, events").eq("day", day).maybeSingle();
+    return data ? { day, red: !!data.red, events: data.events ?? null, known: true } : { day, red: false, events: null, known: false };
+  } catch {
+    return null;
+  }
+}
+
 export async function buildLevels() {
-  const [lev, lim] = await Promise.all([getLeverageDesk(), getLimits().catch(() => ({ open: [] as LimitOrder[] }))]);
+  const [lev, lim, econ] = await Promise.all([getLeverageDesk(), getLimits().catch(() => ({ open: [] as LimitOrder[] })), getEconDay()]);
   const mineLimits = lim.open.filter((o) => o.origin !== "paper");
   const now = new Date().toISOString();
 
@@ -116,6 +128,13 @@ export async function buildLevels() {
   const L: string[] = [];
   L.push(`MOONBAG LEVELS · ${phx(now)} Phoenix`);
   L.push("TradingView alerts and trade setups exactly as recorded in Moonbag.");
+  L.push(
+    econ?.red
+      ? `RED-FOLDER DAY (${econ.events ?? "CPI / FOMC / NFP"}): A+ full risk, every other grade HALF risk; no new entry within 2h of the release.`
+      : econ?.known
+        ? `Today: no red-folder data${econ.events ? ` (${econ.events})` : ""} — normal risk.`
+        : "Today: calendar not checked yet — check for CPI / FOMC / NFP before sizing.",
+  );
   for (const c of out) {
     L.push("");
     L.push(`${c.asset}  ${n(c.price)} (desk check ${phx(c.checkedAt)}) · bias ${(c.bias ?? "—").toUpperCase()}${c.htf ? ` · 4h ${c.htf}` : ""}`);
@@ -153,5 +172,5 @@ export async function buildLevels() {
   L.push("");
   L.push("Source: Moonbag database. Not financial advice. Stavros places every BloFin order.");
 
-  return { generated_at: now, text: L.join("\n"), coins: out };
+  return { generated_at: now, econ, text: L.join("\n"), coins: out };
 }

@@ -29,3 +29,15 @@ create table if not exists public.strategy_changes (
 );
 alter table public.strategy_changes enable row level security;
 create index if not exists strategy_changes_created on public.strategy_changes (created_at desc);
+
+-- Ideas Grok submits (POST /ideas): id generated, status 'received' until tested.
+alter table public.strategy_ideas alter column status set default 'received';
+alter table public.strategy_ideas add column if not exists submitted_by text, add column if not exists note text;
+create or replace function public.moonbag_idea_before() returns trigger language plpgsql as $$
+begin
+  if new.idea_id is null then new.idea_id := public.moonbag_next_id('IDEA', public.moonbag_today(), 'X'); end if;
+  if tg_op = 'INSERT' and new.status is null then new.status := 'received'; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+create or replace trigger strategy_ideas_before before insert or update on public.strategy_ideas for each row execute function public.moonbag_idea_before();

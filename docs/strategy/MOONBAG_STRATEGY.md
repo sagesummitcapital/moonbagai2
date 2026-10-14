@@ -89,14 +89,17 @@ When Stavros asks "give me inputs for <coin>", run this checklist in order. The 
 4. **Trigger.** Has a 1h candle closed back inside after a sweep, or closed beyond the level and held? If not, give a limit order at the level only when the trigger has already printed; otherwise NO TRADE.
 5. **Stop = invalidation.** Below the 4h/daily support (long) or above the resistance (short) that the trade depends on, plus half the 1h ATR, at least 0.8% (BTC/ETH) or 1.5% (others) from entry and at least 1.5 × the 1h ATR. Wider stop = smaller size and lower leverage, same 2% risk. Never pull the stop closer to make 2R work: if TP1 is under 2R with the real stop, it is NO TRADE.
 6. **Reward.** Is the next real level 2R or more away? TP1 goes just in front of it.
-7. **No major US data** (CPI, FOMC, jobs, ISM) within 2 hours.
+7. **Data and red-folder days.** No new entry within 2 hours of major US data (CPI, FOMC, jobs, ISM). On a CPI, FOMC or jobs-report (NFP) day (Moonbag's econ_days, Phoenix date) only A+ keeps full risk; every other grade is HALF its usual risk (Stavros, 2026-10-14).
 8. **Grade and risk.** If the Moonbag desk has a live signal on this coin, use its grade and the table above. If it has none, Grok does not score it: treat it as B (1% on BTC/ETH, 0.5% on any other coin). Halve it after 2 losses in a row.
 9. **Size.** Coins = risk $ ÷ |entry − stop|. Notional = coins × entry.
 10. **Leverage.** Lowest whole number with margin at or under half the balance, inside the ceiling. Check liquidation is 1.25× the stop distance past entry; if not, cut leverage or size. Rough liquidation: entry × (1 − 1 ÷ leverage) for a long, entry × (1 + 1 ÷ leverage) for a short. BloFin's own number is the one to trust.
 
-**Output, always in this form:**
+**Output, always in this form. The first three lines are the plan; if any of them can't be filled honestly, it is NO TRADE (Stavros, 2026-10-14):**
 
 ```
+Bias: <long|short> because <the level / trend in one line>
+Entering when: <the exact trigger or limit price>
+Wrong if: <the price or event that kills the idea = the stop>
 <COIN> <Long|Short> · Entry <price> (<market|limit>) · SL <price> (<x.x>%) · TP1 <price> (<x.x>R, half) · TP2 <price>
 Size <qty> <COIN> (≈ $<notional>) · Leverage <x>x isolated · Margin $<m> · Risk $<r> (<p>% of $<balance>) · Liq ≈ <price>
 Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
@@ -763,6 +766,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-14 (v23):** Stavros approved both proposals from the X pre-market post, with one change: on CPI / FOMC / jobs-report (NFP) days A+ setups keep full risk and every other grade trades at HALF risk (instead of A+ only); still no new entry within 2 hours of a release. The daily task marks those days in econ_days and the desk halves risk on them. Every input card (Grok and the desk) now starts with the 3-line plan: Bias because / Entering when / Wrong if. Changes 12 and 13 in the strategy lab.
 - **2026-10-14 (v22):** §6b: the workflow for new strategy ideas (log → split → test against live → verdict per part → change log → report). First two ideas from X tested: VWAP pullback (+0.01R, no edge), 50% off at 1R (cut the limit recipe from +0.12R to +0.02R), Asia/London day profiles (−0.15R and −0.12R), session levels (−0.01R) — none adopted. Proposed for his OK: A+ only on CPI/FOMC/NFP days; the 3-line plan (bias because / entering when / wrong if) at the top of every input card.
 - **2026-10-13 (v21):** §0.1: strategy of the week (weekly league picks one winner) and no trade cap.
 - **2026-10-13 (v20):** §3.13 — 15m scalps (trend pullback, sweep-and-reclaim, NY opening range) and the Monday range tested: not adopted (negative after fees / no gain). Limit levels allowed from 0.15 daily ATR (was 0.3): +0.12R over 386 trades, BTC/ETH/SOL +0.21R. Quick mode (2R target, break-even at +1R) added as an option.

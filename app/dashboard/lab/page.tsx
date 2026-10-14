@@ -32,9 +32,17 @@ export default async function LabPage() {
         </Card>
       )}
 
+      {ideas.some((i) => i.status === "received") && (
+        <Card tone="info" title="In the queue" sub="Ideas you gave Grok (or me) that haven't been tested yet.">
+          <ul className="space-y-1 text-[13.5px] text-white/85">
+            {ideas.filter((i) => i.status === "received").map((i) => <li key={i.idea_id}>• <strong>{i.title}</strong> <span className="text-white/45">— {i.source ?? "—"} · {whenShort(i.received_at)} · {i.idea_id}</span></li>)}
+          </ul>
+        </Card>
+      )}
+
       <Card title="Ideas tested" sub="Newest first. Each part of an idea gets its own verdict.">
         <div className="space-y-3">
-          {ideas.map((i) => (
+          {ideas.filter((i) => i.status !== "received").map((i) => (
             <details key={i.idea_id} className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2" open={i === ideas[0]}>
               <summary className="cursor-pointer">
                 <span className="text-[14px] font-semibold text-white">{i.title}</span>{" "}
