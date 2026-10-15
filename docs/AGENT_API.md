@@ -126,6 +126,10 @@ ACCOUNT STATE — POST /accounts {"venue":"robinhood","equity","cash","buying_po
   adds or removes money, POST /accounts with the NEW balance plus "deposit": <amount> (negative for a withdrawal) and "note",
   e.g. {"venue":"blofin","equity":1266.70,"deposit":1000,"note":"BloFin top-up"}. Moonbag records it separately so the $10M
   goal bar shows the money but trading P&L doesn't count it as profit. Sizing uses the new balance right away.
+- WEEKLY BALANCE CHECK (Stavros, 2026-10-15): between checks Moonbag calculates each balance from the last one you confirmed
+  plus every exit you record plus deposits. So record every fill and partial (POST /trades/{id}/exits) — and once a week (and
+  whenever Moonbag's Saturday review says "balance check due") POST /accounts with the REAL balance of each account you can see
+  (BloFin: ask Stavros for it). A gap above 2% means something wasn't recorded (a fee, funding, a fill) — find it.
 - OPEN PLAN (weekdays): Moonbag writes the leverage open plan at 5:15 AM Phoenix (top of moonbag.ai/dashboard/leverage and in
   GET /levels' first lines once deployed). When Stavros asks "what's the plan for the open?", give him that plan, not your own.
 

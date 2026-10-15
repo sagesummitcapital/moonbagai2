@@ -64,6 +64,11 @@ const n = (v: unknown): number | null => {
 // per hour per server instance, however many viewers or widgets are polling. In-flight calls are shared.
 const memo = new Map<string, { at: number; p: Promise<unknown> }>();
 
+/** The "Refresh" button (Stavros, 2026-10-15): drop the in-process price memo so the next render fetches fresh quotes. */
+export function clearPriceMemo() {
+  memo.clear();
+}
+
 function getJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
   const hit = memo.get(url);
   const now = Date.now();
@@ -83,7 +88,7 @@ async function fetchJson(url: string, headers: Record<string, string> = {}): Pro
       headers: { accept: "application/json", "user-agent": UA, ...headers },
       signal: ctrl.signal,
       // Next.js data cache: one upstream call per hour per URL, shared by every viewer and poll.
-      next: { revalidate: REVALIDATE_S },
+      next: { revalidate: REVALIDATE_S, tags: ["live-prices"] },
     } as RequestInit);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();

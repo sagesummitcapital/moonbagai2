@@ -7,6 +7,7 @@ const TABS = [
   { href: "/dashboard", label: "Command" },
   { href: "/dashboard/leverage", label: "Leverage desk" },
   { href: "/dashboard/lab", label: "Strategy lab" },
+  { href: "/dashboard/entropy", label: "Entropy Trap" },
   { href: "/dashboard/robinhood", label: "Long-term" },
   { href: "/dashboard/coinbase", label: "Coinbase" },
   { href: "/dashboard/tracker", label: "Trade tracker" },

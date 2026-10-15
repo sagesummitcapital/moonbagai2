@@ -2,6 +2,7 @@
 // limits and Moonbag's paper limits (the feedback loop). The TradingView "LIMIT" alerts and the "Open limits"
 // watchlist section are kept in sync by the trade-alert sync task.
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { calcEquity } from "./equity";
 
 export type LimitOrder = {
   limit_id: string;
@@ -212,7 +213,8 @@ export async function getSizingContext(): Promise<SizingContext | null> {
   ]);
   const s = snap.data?.[0];
   const c = cfg.data?.[0];
-  const equity = s ? Number(s.equity) : Number(c?.starting_equity ?? 0);
+  const calc = await calcEquity("blofin");
+  const equity = calc ? calc.equity : s ? Number(s.equity) : Number(c?.starting_equity ?? 0);
   if (!equity) return null;
   const last2 = ((closed.data ?? []) as { realized_pnl: number | null }[]).map((t) => Number(t.realized_pnl ?? 0));
   const ceilings: Record<string, { tier: string; max: number }> = {};

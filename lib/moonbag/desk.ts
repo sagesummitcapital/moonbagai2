@@ -3,6 +3,7 @@
 //   Book 2 — Leverage desk (BloFin BTC/ETH, Stavros places every order)
 // Server-only (service-role client). Read-only: the scheduled Moonbag tasks do the writing.
 
+import { calcEquity } from "./equity";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { MoonbagDbError } from "./db";
 import type { Alert, DailyThesis, Handoff, Trade } from "./types";
@@ -179,6 +180,7 @@ export interface RiskConfig {
   auto_execute: boolean;
   max_leverage: number | null;
   max_margin_dollars: number | null;
+  max_margin_pct?: number | null;
   min_confidence_grade: number | null;
   max_hold_days: number | null;
   max_fills_per_week: number | null;
@@ -309,7 +311,9 @@ export async function getLeverageDesk() {
   const closed = allTrades.filter((t) => t.status === "closed");
   // The balance Grokbot reports from BloFin is the truth; the starting balance + P&L sum is only a fallback.
   const reported = (check(snap) as { equity: number; reported_at: string }[])[0] ?? null;
-  const equity = reported ? Number(reported.equity) : Number(cfg?.starting_equity ?? 240) + sum(closed.map((t) => Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0)));
+  // Calculated balance: last confirmed + realised P&L and deposits since (weekly confirmation by Grok).
+  const calc = await calcEquity("blofin");
+  const equity = calc ? calc.equity : reported ? Number(reported.equity) : Number(cfg?.starting_equity ?? 240) + sum(closed.map((t) => Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0)));
   const strat = (check(strategy) as LevStrategy[])[0] ?? null;
   const log = check(hourly) as LevHourly[];
   const latest: Record<string, LevHourly> = {};
@@ -320,6 +324,7 @@ export async function getLeverageDesk() {
     risk: cfg,
     equity,
     equityReportedAt: reported?.reported_at ?? null,
+    equityCalc: calc,
     lookbacks: check(lookbacks) as TradeLookback[],
     universe: check(universe) as UniverseCoin[],
     startingEquity: Number(cfg?.starting_equity ?? 240),

@@ -1,8 +1,8 @@
 "use client";
 // Live-price widgets. Every one of them renders the server-provided value immediately (no layout
 // shift) and then shares ONE poller: all mounted widgets register their symbol, and a single request
-// per kind (crypto / stock) goes to /dashboard/api/prices every 30 s while the tab is visible.
-// A timestamp always rides along with the number — green ≤ 2 min, amber ≤ 60 min, red older or when
+// per kind (crypto / stock) goes to /dashboard/api/prices once an hour while the tab is open (Stavros: hourly is enough).
+// A timestamp always rides along with the number — green ≤ 65 min, amber ≤ 3 h, red older or when
 // we are showing the desk's stored (decision) price because the live feed did not answer.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LivePrice as LP, PriceKind } from "@/lib/moonbag/prices";
@@ -18,10 +18,10 @@ const latest = new Map<string, LP>();
 let timer: ReturnType<typeof setInterval> | null = null;
 let firstTick: ReturnType<typeof setTimeout> | null = null;
 let visibilityBound = false;
-const POLL_MS = 30_000;
+const POLL_MS = 60 * 60_000; // hourly
 const key = (kind: PriceKind, symbol: string) => `${kind}:${symbol.toUpperCase()}`;
 
-async function poll() {
+async function poll(fresh = false) {
   if (typeof document !== "undefined" && document.hidden) return;
   const byKind: Record<PriceKind, string[]> = { crypto: [], stock: [] };
   for (const k of listeners.keys()) {
@@ -36,7 +36,7 @@ async function poll() {
       return chunks.map(async (chunk) => {
         const lite = chunk.every((sym) => !(wantsChange.get(key(kind, sym)) ?? 0));
         try {
-          const res = await fetch(`/dashboard/api/prices?symbols=${encodeURIComponent(chunk.join(","))}&kind=${kind}${lite ? "&lite=1" : ""}`, { cache: "no-store", credentials: "same-origin" });
+          const res = await fetch(`/dashboard/api/prices?symbols=${encodeURIComponent(chunk.join(","))}&kind=${kind}${lite ? "&lite=1" : ""}${fresh ? "&fresh=1" : ""}`, { cache: "no-store", credentials: "same-origin" });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = (await res.json()) as { ok: boolean; prices?: Record<string, LP> };
           for (const sym of chunk) {
@@ -61,12 +61,13 @@ async function poll() {
 
 function ensureRunning() {
   if (timer) return;
-  // The server value is at most 15 s old, so the first client poll can wait a moment.
-  firstTick = setTimeout(poll, 3_000);
-  timer = setInterval(poll, POLL_MS);
+  // The server-rendered value is already current to the hour, so no immediate first poll.
+  timer = setInterval(() => void poll(), POLL_MS);
   if (!visibilityBound && typeof document !== "undefined") {
     visibilityBound = true;
     document.addEventListener("visibilitychange", () => { if (!document.hidden) void poll(); });
+    // The Refresh button in the header (Stavros, 2026-10-15) asks every live price to re-pull now.
+    window.addEventListener("moonbag:refresh", () => void poll(true));
   }
 }
 
@@ -112,7 +113,7 @@ function ageTone(iso: string | null | undefined, now: number | null): Tone {
   if (!iso) return "gray";
   if (now == null) return "green";
   const m = (now - new Date(iso).getTime()) / 60000;
-  return m <= 2 ? "green" : m <= 60 ? "amber" : "red";
+  return m <= 65 ? "green" : m <= 180 ? "amber" : "red";
 }
 const nowDate = (now: number | null, iso?: string | null) => (now != null ? new Date(now) : iso ? new Date(iso) : new Date(0));
 
@@ -122,12 +123,12 @@ function resolve(live: LP | null, stored?: Stored) {
   return { price: stored?.price == null || Number.isNaN(Number(stored.price)) ? null : Number(stored.price), isLive: false, asOf: stored?.asOf ?? live?.asOf ?? null, source: stored?.label ?? "desk's last stored price", change: null as number | null };
 }
 
-/** Clock that re-renders every 30 s so age dots stay honest even when the feed is quiet. null until mounted. */
+/** Clock that re-renders every minute so age dots stay honest even when the feed is quiet. null until mounted. */
 function useNow(): number | null {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 30_000);
+    const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
   return now;
@@ -139,7 +140,7 @@ export function Stamp({ isLive, asOf, source, now, className = "", short = false
   // A stored value always carries its date — it is by definition not from right now.
   const text = isLive ? `live · ${whenShort(asOf, true, nowDate(now, asOf))}` : asOf ? `stored · ${whenShort(asOf, false, new Date(0))}` : "no live quote";
   const title = isLive
-    ? `${source ?? "live"} · ${asOf ? new Date(asOf).toLocaleString("en-US", { timeZone: TZ }) : ""} Phoenix · refreshes every 30 s while this tab is open`
+    ? `${source ?? "live"} · ${asOf ? new Date(asOf).toLocaleString("en-US", { timeZone: TZ }) : ""} Phoenix · refreshes hourly`
     : `Live feed did not answer — showing the ${source ?? "stored price"} from ${asOf ? new Date(asOf).toLocaleString("en-US", { timeZone: TZ }) : "an unknown time"} Phoenix. Do not trade off this number.`;
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] leading-[16px] tabular-nums ${TXT[tone]} ${className}`} title={title} aria-live="polite">

@@ -112,7 +112,7 @@ export default async function LeveragePage() {
           <Stat
             label="BloFin account"
             value={money(equity)}
-            sub={<><Updated label="balance" at={data.equityReportedAt} cadenceH={30} verb="reported by Grokbot" /> {milestone ? `· ${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "· all milestones reached"}</>}
+            sub={<>{data.equityCalc ? <>calculated: last confirmed {money(data.equityCalc.confirmed)} {data.equityCalc.days_since_confirmed.toFixed(0)}d ago{data.equityCalc.realized_since ? ` ${data.equityCalc.realized_since >= 0 ? "+" : "−"}${money(Math.abs(data.equityCalc.realized_since))} P&L since` : ""}{data.equityCalc.deposits_since ? ` + ${money(data.equityCalc.deposits_since)} deposits` : ""}{data.equityCalc.needs_check ? <> · <Badge tone="amber">weekly check due — ask Grok for the real balance</Badge></> : ""}</> : <Updated label="balance" at={data.equityReportedAt} cadenceH={30} verb="reported by Grokbot" />} {milestone ? `· ${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "· all milestones reached"}</>}
             meter={
               milestone ? (
                 <Meter value={equity - startingEquity} max={milestone - startingEquity} tone="green" height={8} labels={[money0(startingEquity), <>next milestone <b className="font-mono text-white/75">{money0(milestone)}</b></>]} />
@@ -133,7 +133,7 @@ export default async function LeveragePage() {
             label="Risk per trade"
             size="md"
             value={<>{num(riskPct, 1)}%<Unit>≈ {money((equity * riskPct) / 100)}</Unit></>}
-            sub={`Max ${num(risk?.max_leverage, 0)}x · margin cap ${money(risk?.max_margin_dollars)} · hold ≤ ${num(risk?.max_hold_days, 0)} days`}
+            sub={`By confidence: A+ 2% · A 2% BTC/ETH (1% alts) · B 1% (0.5%) · paper ½ · margin ≤ ${num(risk?.max_margin_pct ?? 50, 0)}% of the balance${risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max ${num(risk?.max_leverage, 0)}x`}
           />
         </Card>
         <Card tone={stale ? "warn" : undefined}>

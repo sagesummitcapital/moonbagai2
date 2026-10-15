@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ClerkProvider, UserButton } from "@clerk/nextjs";
 import { getOwnerAccess } from "@/lib/auth/owner";
 import { DashNav } from "./_components/DashNav";
+import RefreshButton from "./_components/RefreshButton";
 import { clerkAppearance } from "./_components/clerkAppearance";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 moonbag<span className="text-gradient">.ai</span>
                 <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40">desk</span>
               </Link>
-              <UserButton />
+              <div className="flex items-center gap-3">
+                {access.allowed && <RefreshButton />}
+                <UserButton />
+              </div>
             </div>
             {access.allowed && <DashNav />}
           </div>

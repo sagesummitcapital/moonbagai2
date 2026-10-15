@@ -4,6 +4,7 @@
 // lev_open_plan; the Desk Lead fills `drive` after the first 30 minutes of the US open; graded the next morning.
 // Also: the $10M goal (account balances + deposits).
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { calcEquity } from "./equity";
 
 export type OpenCoin = {
   coin: string;
@@ -81,12 +82,14 @@ export async function getGoal() {
     db.from("account_flows").select("venue, amount"),
     db.from("risk_config").select("venue, starting_equity"),
   ]);
-  const by: Record<string, { equity: number; at: string | null; start: number; deposits: number }> = {};
+  const by: Record<string, { equity: number; at: string | null; start: number; deposits: number; needsCheck: boolean }> = {};
+  const calcs = await Promise.all(venues.map((v) => calcEquity(v)));
   venues.forEach((v, i) => {
     const s = snaps[i].data?.[0];
+    const c = calcs[i];
     const start = Number(((cfg.data ?? []) as { venue: string; starting_equity: number | null }[]).find((c) => c.venue === v)?.starting_equity ?? 0);
     const deposits = ((flows.data ?? []) as { venue: string; amount: number }[]).filter((f) => f.venue === v).reduce((a, f) => a + Number(f.amount), 0);
-    by[v] = { equity: s ? Number(s.equity) : 0, at: s?.reported_at ?? null, start, deposits };
+    by[v] = { equity: c ? c.equity : s ? Number(s.equity) : 0, at: s?.reported_at ?? null, start, deposits, needsCheck: c?.needs_check ?? false };
   });
   const total = venues.reduce((a, v) => a + by[v].equity, 0);
   const pnlBlofin = by.blofin.equity - by.blofin.start - by.blofin.deposits;
