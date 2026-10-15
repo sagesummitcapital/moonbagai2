@@ -1,5 +1,6 @@
 import { withAgent, json, readJson, requireFields, BadRequest } from "@/lib/moonbag/apiAuth";
 import { createAccountSnapshot, latestAccountSnapshot } from "@/lib/moonbag/db";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -28,5 +29,13 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
     positions: Array.isArray(body.positions) ? body.positions : [],
     reported_by: agent,
   });
-  return json({ ok: true, snapshot }, 201);
+  // Deposits / withdrawals (Stavros, 2026-10-15: "im going to put another 1k into blofin") — so the goal bar and the
+  // trading P&L don't count new money as profit. Positive = deposit, negative = withdrawal.
+  let flow = null;
+  if (body.deposit != null && Number(body.deposit) !== 0) {
+    const ins = await supabaseAdmin().from("account_flows").insert({ venue: body.venue, amount: Number(body.deposit), note: body.note == null ? null : String(body.note), reported_by: agent }).select("*").single();
+    if (ins.error) throw new BadRequest(ins.error.message);
+    flow = ins.data;
+  }
+  return json({ ok: true, snapshot, flow }, 201);
 });

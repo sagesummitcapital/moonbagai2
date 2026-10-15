@@ -15,6 +15,8 @@ Analysis, not financial advice. Stavros decides every trade.
 
 ## 0. The Moonbag Playbook (all books, one page each)
 
+**NORTH STAR (Stavros, 2026-10-15): "The goal is to make money, so lets make sure that is the north star of our strategy — but while managing risk and improving confidence so we get good at long term investments, and also trading crypto futures." Goal: $10,000,000.** The two kinds of money are run differently. Coinbase and Robinhood are LONG-TERM HOLDS: "that's where i want to put money and let it grow long term". They are bought on dips, a stop is fine only as a wide thesis line, and there are no tight stops or quick profit-taking (§0.3, §0.4). BloFin leverage is TRADING: "my lev trades need strict r:r and risk management". Every lev trade gets a real stop, at least 2R, 2% max risk and the drawdown stops (§0.2). Each weekday morning the desk writes an open plan for the leverage desk (§0.2b) and grades yesterday's, so confidence is earned by a track record rather than claimed. The $10M bar at the top of the leverage page shows all three accounts. Deposits are recorded separately, so new money never counts as trading profit.
+
 Written by the Strategist, 2026-10-11, at Stavros's request: "a clearly defined strategy for all asset classes". This section is the short version. Sections 3 and 4 hold the detail. If they ever disagree, the risk numbers in §0.1 win.
 
 Every rule below comes from our own backtests, live trades and lookbacks. Where the evidence is thin, it says so and the rule stays cautious.
@@ -111,7 +113,17 @@ Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
 
 **LIMIT ORDERS (2026-10-12, §3.12).** Same levels, entered by a resting limit instead of at market: put the limit half a 1h ATR *through* the level (below the support for a long, above the resistance for a short) so it only fills on a sweep; level 0.15–2 daily ATRs from price, on the side of the daily 50 EMA; stop and minimums as above; TP1 the next opposite level, at least 2R (aim 3R); stop to entry at +1.5R; cancel after 24 hours or if price reaches TP1 first. A DCA ladder shares one stop and the 2% is for all rungs together. Grok records every resting limit in Moonbag (POST /limits) so it gets a TradingView alert and a line under "Open limits".
 
+### 0.2b The open plan (weekdays, before the US open)
+
+Stavros, 2026-10-15: "i want to go into open everyday with a clear strategy. if we can position and have a good win rate against market open i wont have to trade as much throughout the day."
+
+- **5:15 AM Phoenix, Monday to Friday** (the open is 6:30 AM Phoenix in summer, 7:30 AM in winter). The open planner grades yesterday's plan: was the bias right, did the levels hold, did the open instruction make money, plus a one-line lesson. It then writes today's plan for BTC, ETH and SOL: bias and confidence, the 3-line plan, overnight and previous-day highs and lows, the long and short limit plans, and ONE instruction for the open. The plan sits at the top of the leverage page and goes to his phone.
+- **Confidence is calibrated.** It is capped at 70% until 20 plans are graded. After that, it stays within 10 points of the real 30-day hit rate.
+- **What the open backtest found** (2026-10-15, fees on; research/open). The classic opening-range breakout loses on crypto: −0.15R on 15m bars and −0.11R over 1,166 trades on 1h bars from January to October. The failed-breakout fade (−0.15 / −0.22R) and the overnight-range sweep (−0.05R) lose too. The previous-day high/low sweep came out +0.22R, but one half lost (−0.53R), so it is unstable. One candidate survived: **OPEN DRIVE**. If BTC/ETH/SOL move at least one 1h ATR in the first 30 minutes, go with the move. The stop goes 0.25 ATR beyond the open price, the target is 2R, and the trade is flat by 4 PM New York. Result: +0.26R over 53 trades, 51% win rate, both halves and all three coins positive. It is fragile: the 15- and 45-minute versions were flat, and the 60-minute version lost over 9 months. So it is PAPER: the Desk Lead checks it at 10:00 New York, records it in the plan and sends a half-risk card. It goes live only after 20+ tracked trades average more than +0.1R.
+
 ### 0.3 Coinbase spot (Grok executes)
+
+**BUY AND HOLD (Stavros, 2026-10-15: "we want to dca into positions on dips. im much more wanting to buy and hold for coinbase and robinhood. the stops are different than on my lev trades").** BTC and ETH are held, not traded. They are bought on dips with a ladder of resting limit buys, with no exchange stop and no take-profit. A hold exits only on a DAILY close below the coin's bear line (0.97 × its 200-day average: BTC ≈ 70,040, ETH ≈ 2,076 on 2026-10-15). An intraday wick never sells it. First ladder: BTC ≈ $16 at market, $16 at 78,500 and $16.50 at 75,000. ETH ≈ $10.50 at market, $10.50 at 2,250 and $10.50 at 2,120. His view: bullish unless BTC loses 78k; then he expects 74k. If every rung fills and both coins close below their bear lines, the worst case is about 10% of the account (Stavros approved; the old rule was 2% per trade). Hold handoffs use horizon 'position' and setup type 'cb_hold'. Ladder rungs on one coin count as one position. The breakout rules below still run for coins that are not held.
 
 - **Trades:** BTC, ETH, SOL, spot only, long or cash. 36 coins are paper-traded; alts are paper-only by Stavros's choice.
 - **Regime (trend filter):** BULL = daily close above 1.02 × the 200-day average. BEAR = daily close below 0.97 × it. Longs only in BULL.
@@ -125,6 +137,8 @@ Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
 - **Thin spot:** that backtest ran at 5% risk (29.6% a year vs 19.6% for holding BTC). At 3% it made 19.4% a year. 2% was not tested and will return less: expect a much smaller drawdown than holding BTC, but it may not beat BTC on return in a strong bull run. No live trades yet.
 
 ### 0.4 Robinhood trading sleeve (Grok executes)
+
+**BUY AND HOLD (Stavros, 2026-10-15: "Yes, all holds").** Every new non-DCA buy is a hold (horizon 'position'). It is bought on a dip into support in an uptrend, rather than on a breakout. Its stop sits at the structure that breaks the thesis and is judged on DAILY closes only. It gets no breakeven move, no trims at targets and no time stop. The stop is raised only to a weekly higher low that is still at least 10% below price. Risk limits are unchanged: a wider stop means a smaller size. PLTR's soft stop moved from 197.90 (1.5% away) to a daily close below 184 (under the late-September base).
 
 - **Trades:** US stocks and ETFs (price $5+, volume 1M+), and 1x inverse ETFs for bearish views. Long-only. No options, margin, leveraged ETFs, crypto or VRF.
 - **Setup score (0-10):** trend on daily and weekly, entry at a real level, 2R+ to target, strength vs SPY, volume, theme, evidence.
@@ -190,7 +204,7 @@ Tested or tried, and rejected:
 ## 1. Goal and principles
 
 - **Two books, one brain.** Book 1 is Robinhood (longer-term thesis, the Agentic account). Book 2 is the BloFin leverage desk.
-- **Leverage milestones:** $240 → $1k → $10k → $100k → $1M.
+- **Goal: $10M** (Stavros, 2026-10-15). Leverage milestones: $240 → $1k → $10k → $100k → $1M → $10M. Deposits (e.g. his $1k BloFin top-up) are recorded in account_flows, so trading P&L stays honest.
 - **Maximise R:R while keeping risk management in place.** No trade is the default, but we have to trade to make money. A good setup must be able to reach Stavros.
 - **Feedback loops are vital.** Every setup is recorded, whether or not it is traded. Every trade gets a 24-hour lookback. Every week the Auditor checks what worked and changes rules on evidence. Testing new ideas and learning from mistakes is expected.
 - **Alerts are for action.** No "watching, no trade yet" messages.
@@ -766,6 +780,8 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-15 (v25):** North star and $10M goal (§0). Long-term holds (Coinbase, Robinhood) are separated from strict-R:R leverage trading. New weekday open plan (§0.2b: lev_open_plan, graded daily, calibrated confidence). US-open strategies tested: opening-range breakout, fade, overnight sweep and previous-day sweep all rejected; Open Drive 30m is paper. Deposits are tracked.
+- **2026-10-15 (v24):** Coinbase and Robinhood switch to buy-and-hold (§0.3, §0.4). This came after ETH's 2,330 Coinbase stop filled on a 1-hour wick to 2,313 that closed back at 2,377. Holds sell only on a daily close below the bear line (Coinbase) or the thesis stop (Robinhood). The BTC hold's exchange stop-limit (74,600) and its TP1 bracket are cancelled. A dip ladder spreads the Coinbase cash over BTC and ETH. Stavros approved the larger worst case (about 10% of the Coinbase account). BloFin leverage is unchanged. Change 14 in the strategy lab.
 - **2026-10-14 (v23):** Stavros approved both proposals from the X pre-market post, with one change: on CPI / FOMC / jobs-report (NFP) days A+ setups keep full risk and every other grade trades at HALF risk (instead of A+ only); still no new entry within 2 hours of a release. The daily task marks those days in econ_days and the desk halves risk on them. Every input card (Grok and the desk) now starts with the 3-line plan: Bias because / Entering when / Wrong if. Changes 12 and 13 in the strategy lab.
 - **2026-10-14 (v22):** §6b: the workflow for new strategy ideas (log → split → test against live → verdict per part → change log → report). First two ideas from X tested: VWAP pullback (+0.01R, no edge), 50% off at 1R (cut the limit recipe from +0.12R to +0.02R), Asia/London day profiles (−0.15R and −0.12R), session levels (−0.01R) — none adopted. Proposed for his OK: A+ only on CPI/FOMC/NFP days; the 3-line plan (bias because / entering when / wrong if) at the top of every input card.
 - **2026-10-13 (v21):** §0.1: strategy of the week (weekly league picks one winner) and no trade cap.

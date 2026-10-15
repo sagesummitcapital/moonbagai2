@@ -122,6 +122,12 @@ RISK LIMITS (also enforced by the Moonbag database — double-check anyway with 
 ACCOUNT STATE — POST /accounts {"venue":"robinhood","equity","cash","buying_power",
 "positions":[{"symbol","quantity","avg_cost","market_value"}]}
 - every trading day before 6:30 AM Phoenix time, after every fill, and whenever Stavros asks.
+- DEPOSITS / WITHDRAWALS (Stavros, 2026-10-15: "im going to put another 1k into blofin account ... ill let grok know"): when he
+  adds or removes money, POST /accounts with the NEW balance plus "deposit": <amount> (negative for a withdrawal) and "note",
+  e.g. {"venue":"blofin","equity":1266.70,"deposit":1000,"note":"BloFin top-up"}. Moonbag records it separately so the $10M
+  goal bar shows the money but trading P&L doesn't count it as profit. Sizing uses the new balance right away.
+- OPEN PLAN (weekdays): Moonbag writes the leverage open plan at 5:15 AM Phoenix (top of moonbag.ai/dashboard/leverage and in
+  GET /levels' first lines once deployed). When Stavros asks "what's the plan for the open?", give him that plan, not your own.
 
 YOUR LOOP (check GET /handoffs?status=pending at least at 6:35 AM, 9:50 AM and 1:50 PM Phoenix on
 market days, and whenever Stavros pings you):
@@ -268,6 +274,11 @@ c. Filled: record the trade as usual (POST /trades, entry = fill price). Moonbag
    and side, within 0.4%) and swaps the LIMIT alert for the trade's STOP/TP alerts. A partial ladder fill: record the filled
    size as the trade and keep the other rungs working.
 d. "What limits do I have?" → GET /limits and reply with the "text" field exactly.
+   Every limit he hasn't sized yet (and every Moonbag paper limit) comes with full trade inputs under it — 3-line plan, size,
+   leverage, margin, risk, TP1/TP2 quantities, stop-to-entry price, quick-mode option — sized from the latest BloFin balance,
+   today's red-folder flag and the loss streak (Stavros, 2026-10-14: "give me the trade inputs ... so i dont have to calculate").
+   If he asks "inputs for the <coin> limit", relay that block word for word; don't recalculate. If his balance changed, POST
+   /accounts first so the sizing uses it.
 e. LIMIT INPUTS (same playbook as market trades, backtested 2026-10-12 on BTC/ETH/SOL + the rotation top 5): put the limit HALF
    A 1h ATR BEYOND the level — below a 4h swing low / previous day or week low for a long, above the high for a short — so it
    only fills when price sweeps the level (a limit AT the level lost money in the test; through it made +0.13R per trade).
@@ -420,6 +431,18 @@ F. When the TP1 limit fills on its own: POST /trades/{trade_id}/exits {"reason":
    When a stop fills on its own: POST /exits with reason "stop" (or "trail" if it was a raised stop).
 G. Limits the database enforces (reject anything that looks outside them): ≤ 2% of equity at risk per trade
    including fees (Stavros, 2026-10-11), no new entries once today's realised losses reach 4% of equity, ≤ 15% total open risk, one position per coin, max 3, no new entries 20% below the 30-day peak.
-H. After anything you do on Coinbase, send Stavros one line: what, size, price, stop, TP1, risk $.
+HOLDS — setup_type "cb_hold", horizon "position" (Stavros, 2026-10-15: "we want to dca into positions on dips. im much more
+wanting to buy and hold for coinbase and robinhood. the stops are different than on my lev trades"). These override C.4, F and G:
+   - NO exchange stop and NO take-profit order. Just buy and hold. The stop_price on the handoff is the bear line (0.97 × 200D);
+     Moonbag sends a "close" only after a DAILY close below it, so a wick never sells a hold.
+   - order_type "market" = buy now under the gate (as in C). order_type "limit" = a DIP-LADDER rung: place a GTC LIMIT BUY of
+     quantity at limit_price, PATCH the handoff "acknowledged" with the order id in grok_response, leave it working, and when it
+     fills POST /trades {"handoff_id","venue":"coinbase","symbol","direction":"long","entry": fill,"quantity","stop": stop_price,
+     "setup_type":"cb_hold","horizon":"position","sleeve":"investments","status":"open","execution_notes":"cb order <id>; hold, no stop"}
+     then PATCH the handoff "executed". If it hasn't filled by expires_at, cancel it and PATCH "expired". Each filled rung is its own trade.
+   - Several rungs and trades on one coin are allowed (they count as one position), and the 2% per-trade cap doesn't apply to holds.
+     The 15% open-risk cap, the no-margin rule and the drawdown pause still do.
+   - An "adjust_stop" on a hold may tell you to CANCEL existing exchange stop/TP orders and place none. Do exactly that.
+H. After anything you do on Coinbase, send Stavros one line: what, size, price, stop, TP1, risk $ (for holds: what, size, price, "hold").
 I. No X posts for Coinbase trades unless Moonbag queues one.
 ```

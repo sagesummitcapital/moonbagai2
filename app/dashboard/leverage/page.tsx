@@ -3,7 +3,10 @@ import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import type { DailyThesis, Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { getLossJournal } from "@/lib/moonbag/lossJournal";
-import { getLimits } from "@/lib/moonbag/limits";
+import { getLimits, getSizingContext, limitInputs } from "@/lib/moonbag/limits";
+import CopyButton from "../_components/CopyButton";
+import { getGoal, getOpenPlan } from "@/lib/moonbag/openPlan";
+import { GoalBar, OpenPlanCard } from "../_components/OpenPlan";
 import { getBoard, tradingWindow } from "@/lib/moonbag/board";
 import { Board, type APlus } from "../_components/Board";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
@@ -51,7 +54,10 @@ export default async function LeveragePage() {
   const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
   const journal = await getLossJournal(12).catch(() => null);
   const limits = await getLimits().catch(() => null);
+  const sizing = await getSizingContext().catch(() => null);
+  const inputsFor = (o: Parameters<typeof limitInputs>[0]) => (sizing && o.quantity == null ? limitInputs(o, sizing) : null);
   const board = await getBoard().catch(() => null);
+  const [openPlan, goal] = await Promise.all([getOpenPlan().catch(() => null), getGoal().catch(() => null)]);
   const win = tradingWindow();
   // A+ setups — only from strategies with a positive record (backtest or resolved signals).
   const paperScore = limits?.scoreboard.find((x) => x.origin === "paper");
@@ -93,6 +99,10 @@ export default async function LeveragePage() {
           </>
         }
       />
+
+      {goal && <GoalBar total={goal.total} blofin={goal.by.blofin.equity} coinbase={goal.by.coinbase.equity} robinhood={goal.by.robinhood.equity} pnlBlofin={goal.pnlBlofin} deposits={goal.by.blofin.deposits} />}
+
+      {openPlan && <OpenPlanCard plan={openPlan.today ?? openPlan.latest} record={openPlan.record} isToday={!!openPlan.today} />}
 
       {board && <Board core={board.core} movers={board.movers} weekPlan={board.weekPlan} window={win} aplus={aplus} updatedAt={boardUpdated} />}
 
@@ -213,12 +223,65 @@ export default async function LeveragePage() {
               <span key="s" className="font-mono tabular-nums text-rose-300">{px2(o.current_stop ?? o.stop)}</span>,
               <span key="t" className="font-mono tabular-nums text-accent-green">{px2(o.tp1)}</span>,
               <strong key="r" className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong>,
-              <span key="q" className="text-white/70">{o.quantity != null ? num(o.quantity, 4) : "—"}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</span>,
+              <span key="q" className="text-white/70">{o.quantity != null ? <>{num(o.quantity, 4)}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</> : (() => { const i = inputsFor(o); return i ? <a href={`#inputs-${o.limit_id}`} className="text-accent-cyan underline decoration-dotted underline-offset-2" title={i.text}>{i.qty} · {i.leverage}x</a> : "—"; })()}</span>,
               <Badge key="st" tone={o.status === "touched" ? "amber" : "gray"}>{o.status === "touched" ? "touched — filled?" : "working"}</Badge>,
               <span key="e" className="whitespace-nowrap text-white/60">{o.expires_at ? whenShort(o.expires_at) : "until cancelled"}</span>,
             ])}
             empty="No resting limits. Tell Grok when you place one and it shows up here with a TradingView alert at its price."
           />
+          {sizing && limits.open.some((o) => inputsFor(o)) && (
+            <Section
+              title="Trade inputs"
+              right={<span>balance {money(sizing.equity)}{sizing.equityAt ? ` · reported ${whenShort(sizing.equityAt)}` : ""}</span>}
+            >
+              <div className="grid gap-2">
+                {limits.open.map((o) => {
+                  const i = inputsFor(o);
+                  if (!i) return null;
+                  const sideWord = o.direction === "long" ? "Buy" : "Sell";
+                  return (
+                    <div key={o.limit_id} id={`inputs-${o.limit_id}`}>
+                      <Expander
+                        summary={
+                          <span>
+                            <strong className="text-white">{o.symbol}</strong> {sideWord.toLowerCase()} limit <Mono>{px2(o.limit_price)}</Mono> →{" "}
+                            <strong className="text-white">{i.qty} {o.symbol}</strong> · {i.leverage}x · margin {money(i.margin)} · risk {money(i.riskUsd)} ({num(i.riskPct, 2)}%)
+                            {i.notes.length > 0 && <> · <Badge tone="amber">{i.notes.length} note{i.notes.length > 1 ? "s" : ""}</Badge></>}
+                          </span>
+                        }
+                      >
+                        <div className="space-y-0.5 text-[13px] text-white/80">
+                          {i.plan.map((x) => <div key={x}>{x}</div>)}
+                        </div>
+                        <KV
+                          className="mt-3"
+                          cols={2}
+                          rows={[
+                            ["Order", `${sideWord} limit ${px2(o.limit_price)} · isolated`],
+                            ["Size", `${i.qty} ${o.symbol} (≈ ${money(i.notional)}) — set BloFin's size unit to ${o.symbol}`],
+                            ["Leverage", `${i.leverage}x (max ${i.ceiling}x) · margin ${money(i.margin)}`],
+                            ["Stop loss", `${px2(o.current_stop ?? o.stop)} (${num(i.stopPct, 2)}%) · liq ≈ ${px2(i.liq)}${i.liqOk ? "" : " ⚠"}`],
+                            ["TP1", `${px2(o.tp1)} for ${i.qtyTp1} ${o.symbol} (${fmtRR(o.plan_r == null ? null : Number(o.plan_r))})`],
+                            ["TP2", `${px2(o.tp2)} for ${i.qtyTp2} ${o.symbol}`],
+                            ["Risk", `${money(i.riskUsd)} = ${num(i.riskPct, 2)}% of ${money(sizing.equity)}`],
+                            ["Stop to entry", `at +1.5R (${px2(i.beAt)})`],
+                            ["Quick mode", `TP ${px2(i.quickTp)} (2R), stop to entry at +1R (${px2(i.quickBe)})`],
+                            ["Cancel", `${o.expires_at ? `${whenShort(o.expires_at)} if not filled, ` : ""}or if price reaches TP1 first`],
+                          ]}
+                        />
+                        {i.notes.length > 0 && <Note className="mt-2">{i.notes.join(" · ")}</Note>}
+                        <div className="mt-3 flex items-center gap-2">
+                          <CopyButton text={i.text} label="Copy inputs" />
+                          <span className="text-[12px] text-white/45">paste to Grok after you place it so it records the order</span>
+                        </div>
+                      </Expander>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[12px] text-white/45">Sized from the latest BloFin balance Grok reported. If your balance changed, have Grok post it first. Analysis only — you place every order.</p>
+            </Section>
+          )}
           {limits.scoreboard.length > 0 && (
             <Section title="Limit scoreboard" right={<span>feeds the Saturday review</span>}>
               <div className="grid gap-2 sm:grid-cols-3">

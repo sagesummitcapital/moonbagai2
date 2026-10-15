@@ -1,13 +1,13 @@
 import { withAgent, json, readJson, requireFields, pick, BadRequest } from "@/lib/moonbag/apiAuth";
-import { getLimits, limitsText, LIMIT_WRITE } from "@/lib/moonbag/limits";
+import { getLimits, getSizingContext, limitsText, LIMIT_WRITE } from "@/lib/moonbag/limits";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 /** Open limit orders (his + Moonbag paper), the last 30 resolved ones and the scoreboard. `text` is relayed word for word. */
 export const GET = withAgent(["claude", "grok"], async () => {
-  const L = await getLimits();
-  return json({ ok: true, text: limitsText(L.open), ...L });
+  const [L, ctx] = await Promise.all([getLimits(), getSizingContext().catch(() => null)]);
+  return json({ ok: true, text: limitsText(L.open, ctx), ...L });
 });
 
 /**

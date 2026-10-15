@@ -46,7 +46,20 @@ export async function getEconDay(): Promise<{ day: string; red: boolean; events:
 }
 
 export async function buildLevels() {
-  const [lev, lim, econ] = await Promise.all([getLeverageDesk(), getLimits().catch(() => ({ open: [] as LimitOrder[] })), getEconDay()]);
+  const [lev, lim, econ, openPlan] = await Promise.all([
+    getLeverageDesk(),
+    getLimits().catch(() => ({ open: [] as LimitOrder[] })),
+    getEconDay(),
+    (async () => {
+      try {
+        const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+        const { data } = await supabaseAdmin().from("lev_open_plan").select("market_bias, confidence, headline, open_strategy").eq("plan_date", day).maybeSingle();
+        return data as { market_bias: string | null; confidence: number | null; headline: string | null; open_strategy: string | null } | null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
   const mineLimits = lim.open.filter((o) => o.origin !== "paper");
   const now = new Date().toISOString();
 
@@ -128,6 +141,10 @@ export async function buildLevels() {
   const L: string[] = [];
   L.push(`MOONBAG LEVELS · ${phx(now)} Phoenix`);
   L.push("TradingView alerts and trade setups exactly as recorded in Moonbag.");
+  if (openPlan) {
+    L.push(`OPEN PLAN: ${(openPlan.market_bias ?? "neutral").toUpperCase()}${openPlan.confidence != null ? ` ${openPlan.confidence}%` : ""} — ${openPlan.headline ?? ""}`);
+    if (openPlan.open_strategy) L.push(`At the open: ${openPlan.open_strategy}`);
+  }
   L.push(
     econ?.red
       ? `RED-FOLDER DAY (${econ.events ?? "CPI / FOMC / NFP"}): A+ full risk, every other grade HALF risk; no new entry within 2h of the release.`

@@ -256,6 +256,12 @@ Grok posts a Coinbase account snapshot at least daily. Without one under 2 days 
 
 ## 8. Change log
 
+- **2026-10-15 v2.4 — BUY AND HOLD:** Stavros: "we want to dca into positions on dips. im much more wanting to buy and hold for coinbase ... the stops are different than on my lev trades" / "loosen stops for everything except my lev trades". This came after the ETH zone buy's 2,330 stop filled on a 1-hour wick to 2,313 that closed back at 2,377 (−$1.55, about −1R).
+  - **Holds** (`setup_type` `cb_hold`, `horizon` `position`) have no exchange stop and no TP1. They exit only on a DAILY close below the coin's bear line (0.97 × 200D; the same regime exit as before). `cb_run()` skips the hourly intraday stop and TP1 checks for them.
+  - **Dip ladder:** limit-buy rungs, each rung its own trade. The handoff check exempts holds from the 2% per-trade cap, the one-trade-per-coin rule and the TP1 requirement. Max positions now counts coins. The 15% open-risk, no-margin and drawdown caps still apply.
+  - **First ladder:** BTC $16 market / $16 at 78,500 / $16.50 at 75,000; ETH $10.50 market / $10.50 at 2,250 / $10.50 at 2,120.
+  - **Existing BTC position:** converted to a hold (stop-limit 74,600 and TP1 bracket cancelled; exit on a daily close below about 70,040).
+  - **Worst case:** about 10% of the account if every rung fills and both coins close below their bear lines. Stavros approved this.
 - **2026-10-11 v2.3:** Stavros's zone buys. Stavros can call an accumulation zone himself (first one: BTC from ~83k to 79k, invalid below 75k; ETH stop 2,330 under its 30-day low). Claude turns it into a normal Coinbase open handoff (`setup_type` `cb_zone_buy`, market buy with a price gate, stop under the structure he names, TP1 at 2R for half). The same 2% risk, one position per coin and every other limit apply, and `cb_run()` manages the trade exactly like a breakout trade (stop, TP1, trail, regime exit).
 
 - **2026-10-11 v2.2:** risk per trade 5% → 2% and a 4% daily drawdown stop (Stavros, all books). The backtest at 3% risk returned 19.4%/yr with a −13% worst drawdown, so 2% means lower returns and shallower drawdowns.
