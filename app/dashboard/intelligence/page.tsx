@@ -3,7 +3,7 @@ import { GRADING_WEIGHTS } from "@/lib/moonbag/scoring";
 import { load } from "../_components/data";
 import { Bars, LineChart, Meter, ScoreBar } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, Table, Unit, Updated, num } from "../_components/ui";
+import { Badge, Card, Empty, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, Stat, Table, Unit, Updated, num } from "../_components/ui";
 
 const scoreTone = (v: number | null | undefined) => (v == null ? "gray" : v >= 70 ? "green" : v >= 50 ? "cyan" : "amber");
 
@@ -68,7 +68,8 @@ export default async function IntelligencePage() {
         </Card>
       </div>
 
-      <Card title="Confidence history" right={<Mono>{history.length} days</Mono>}>
+      <Quiet title="The record" sub="tap any row to open it">
+      <Fold count={history.length} title="Confidence history" right={<Mono>{history.length} days</Mono>}>
         {confSeries.length > 1 ? (
           <LineChart series={confSeries} labels={confLabels} baseline={null} format={(v) => num(v, 0)} tone="cyan" height={130} />
         ) : (
@@ -89,16 +90,16 @@ export default async function IntelligencePage() {
             ])}
           />
         </div>
-      </Card>
+      </Fold>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Accuracy by asset">{accTable(accuracyBy(evals, (e) => e.asset))}</Card>
-        <Card title="Accuracy by regime">{accTable(accuracyBy(evals, (e) => e.market_regime))}</Card>
-        <Card title="Accuracy by setup grade">{accTable(accuracyBy(evals, (e) => e.setup_grade))}</Card>
-        <Card title="Accuracy by direction">{accTable(accuracyBy(evals, (e) => e.planned_direction ?? e.bias))}</Card>
+      <div className="space-y-2">
+        <Fold title="Accuracy by asset">{accTable(accuracyBy(evals, (e) => e.asset))}</Fold>
+        <Fold title="Accuracy by regime">{accTable(accuracyBy(evals, (e) => e.market_regime))}</Fold>
+        <Fold title="Accuracy by setup grade">{accTable(accuracyBy(evals, (e) => e.setup_grade))}</Fold>
+        <Fold title="Accuracy by direction">{accTable(accuracyBy(evals, (e) => e.planned_direction ?? e.bias))}</Fold>
       </div>
 
-      <Card title="Historical lessons" right={flagged ? <Badge tone="amber">{flagged} method change{flagged === 1 ? "" : "s"} flagged</Badge> : undefined}>
+      <Fold title="Historical lessons" right={flagged ? <Badge tone="amber">{flagged} method change{flagged === 1 ? "" : "s"} flagged</Badge> : undefined}>
         <Table
           head={["Thesis", "Asset", "Score", "Error type", "Lesson"]}
           align={["l", "l", "l", "l", "l"]}
@@ -117,7 +118,8 @@ export default async function IntelligencePage() {
           empty="Lessons appear here after forecasts are graded."
         />
         <Note>Scores: green ≥ 70 · cyan ≥ 50 · amber below 50.</Note>
-      </Card>
+      </Fold>
+      </Quiet>
     </div>
   );
 }

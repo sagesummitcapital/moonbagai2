@@ -10,18 +10,25 @@ export const metadata = { title: "Moonbag — Desk", robots: { index: false, fol
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const access = await getOwnerAccess();
+  // Server render time, Phoenix. Re-rendered by the Refresh button (router.refresh) so it doubles as "last updated".
+  const builtAt = new Date().toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" });
 
   return (
     <ClerkProvider appearance={clerkAppearance} afterSignOutUrl="/">
       <div className="relative min-h-screen bg-black text-white">
-        <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-5 py-3 md:px-8">
-            <div className="flex items-center justify-between">
+        <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-black/85 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2.5 px-5 py-3 md:px-8">
+            <div className="flex items-center justify-between gap-3">
               <Link href="/dashboard" className="font-semibold tracking-tight">
                 moonbag<span className="text-gradient">.ai</span>
-                <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.2em] text-white/40">desk</span>
+                <span className="ml-2 hidden font-mono text-[11px] uppercase tracking-[0.2em] text-white/40 sm:inline">desk</span>
               </Link>
               <div className="flex items-center gap-3">
+                {access.allowed && (
+                  <span className="hidden font-mono text-[11px] tabular-nums text-white/35 sm:inline" title="When this page was built (Phoenix). Refresh pulls live prices and rebuilds it.">
+                    as of {builtAt}
+                  </span>
+                )}
                 {access.allowed && <RefreshButton />}
                 <UserButton />
               </div>
@@ -30,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-8">
+        <main className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-7">
           {!access.allowed ? (
             <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
               <h1 className="text-xl font-semibold">This desk is private.</h1>

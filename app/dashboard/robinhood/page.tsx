@@ -5,7 +5,7 @@ import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/Li
 import { NON_TRADABLE, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { ThesisCard } from "../_components/ThesisCard";
-import { Badge, Card, Empty, Expander, LongText, Id, Mono, Note, PageHeader, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, px, statusTone, when, whenShort } from "../_components/ui";
+import { Badge, Card, Empty, Expander, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, px, statusTone, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -82,13 +82,113 @@ export default async function RobinhoodPage() {
         </Card>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {data.master ? <ThesisCard t={data.master} title="Longer-term thesis — macro" /> : <Card title="Longer-term thesis — macro"><Empty>No active master thesis.</Empty></Card>}
-        {data.equityThesis ? <ThesisCard t={data.equityThesis} title="Longer-term thesis — equities" /> : <Card title="Longer-term thesis — equities"><Empty>No active equity thesis.</Empty></Card>}
-      </div>
 
-      {/* ------------------------------------------------ themes */}
-      <Card title="Investment themes" right={<Badge tone="gray">{activeThemes.length} active</Badge>}>
+      {/* ------------------------------------------------ open positions */}
+      <Card title="Open positions" right={open.length ? <Mono>{open.length} open · at risk {money(open.reduce((a, t) => a + openRisk(t), 0))}</Mono> : undefined}>
+        {open.length > 0 && (
+          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {open.map((t) => (
+              <Tile key={t.trade_id} tone="accent">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <strong className="text-[15px] text-white">{t.symbol}</strong>
+                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
+                    {(t as { sleeve?: string | null }).sleeve === "investments" && <Badge tone="cyan">long-term sleeve</Badge>}
+                    {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
+                  </div>
+                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
+                </div>
+                <TradeRail className="mt-2.5" compact symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1 ?? t.target} qty={t.quantity} equity={equity || null} />
+                {t.current_stop ?? t.stop ? null : <p className="mt-1.5 text-[11.5px] text-white/40">No stop on this lot (DCA position) — the rail shows entry → now only.</p>}
+              </Tile>
+            ))}
+          </div>
+        )}
+        {open.length > 0 ? <Expander summary={<span className="text-white/70">Every column</span>}>
+        <Table
+          head={["Symbol", "Entry", "Now", "P&L", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}
+          align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
+          minWidth={900}
+          rows={open.map((t) => [
+            <span key="i"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
+            num(t.entry),
+            <LivePrice key="n" symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} size="sm" />,
+            <span key="pl"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pnl" entry={t.entry} qty={t.quantity} direction={t.direction} tag={false} /><div className="text-[11px]"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pct" entry={t.entry} direction={t.direction} /></div></span>,
+            <span key="s">{num(t.stop)} <span className="text-white/30">/</span> {num(t.current_stop)}</span>,
+            [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2].map((x) => num(x)).join(" · "),
+            money(openRisk(t)),
+            <span key="z">{num(t.quantity, 4)} <span className="text-white/45">· {money(t.position_value)}</span></span>,
+            <span key="o" className="whitespace-nowrap text-white/60">{when(t.opened_at)}</span>,
+          ])}
+          empty="In cash. No A setup has met the standard — that is the plan working, not a gap."
+        />
+        </Expander> : <Empty>In cash. No A setup has met the standard — that is the plan working, not a gap.</Empty>}
+      </Card>
+
+      {/* ------------------------------------------------ long-term sleeve */}
+      <Card title="Long-term holdings — 25% sleeve, weekly DCA" right={<Badge tone="cyan">thesis: LONG_TERM_THESIS.md</Badge>}>
+        {data.longTerm.sleeve.length ? (
+          <>
+            <Section title="Bought vs target" right={<span>green = bought · faint = still to buy</span>}>
+              <Bars
+                tone="green"
+                max={Math.max(1, ...data.longTerm.sleeve.map((r) => Number(r.target_dollars)))}
+                labelWidth="minmax(72px, 24%)"
+                format={(v) => money(v)}
+                items={data.longTerm.sleeve.map((r) => ({ label: r.symbol, sub: `${num(r.target_weight_pct, 0)}% · target ${money(r.target_dollars)}`, value: Number(r.cost_basis) }))}
+              />
+            </Section>
+            <Expander className="mt-4" summary={<span><strong className="text-white/85">Every name</strong> <span className="text-white/45">· {data.longTerm.sleeve.length} names · &quot;now&quot; is a live quote · value = shares × now</span></span>}>
+              <Table
+                head={["Name", "Theme", "Target", "Target $", "Bought $", "Now", "Value · P&L", "Pending $", "Left to buy", "FUD boost"]}
+                align={["l", "l", "r", "r", "r", "r", "r", "r", "r", "l"]}
+                minWidth={1100}
+                rows={data.longTerm.sleeve.map((r) => {
+                  const qty = Number(r.qty ?? 0), cost = Number(r.cost_basis ?? 0);
+                  const avg = qty > 0 && cost > 0 ? cost / qty : null;
+                  return [
+                  <span key="n"><strong className="text-white">{r.symbol}</strong><br /><span className="text-[12px] text-white/45">{r.name}</span></span>,
+                  <Id key="t">{r.theme_id}</Id>,
+                  `${num(r.target_weight_pct, 0)}%`,
+                  money(r.target_dollars),
+                  <span key="b" className={cost > 0 ? "text-accent-green" : "text-white/50"}>{money(r.cost_basis)}{avg != null && <div className="text-[11px] text-white/40">{num(qty, 4)} sh @ {px(avg)}</div>}</span>,
+                  <LivePrice key="now" symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} size="sm" />,
+                  qty > 0 && avg != null
+                    ? <span key="v"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pnl" entry={avg} qty={qty} tag={false} /><div className="text-[11px]"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pct" entry={avg} /></div></span>
+                    : <span key="v" className="text-white/40">—</span>,
+                  money(r.pending_dollars),
+                  money(Math.max(0, Number(r.gap_dollars))),
+                  r.fud_boost ? <Badge key="f" tone="green">yes</Badge> : <span key="f" className="text-white/40">no</span>,
+                ]; })}
+              />
+            </Expander>
+          </>
+        ) : (
+          <Empty>The long-term sleeve isn&apos;t set up yet.</Empty>
+        )}
+        {!!data.longTerm.lists.length && (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {(["watch", "avoid"] as const).map((role) => (
+              <Expander key={role} summary={<span><strong className="text-white/90">{role === "watch" ? "Watchlist" : "Avoid / paper short"}</strong> <span className="text-white/45">— {role === "watch" ? "buy only after promotion" : "entropy losers"} · {data.longTerm.lists.filter((x) => x.role === role).length}</span></span>}>
+                <ul className="space-y-1.5 text-[13px]">
+                  {data.longTerm.lists.filter((x) => x.role === role).map((x) => (
+                    <li key={x.symbol} className="text-white/70"><strong className="text-white">{x.symbol}</strong> <span className="text-white/45">· {x.thesis}</span></li>
+                  ))}
+                </ul>
+              </Expander>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Quiet title="Everything else in this book" sub="tap any row to open it">
+      <Fold title="Longer-term theses — macro & equities" count={[data.master, data.equityThesis].filter(Boolean).length}>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {data.master ? <ThesisCard t={data.master} title="Longer-term thesis — macro" /> : <Card title="Longer-term thesis — macro"><Empty>No active master thesis.</Empty></Card>}
+          {data.equityThesis ? <ThesisCard t={data.equityThesis} title="Longer-term thesis — equities" /> : <Card title="Longer-term thesis — equities"><Empty>No active equity thesis.</Empty></Card>}
+        </div>
+      </Fold>
+      <Fold count={activeThemes.length} title="Investment themes" right={<Badge tone="gray">{activeThemes.length} active</Badge>}>
         {activeThemes.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {activeThemes.map((t) => (
@@ -115,112 +215,16 @@ export default async function RobinhoodPage() {
         {!!watchThemes.length && (
           <Note><span className="text-white/60">On watch:</span> {watchThemes.map((t) => t.name).join(" · ")}</Note>
         )}
-      </Card>
-
-      {/* ------------------------------------------------ long-term sleeve */}
-      <Card title="Long-term holdings — 25% sleeve, weekly DCA" right={<Badge tone="cyan">thesis: LONG_TERM_THESIS.md</Badge>}>
-        {data.longTerm.sleeve.length ? (
-          <>
-            <Section title="Bought vs target" right={<span>green = bought · faint = still to buy</span>}>
-              <Bars
-                tone="green"
-                max={Math.max(1, ...data.longTerm.sleeve.map((r) => Number(r.target_dollars)))}
-                labelWidth="minmax(72px, 24%)"
-                format={(v) => money(v)}
-                items={data.longTerm.sleeve.map((r) => ({ label: r.symbol, sub: `${num(r.target_weight_pct, 0)}% · target ${money(r.target_dollars)}`, value: Number(r.cost_basis) }))}
-              />
-            </Section>
-            <Section title="Every name" right={<span>"now" is a live quote · value = shares × now</span>}>
-              <Table
-                head={["Name", "Theme", "Target", "Target $", "Bought $", "Now", "Value · P&L", "Pending $", "Left to buy", "FUD boost"]}
-                align={["l", "l", "r", "r", "r", "r", "r", "r", "r", "l"]}
-                minWidth={1100}
-                rows={data.longTerm.sleeve.map((r) => {
-                  const qty = Number(r.qty ?? 0), cost = Number(r.cost_basis ?? 0);
-                  const avg = qty > 0 && cost > 0 ? cost / qty : null;
-                  return [
-                  <span key="n"><strong className="text-white">{r.symbol}</strong><br /><span className="text-[12px] text-white/45">{r.name}</span></span>,
-                  <Id key="t">{r.theme_id}</Id>,
-                  `${num(r.target_weight_pct, 0)}%`,
-                  money(r.target_dollars),
-                  <span key="b" className={cost > 0 ? "text-accent-green" : "text-white/50"}>{money(r.cost_basis)}{avg != null && <div className="text-[11px] text-white/40">{num(qty, 4)} sh @ {px(avg)}</div>}</span>,
-                  <LivePrice key="now" symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} size="sm" />,
-                  qty > 0 && avg != null
-                    ? <span key="v"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pnl" entry={avg} qty={qty} tag={false} /><div className="text-[11px]"><LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pct" entry={avg} /></div></span>
-                    : <span key="v" className="text-white/40">—</span>,
-                  money(r.pending_dollars),
-                  money(Math.max(0, Number(r.gap_dollars))),
-                  r.fud_boost ? <Badge key="f" tone="green">yes</Badge> : <span key="f" className="text-white/40">no</span>,
-                ]; })}
-              />
-            </Section>
-          </>
-        ) : (
-          <Empty>The long-term sleeve isn&apos;t set up yet.</Empty>
-        )}
-        {!!data.longTerm.lists.length && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {(["watch", "avoid"] as const).map((role) => (
-              <Expander key={role} summary={<span><strong className="text-white/90">{role === "watch" ? "Watchlist" : "Avoid / paper short"}</strong> <span className="text-white/45">— {role === "watch" ? "buy only after promotion" : "entropy losers"} · {data.longTerm.lists.filter((x) => x.role === role).length}</span></span>}>
-                <ul className="space-y-1.5 text-[13px]">
-                  {data.longTerm.lists.filter((x) => x.role === role).map((x) => (
-                    <li key={x.symbol} className="text-white/70"><strong className="text-white">{x.symbol}</strong> <span className="text-white/45">· {x.thesis}</span></li>
-                  ))}
-                </ul>
-              </Expander>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* ------------------------------------------------ open positions */}
-      <Card title="Open positions" right={open.length ? <Mono>{open.length} open · at risk {money(open.reduce((a, t) => a + openRisk(t), 0))}</Mono> : undefined}>
-        {open.length > 0 && (
-          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {open.map((t) => (
-              <Tile key={t.trade_id} tone="accent">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <strong className="text-[15px] text-white">{t.symbol}</strong>
-                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
-                    {(t as { sleeve?: string | null }).sleeve === "investments" && <Badge tone="cyan">long-term sleeve</Badge>}
-                    {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
-                  </div>
-                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
-                </div>
-                <TradeRail className="mt-2.5" compact symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1 ?? t.target} qty={t.quantity} equity={equity || null} />
-                {t.current_stop ?? t.stop ? null : <p className="mt-1.5 text-[11.5px] text-white/40">No stop on this lot (DCA position) — the rail shows entry → now only.</p>}
-              </Tile>
-            ))}
-          </div>
-        )}
-        <Table
-          head={["Symbol", "Entry", "Now", "P&L", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}
-          align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
-          minWidth={900}
-          rows={open.map((t) => [
-            <span key="i"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
-            num(t.entry),
-            <LivePrice key="n" symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} size="sm" />,
-            <span key="pl"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pnl" entry={t.entry} qty={t.quantity} direction={t.direction} tag={false} /><div className="text-[11px]"><LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pct" entry={t.entry} direction={t.direction} /></div></span>,
-            <span key="s">{num(t.stop)} <span className="text-white/30">/</span> {num(t.current_stop)}</span>,
-            [t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2].map((x) => num(x)).join(" · "),
-            money(openRisk(t)),
-            <span key="z">{num(t.quantity, 4)} <span className="text-white/45">· {money(t.position_value)}</span></span>,
-            <span key="o" className="whitespace-nowrap text-white/60">{when(t.opened_at)}</span>,
-          ])}
-          empty="In cash. No A setup has met the standard — that is the plan working, not a gap."
-        />
-      </Card>
+      </Fold>
 
       {!!data.tickerTheses.length && (
-        <Card title="Ticker theses" right={<Badge tone="gray">{data.tickerTheses.length}</Badge>}>
+        <Fold title="Ticker theses" right={<Badge tone="gray">{data.tickerTheses.length}</Badge>}>
           <div className="grid gap-3 lg:grid-cols-2">{data.tickerTheses.map((t) => <ThesisCard key={t.thesis_id} t={t} live={NON_TRADABLE.has(t.asset) ? undefined : live[t.asset] ?? null} kind="stock" />)}</div>
-        </Card>
+        </Fold>
       )}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Handoffs to Grokbot">
+        <Fold count={data.handoffs.length} title="Handoffs to Grokbot">
           <Table
             head={["Handoff", "Symbol", "Status", "Created", "Note"]}
             rows={data.handoffs.slice(0, 8).map((h) => [
@@ -232,8 +236,8 @@ export default async function RobinhoodPage() {
             ])}
             empty="No handoffs yet."
           />
-        </Card>
-        <Card title="Closed trades">
+        </Fold>
+        <Fold count={closed.length} title="Closed trades">
           {closed.length > 0 && (
             <DivergingBars
               className="mb-4"
@@ -255,10 +259,10 @@ export default async function RobinhoodPage() {
             ])}
             empty="No closed trades yet."
           />
-        </Card>
+        </Fold>
       </div>
 
-      <Card title="Paper trades — ideas being tested (never real orders)" right={<Badge tone="gray">{openPaper.length} open · {closedPaper.length} closed</Badge>}>
+      <Fold count={paper.length} title="Paper trades — ideas being tested (never real orders)" right={<Badge tone="gray">{openPaper.length} open · {closedPaper.length} closed</Badge>}>
         <Table
           head={["Paper", "Symbol", "Side", "Setup", "Entry / stop / target", "Result", "Opened"]}
           align={["l", "l", "l", "l", "r", "l", "l"]}
@@ -273,10 +277,10 @@ export default async function RobinhoodPage() {
           ])}
           empty="No paper trades yet. The weekly review opens them for B setups and new ideas."
         />
-      </Card>
+      </Fold>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Journal — thesis, result, one mistake, one rule change">
+        <Fold count={data.journal.length} title="Journal — thesis, result, one mistake, one rule change">
           {data.journal.length ? (
             <ul className="divide-y divide-white/[0.05]">
               {data.journal.map((j) => (
@@ -294,8 +298,8 @@ export default async function RobinhoodPage() {
           ) : (
             <Empty>No journal lines yet. Every live and paper close gets one.</Empty>
           )}
-        </Card>
-        <Card title="Backtests — what counts as an A is re-tested weekly">
+        </Fold>
+        <Fold count={data.backtests.length} title="Backtests — what counts as an A is re-tested weekly">
           <Table
             head={["Idea", "Symbol · TF", "Trades", "Win %", "Avg R", "Notes"]}
             align={["l", "l", "r", "r", "r", "l"]}
@@ -310,8 +314,9 @@ export default async function RobinhoodPage() {
             ])}
             empty="First equity backtests run with the Saturday weekly review."
           />
-        </Card>
+        </Fold>
       </div>
+      </Quiet>
     </div>
   );
 }

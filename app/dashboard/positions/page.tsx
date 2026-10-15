@@ -5,7 +5,7 @@ import { load } from "../_components/data";
 import { LiveMetric, LivePrice, TradeRail } from "../_components/LivePrice";
 import { getLivePricesMixed } from "@/lib/moonbag/prices";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Id, PageHeader, Stat, StatGrid, Table, Tile, biasGlyph, biasTone, money, num, statusTone, when, whenShort } from "../_components/ui";
+import { Badge, Card, Fold, Id, PageHeader, Quiet, Stat, StatGrid, Table, Tile, biasGlyph, biasTone, money, num, statusTone, when, whenShort } from "../_components/ui";
 
 const VENUES: { key: string; label: string }[] = [
   { key: "robinhood", label: "Robinhood (Grok)" },
@@ -66,14 +66,16 @@ export default async function PositionsPage() {
         </Card>
       )}
 
-      {VENUES.map((v) => {
-        const ts = trades.filter((t) => t.venue === v.key);
-        return (
-          <Card key={v.key} title={v.label} right={<Badge tone={ts.length ? "green" : "gray"} dot>{ts.length} position{ts.length === 1 ? "" : "s"}</Badge>}>
-            <PositionsTable trades={ts} live={live} />
-          </Card>
-        );
-      })}
+      <Quiet title="Every column, by venue" sub="tap any row to open it">
+        {VENUES.map((v) => {
+          const ts = trades.filter((t) => t.venue === v.key);
+          return (
+            <Fold key={v.key} title={v.label} count={ts.length} right={<Badge tone={ts.length ? "green" : "gray"} dot>{ts.length} position{ts.length === 1 ? "" : "s"}</Badge>}>
+              <PositionsTable trades={ts} live={live} />
+            </Fold>
+          );
+        })}
+      </Quiet>
     </div>
   );
 }

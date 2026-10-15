@@ -2,25 +2,31 @@
 // Design system (see design_plan.md): one hero figure per card, tabular numerals on every figure,
 // colour is never the only signal (+/− and ▲/▼ always ride along), long prose folds behind <details>.
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export type Tone = "green" | "red" | "amber" | "cyan" | "gray";
 
 // ------------------------------------------------------------------ containers
 
+export type CardTone = "accent" | "warn" | "info";
+
+const CARD_RING: Record<CardTone | "default", string> = {
+  accent: "border-accent-green/25 bg-accent-green/[0.035]",
+  warn: "border-amber-300/25 bg-amber-300/[0.035]",
+  info: "border-accent-cyan/20 bg-accent-cyan/[0.03]",
+  default: "border-white/[0.06] bg-white/[0.025]",
+};
+
 export function Card({ title, right, sub, children, className = "", tone }: {
-  title?: ReactNode; right?: ReactNode; sub?: ReactNode; children: ReactNode; className?: string; tone?: "accent" | "warn" | "info";
+  title?: ReactNode; right?: ReactNode; sub?: ReactNode; children: ReactNode; className?: string; tone?: CardTone;
 }) {
-  const ring =
-    tone === "accent" ? "border-accent-green/30 bg-accent-green/[0.035]"
-    : tone === "warn" ? "border-amber-300/25 bg-amber-300/[0.03]"
-    : tone === "info" ? "border-accent-cyan/25 bg-accent-cyan/[0.03]"
-    : "border-white/[0.08] bg-white/[0.025]";
+  const ring = CARD_RING[tone ?? "default"];
   return (
     <section className={`min-w-0 rounded-2xl border p-4 md:p-5 ${ring} ${className}`}>
       {(title || right || sub) && (
         <div className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            {title && <h2 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/55">{title}</h2>}
+            {title && <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-white/50">{title}</h2>}
             {right && <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-white/50">{right}</div>}
           </div>
           {sub && <p className="mt-1 max-w-[70ch] text-[12.5px] leading-snug text-white/50">{sub}</p>}
@@ -29,6 +35,66 @@ export function Card({ title, right, sub, children, className = "", tone }: {
       {children}
     </section>
   );
+}
+
+/**
+ * A card that is closed by default: same header as Card, but the body is one tap away (native <details>, no JS).
+ * This is how everything that is "present but quiet" is shown. `count` sits beside the title; `right` stays
+ * visible while closed so the one number that matters can still be read without opening.
+ */
+export function Fold({ title, right, sub, count, children, className = "", open = false, tone }: {
+  title: ReactNode; right?: ReactNode; sub?: ReactNode; count?: ReactNode; children: ReactNode; className?: string; open?: boolean; tone?: CardTone;
+}) {
+  const ring = CARD_RING[tone ?? "default"];
+  return (
+    <details open={open} className={`group min-w-0 rounded-2xl border ${ring} ${className}`}>
+      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-4 py-3.5 text-white/50 hover:text-white/80 md:px-5 [&::-webkit-details-marker]:hidden">
+        <Chevron />
+        <h2 className="min-w-0 text-[12.5px] font-semibold uppercase tracking-[0.14em] text-inherit group-open:text-white/80">{title}</h2>
+        {count !== undefined && count !== null && <span className="font-mono text-[11.5px] tabular-nums text-white/40">{count}</span>}
+        {right && <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 text-[12px] text-white/50">{right}</div>}
+      </summary>
+      <div className="px-4 pb-4 md:px-5 md:pb-5">
+        {sub && <p className="mb-3 max-w-[70ch] text-[12.5px] leading-snug text-white/50">{sub}</p>}
+        {children}
+      </div>
+    </details>
+  );
+}
+
+/** A labelled stack of Folds — the "everything else" zone at the bottom of a page. */
+export function Quiet({ title = "Everything else", sub, children, className = "" }: { title?: ReactNode; sub?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section aria-label={typeof title === "string" ? title : undefined} className={`min-w-0 ${className}`}>
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
+        <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.18em] text-white/35">{title}</h2>
+        {sub && <span className="text-[12px] text-white/35">{sub}</span>}
+      </div>
+      <div className="space-y-2">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * One row in a "needs you now" list: a coloured dot, a short line, and a right-hand action (link or button).
+ * tone: amber = attention, green = opportunity / profit, red = loss / danger, cyan = information.
+ */
+export function Action({ tone = "amber", title, detail, right, className = "" }: { tone?: Tone; title: ReactNode; detail?: ReactNode; right?: ReactNode; className?: string }) {
+  return (
+    <div className={`flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 ${className}`}>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${DOTS[tone]}`} aria-hidden />
+      <div className="min-w-0 flex-1 basis-[200px]">
+        <div className="text-[14px] font-medium leading-snug text-white">{title}</div>
+        {detail && <div className="mt-0.5 text-[12.5px] leading-snug text-white/55">{detail}</div>}
+      </div>
+      {right && <div className="flex shrink-0 flex-wrap items-center gap-2">{right}</div>}
+    </div>
+  );
+}
+
+/** "Open →" style link used on glance cards. */
+export function GoLink({ href, children = "Open →" }: { href: string; children?: ReactNode }) {
+  return <Link href={href} className="whitespace-nowrap text-[12.5px] font-medium text-accent-cyan hover:underline">{children}</Link>;
 }
 
 /** Page title block: h1 + one-line purpose + optional right-hand controls. */

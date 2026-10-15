@@ -27,16 +27,16 @@ export function MorningBrief({ brief, live = {}, meta = {} }: { brief: Brief; li
   const regimeShort = !!m.regime && m.regime.length <= 28;
   const riskShort = !!m.risk && m.risk.length <= 28;
   return (
-    <section className="rounded-2xl border border-white/[0.1] bg-gradient-to-b from-white/[0.05] to-white/[0.015] p-4 md:p-6">
+    <section className="min-w-0">
       {/* 1 — the market in one line */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <div className="text-[11.5px] uppercase tracking-[0.2em] text-white/45">Morning brief · built {whenShort(brief.date)}</div>
-          <h2 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[24px] font-semibold leading-tight text-white">
+          <h3 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[24px] font-semibold leading-tight text-white">
             <span className={`${biasTone(m.bias) === "green" ? "text-accent-green" : biasTone(m.bias) === "red" ? "text-rose-300" : "text-white/70"}`}>{biasGlyph(m.bias)}</span>
             <span>{m.bias ? cap(m.bias) : "No view"}</span>
             {riskShort && <span className="text-[18px] font-medium text-white/45">· {m.risk}</span>}
-          </h2>
+          </h3>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {regimeShort && <Badge tone="gray">{m.regime}</Badge>}

@@ -1,7 +1,7 @@
 import { BOOK, FALSIFIERS, FIAT_YEAR, GAUGES, LAYERS, SIGNS, STATES, getEntropy, type EntropyReading } from "@/lib/moonbag/entropy";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, PageHeader, Section, Table, whenShort } from "../_components/ui";
+import { Badge, Card, Fold, PageHeader, Quiet, Section, Table, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -99,9 +99,10 @@ export default async function EntropyPage() {
         })}
       </div>
 
+      <Quiet title="Behind the reading" sub="tap any row to open it">
       {/* ---------------------------------------------------- SSI components */}
       {latest && Object.keys(latest.components ?? {}).length > 0 && (
-        <Card title="What's driving the stress index" sub="Each domain scored 0–100 from public data. The book weights are secret; ours are equal.">
+        <Fold title="What's driving the stress index" sub="Each domain scored 0–100 from public data. The book weights are secret; ours are equal.">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(latest.components).map(([k, c]) => (
               <div key={k} className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
@@ -111,32 +112,32 @@ export default async function EntropyPage() {
               </div>
             ))}
           </div>
-        </Card>
+        </Fold>
       )}
 
       {/* ---------------------------------------------------- signs + falsifiers */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Signs to watch" sub="The book's four public-data signs. If all four shift together, the transition is completing.">
+      <div className="space-y-2">
+        <Fold title="Signs to watch" sub="The book's four public-data signs. If all four shift together, the transition is completing.">
           <ul className="space-y-1.5 text-[13px]">
             {SIGNS.map((s, i) => {
               const m = latest?.signs?.find((x) => x.id === i + 1);
               return <li key={s} className="flex gap-2"><Badge tone={m?.met ? (i === 1 ? "red" : "green") : "gray"}>{m ? (m.met ? "yes" : "no") : "—"}</Badge><span className="text-white/80">{s}{m?.detail ? <span className="text-white/45"> — {m.detail}</span> : null}</span></li>;
             })}
           </ul>
-        </Card>
-        <Card title="What would prove the thesis wrong" sub="The author's own falsifiers. If these start turning yes, we reduce the defensive tilt.">
+        </Fold>
+        <Fold title="What would prove the thesis wrong" sub="The author's own falsifiers. If these start turning yes, we reduce the defensive tilt.">
           <ul className="space-y-1.5 text-[13px]">
             {FALSIFIERS.map((s, i) => {
               const m = latest?.falsifiers?.find((x) => x.id === i + 1);
               return <li key={s} className="flex gap-2"><Badge tone={m?.met ? "green" : "gray"}>{m ? (m.met ? "yes" : "no") : "—"}</Badge><span className="text-white/80">{s}{m?.detail ? <span className="text-white/45"> — {m.detail}</span> : null}</span></li>;
             })}
           </ul>
-        </Card>
+        </Fold>
       </div>
 
       {/* ---------------------------------------------------- monitors */}
       {latest && Object.keys(latest.monitors ?? {}).length > 0 && (
-        <Card title="Core monitors" sub="The numbers behind the map, this week.">
+        <Fold title="Core monitors" sub="The numbers behind the map, this week.">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {Object.entries(latest.monitors).map(([k, v]) => (
               <div key={k} className="rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2">
@@ -145,11 +146,11 @@ export default async function EntropyPage() {
               </div>
             ))}
           </div>
-        </Card>
+        </Fold>
       )}
 
       {/* ---------------------------------------------------- portfolio architecture */}
-      <Card title="The portfolio architecture" sub="Build from the centre out: the core never moves, the strategy adjusts, the reserve deploys. Right column: where it lives in Moonbag.">
+      <Fold title="The portfolio architecture" sub="Build from the centre out: the core never moves, the strategy adjusts, the reserve deploys. Right column: where it lives in Moonbag.">
         <div className="space-y-2">
           {LAYERS.map((l) => (
             <div key={l.name} className="grid gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 md:grid-cols-[1.2fr_2fr_1.3fr]">
@@ -159,11 +160,11 @@ export default async function EntropyPage() {
             </div>
           ))}
         </div>
-      </Card>
+      </Fold>
 
       {/* ---------------------------------------------------- history */}
       {history.length > 1 && (
-        <Card title="Weekly history">
+        <Fold count={history.length} title="Weekly history">
           <Table
             head={["Week", "SSI", "Zone", "Velocity", "PTI", "SRI", "SEI", "SAM", "RQI", "State"]}
             align={["l", "r", "l", "r", "l", "l", "l", "l", "l", "l"]}
@@ -173,11 +174,11 @@ export default async function EntropyPage() {
               label[h.pti_state ?? ""] ?? "—", label[h.sri ?? ""] ?? "—", h.sei_stage == null ? "—" : Number(h.sei_stage).toFixed(1), h.sam_active ?? "—", label[h.rqi ?? ""] ?? "—", label[h.state ?? ""] ?? "—",
             ])}
           />
-        </Card>
+        </Fold>
       )}
 
       {/* ---------------------------------------------------- the book */}
-      <Card title="The thesis in brief" sub="Paraphrased from your photos of Chapters 7, 9, 10 and 11, plus the author's interviews.">
+      <Fold title="The thesis in brief" sub="Paraphrased from your photos of Chapters 7, 9, 10 and 11, plus the author's interviews.">
         <Section title="Core ideas">
           <ul className="space-y-1.5 text-[13px] text-white/80">{BOOK.thesis.map((t) => <li key={t}>• {t}</li>)}</ul>
         </Section>
@@ -185,7 +186,8 @@ export default async function EntropyPage() {
           <ul className="space-y-1.5 text-[13px] text-white/80">{BOOK.extra.map((t) => <li key={t}>• {t}</li>)}</ul>
         </Section>
         <p className="mt-2 text-[12px] text-white/45">Honest caveats: the author doesn't publish inputs, weights or thresholds; his 150-year backtest results (Chapter 8) aren't in the photos; and the book is inconsistent on whether the 2020 rally was real. Treat the gauges as a structured way to read the macro, not as a timing tool. Analysis only — not financial advice.</p>
-      </Card>
+      </Fold>
+      </Quiet>
     </div>
   );
 }

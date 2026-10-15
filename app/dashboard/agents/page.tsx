@@ -2,7 +2,7 @@ import { getAgentsBoard } from "@/lib/moonbag/agents";
 import { load } from "../_components/data";
 import { DivergingBars, Legend } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, LongText, Id, Mono, Note, PageHeader, Stat, StatGrid, Table, Tile, Updated, ago, num, when } from "../_components/ui";
+import { Badge, Card, Empty, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, Stat, StatGrid, Table, Tile, Updated, ago, num, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +81,8 @@ export default async function AgentsPage() {
         </section>
       )}
 
-      <Card title="How the work flows" right={<Legend items={[{ tone: "green", label: "active" }, { tone: "amber", label: "late" }, { tone: "gray", label: "idle" }]} />}>
+      <Quiet title="Logs & detail" sub="tap any row to open it">
+      <Fold title="How the work flows" right={<Legend items={[{ tone: "green", label: "active" }, { tone: "amber", label: "late" }, { tone: "gray", label: "idle" }]} />}>
         <div className="space-y-2">
           {data.pipelines.map((p) => (
             <div key={p.when} className="grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 md:grid-cols-[170px_minmax(0,1fr)]">
@@ -106,9 +107,9 @@ export default async function AgentsPage() {
             </div>
           ))}
         </div>
-      </Card>
+      </Fold>
 
-      <Card title="Coins the Scout watches" right={<><Mono>BTC/ETH always · top 5 rotation · max 2 in play</Mono><Updated label="ranked" at={data.universe.map((u) => u.updated_at).filter(Boolean).sort().reverse()[0]} cadenceH={26} verb="" /></>}>
+      <Fold count={data.universe.length} title="Coins the Scout watches" right={<><Mono>BTC/ETH always · top 5 rotation · max 2 in play</Mono><Updated label="ranked" at={data.universe.map((u) => u.updated_at).filter(Boolean).sort().reverse()[0]} cadenceH={26} verb="" /></>}>
         {rotation.length > 0 && (
           <DivergingBars
             className="mb-4"
@@ -134,10 +135,10 @@ export default async function AgentsPage() {
             <span key="u" className="whitespace-nowrap text-white/60">{when(u.updated_at)}</span>,
           ])}
         />
-      </Card>
+      </Fold>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Run log" right={<Legend items={[{ tone: "green", label: "work" }, { tone: "gray", label: "quiet" }, { tone: "red", label: "error" }]} />}>
+      <div className="space-y-2">
+        <Fold title="Run log" right={<Legend items={[{ tone: "green", label: "work" }, { tone: "gray", label: "quiet" }, { tone: "red", label: "error" }]} />}>
           {data.runs.length ? (
             <ul className="max-h-[640px] divide-y divide-white/[0.05] overflow-y-auto pr-1">
               {data.runs.map((r, i) => (
@@ -158,9 +159,9 @@ export default async function AgentsPage() {
           ) : (
             <Empty>No runs logged yet. Each scheduled agent logs one line per run from now on.</Empty>
           )}
-        </Card>
+        </Fold>
 
-        <Card title="Latest activity" right={<Mono>last 7 days</Mono>}>
+        <Fold title="Latest activity" right={<Mono>last 7 days</Mono>}>
           {data.recent.length ? (
             <ul className="max-h-[640px] divide-y divide-white/[0.05] overflow-y-auto pr-1">
               {data.recent.map((e, i) => (
@@ -176,8 +177,9 @@ export default async function AgentsPage() {
           ) : (
             <Empty>No activity in the last 7 days.</Empty>
           )}
-        </Card>
+        </Fold>
       </div>
+      </Quiet>
 
       {data.strategy && (
         <p className="text-[12px] text-white/40">

@@ -2,7 +2,7 @@ import { getSystemState, listTrades } from "@/lib/moonbag/db";
 import { load } from "../_components/data";
 import { DivergingBars, LineChart, Meter } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Delta, Empty, Id, Mono, Note, PageHeader, RMult, Stat, Table, Unit, Updated, biasGlyph, biasTone, money, num, when } from "../_components/ui";
+import { Badge, Card, Delta, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, RMult, Stat, Table, Unit, Updated, biasGlyph, biasTone, money, num, when } from "../_components/ui";
 
 const VENUE_LABEL: Record<string, string> = { robinhood: "Robinhood", blofin: "BloFin", coinbase: "Coinbase", other: "Other" };
 
@@ -92,7 +92,8 @@ export default async function PerformancePage() {
         </Card>
       </div>
 
-      <Card title="R by trade" right={<Mono>newest first</Mono>}>
+      <Quiet title="Every trade" sub="tap any row to open it">
+      <Fold count={rs.length} title="R by trade" right={<Mono>newest first</Mono>}>
         {rs.length ? (
           <DivergingBars
             labelWidth="minmax(120px, 34%)"
@@ -103,9 +104,9 @@ export default async function PerformancePage() {
           <Empty>No closed trades with an R multiple yet.</Empty>
         )}
         {closed.filter((t) => t.r_multiple != null).length > 20 && <Note>Showing the latest 20; the full list is in the table below.</Note>}
-      </Card>
+      </Fold>
 
-      <Card title="Closed trades">
+      <Fold count={closed.length} title="Closed trades">
         <Table
           head={["Trade", "Venue", "Symbol", "Dir", "Entry → Exit", "P&L", "R", "Exec.", "Closed"]}
           align={["l", "l", "l", "l", "r", "r", "r", "r", "l"]}
@@ -121,7 +122,8 @@ export default async function PerformancePage() {
           ])}
           empty="No closed trades yet."
         />
-      </Card>
+      </Fold>
+      </Quiet>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { getLab } from "@/lib/moonbag/lab";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, PageHeader, Table, whenShort } from "../_components/ui";
+import { Badge, Card, Fold, PageHeader, Quiet, Table, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +43,8 @@ export default async function LabPage() {
       <Card title="Ideas tested" sub="Newest first. Each part of an idea gets its own verdict.">
         <div className="space-y-3">
           {ideas.filter((i) => i.status !== "received").map((i) => (
-            <details key={i.idea_id} className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2" open={i === ideas[0]}>
-              <summary className="cursor-pointer">
+            <details key={i.idea_id} className="group rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2" open={i === ideas[0]}>
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"><span className="mr-1.5 inline-block text-white/40 transition group-open:rotate-90">›</span>
                 <span className="text-[14px] font-semibold text-white">{i.title}</span>{" "}
                 <Badge tone={i.status === "partly_adopted" || i.status === "adopted" ? "green" : i.status === "rejected" ? "red" : "gray"}>{i.status.replace("_", " ")}</Badge>
                 <span className="ml-2 text-[12px] text-white/45">{whenShort(i.received_at)} · {i.source}</span>
@@ -68,7 +68,8 @@ export default async function LabPage() {
         </div>
       </Card>
 
-      <Card title="Strategy change log" sub="Every change to how we trade — live, paper or process — with the reason and the evidence.">
+      <Quiet title="Records" sub="tap any row to open it">
+      <Fold count={changes.length} title="Strategy change log" sub="Every change to how we trade — live, paper or process — with the reason and the evidence.">
         <Table
           head={["Date", "Change", "Why", "Evidence", "Where", "Status"]}
           align={["l", "l", "l", "l", "l", "l"]}
@@ -83,10 +84,10 @@ export default async function LabPage() {
           ])}
           empty="No changes logged yet."
         />
-      </Card>
+      </Fold>
 
       {league.length > 0 && (
-        <Card title="Strategy league" sub="What is actually working, week by week. The Saturday review picks one winner from this.">
+        <Fold count={league.length} title="Strategy league" sub="What is actually working, week by week. The Saturday review picks one winner from this.">
           <Table
             head={["Week", "Strategy", "Trades", "Avg R", "Total R", "Win %"]}
             align={["l", "l", "r", "r", "r", "r"]}
@@ -101,8 +102,9 @@ export default async function LabPage() {
             ])}
             empty="—"
           />
-        </Card>
+        </Fold>
       )}
+      </Quiet>
     </div>
   );
 }

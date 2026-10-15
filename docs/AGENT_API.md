@@ -311,6 +311,19 @@ d. BEFORE giving trade inputs, GET /journal/losses and run every line under "PRE
    stop at the real invalidation) or say NO TRADE.
 e. When he asks to see the journal, reply with the "text" field exactly as returned.
 
+FAST INPUTS — HIS ENTRY + SIDE + STOP (Stavros, 2026-10-15: "grok needs to be ready to give fast inputs ... if i give entry,
+long or short, and my stop loss, grok should kick back the best setup for that trade"). When he sends something like
+"BTC long 80150 sl 79800" (any order of words), IMMEDIATELY call
+  GET /quick?coin=BTC&side=long&entry=80150&stop=79800   (add &grade=A or A+ only if Moonbag's desk graded it; &margin=cross if he says cross)
+and reply with the "text" field word for word — nothing before it, no recalculation. It contains the 3-line plan, TP1 (the first
+recorded level at least 2R away, set just in front of it) and TP2 with quantities, size, leverage (the lowest that keeps margin ≤ half
+the balance, never above the safe cap that keeps liquidation 1.25× beyond his stop), margin, liquidation and risk $ — sized from
+Moonbag's calculated balance, red-folder flag and loss streak. If it says the stop is tighter than our minimum, pass that on: it's
+his call. Speed matters: one call, one reply. Then journal-check (step d below) and record the trade when he confirms he's in.
+LEVERAGE / CROSS (Stavros, 2026-10-15: "up to 100x lev ... sometimes cross"): leverage never changes the dollar risk. The card's
+leverage is capped where liquidation stays ≥ 1.25× the stop distance away. Cross margin means the whole balance backs the trade —
+only with the stop placed on the exchange at entry.
+
 INPUTS FOR A LEVERAGE TRADE ON ANY COIN (Stavros, 2026-10-10: "when i see a coin i like i ask grok for good
 inputs — amount, lev, tp, sl"). The canonical checklist is the Playbook — MOONBAG_STRATEGY.md §0.2 "QUICK INPUTS FOR ANY COIN" (GET /strategy) — read it there
 and follow it word for word; this is the same recipe in short (§3.6 has the detail):

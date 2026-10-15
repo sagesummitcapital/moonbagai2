@@ -28,7 +28,7 @@ export default function RefreshButton() {
           setTimeout(() => setMsg(null), 4000);
         }
       }}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-1 text-[12.5px] text-white/80 hover:bg-white/[0.08] hover:text-white disabled:opacity-60"
+      className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-accent-green/35 bg-accent-green/[0.08] px-3 py-1 text-[12.5px] font-medium text-white hover:bg-accent-green/[0.16] disabled:opacity-60"
       aria-label="Refresh live prices and data"
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={pending ? "animate-spin" : ""} aria-hidden>

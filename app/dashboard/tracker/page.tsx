@@ -6,7 +6,7 @@ import type { Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { DivergingBars } from "../_components/charts";
-import { Badge, Card, Empty, Id, Mono, Note, PageHeader, Table, biasGlyph, biasTone, money, num, when } from "../_components/ui";
+import { Badge, Card, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, Table, biasGlyph, biasTone, money, num, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -160,27 +160,28 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
 
       <Card title="Books">{statTable(books, "Book", `No closed trades in ${monthLabel(m)}.`)}</Card>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="By market">{statTable(group((t) => t.symbol), "Symbol", "No closed trades this month.")}</Card>
-        <Card title="By side">{statTable(group((t) => (t.direction === "short" ? "Short" : "Long")), "Side", "No closed trades this month.", false)}</Card>
+      <Quiet title="Breakdowns & the log" sub="tap any row to open it">
+      <div className="space-y-2">
+        <Fold title="By market">{statTable(group((t) => t.symbol), "Symbol", "No closed trades this month.")}</Fold>
+        <Fold title="By side">{statTable(group((t) => (t.direction === "short" ? "Short" : "Long")), "Side", "No closed trades this month.", false)}</Fold>
       </div>
-      <Card title="By setup">{statTable(group((t) => t.setup_type ?? "Off-plan / untagged"), "Setup", "No closed trades this month.")}</Card>
+      <Fold title="By setup">{statTable(group((t) => t.setup_type ?? "Off-plan / untagged"), "Setup", "No closed trades this month.")}</Fold>
 
-      <Card title="Moonbag's calls — the benchmark" right={<Mono>followed on paper, taken or not</Mono>}>
+      <Fold title="Moonbag's calls — the benchmark" right={<Mono>followed on paper, taken or not</Mono>}>
         {statTable(calls, "Signal grade", "No Moonbag signals finished this month yet.")}
         <Note>If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</Note>
-      </Card>
+      </Fold>
 
-      <Card title="Moonbag vs your calls — leverage" right={<Mono>all closed BloFin trades</Mono>}>
+      <Fold title="Moonbag vs your calls — leverage" right={<Mono>all closed BloFin trades</Mono>}>
         {statTable(head2head, "Who called it", "No closed leverage trades yet.")}
         <Note>
           {scored.length
             ? `Your own trades that Moonbag would have scored 55+: ${ownHigh.trades} (${signed(ownHigh.totalR, 2, "R")}). Scored under 55: ${ownLow.trades} (${signed(ownLow.totalR, 2, "R")}). If the under-55 group keeps winning, the scoring is missing something you see — the weekly review turns that into a rule.`
             : "Each of your own trades is scored after the fact with Moonbag's rubric, so we can see whether the scoring misses setups you catch. Results build up as trades close."}
         </Note>
-      </Card>
+      </Fold>
 
-      <Card title={`Trade log — ${monthLabel(m)}`}>
+      <Fold count={shown.length} title={`Trade log — ${monthLabel(m)}`}>
         {shown.length ? (
           <Table
             head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
@@ -207,7 +208,8 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         ) : (
           <Empty>No closed trades in {monthLabel(m)}.</Empty>
         )}
-      </Card>
+      </Fold>
+      </Quiet>
     </div>
   );
 }

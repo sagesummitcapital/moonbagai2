@@ -418,6 +418,19 @@ html {
 }
 
 /* ========== Dashboard helpers ========== */
+/* Progressive disclosure: every expander is a native <details>, so it works without JS and with the keyboard. */
+details > summary {
+  -webkit-tap-highlight-color: transparent;
+}
+details > summary:focus-visible {
+  outline: 2px solid rgba(62, 243, 162, 0.65);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+/* Anchors (#account, #limits …) land below the sticky header. */
+[id] {
+  scroll-margin-top: 7.5rem;
+}
 .no-scrollbar {
   scrollbar-width: none;
 }

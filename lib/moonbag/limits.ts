@@ -157,9 +157,11 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext): LimitInputs | nu
 
   const u = ctx.ceilings?.[sym];
   const core = u ? u.tier === "core" : sym === "BTC" || sym === "ETH";
-  const g = grade === "A+" ? 5 : grade === "A" ? 4 : 3;
-  const table = core ? { 5: 20, 4: 15, 3: 10 } : { 5: 10, 4: 8, 3: 5 };
-  const ceiling = Math.min(table[g as 3 | 4 | 5], u?.max ?? 20);
+  // Leverage (Stavros, 2026-10-15: "up to 100x — safety rule wins"): the ceiling is the coin's database cap (lev_universe,
+  // ≤ 100) and never more than keeps liquidation ≥ 1.25 × the stop distance away, allowing ~0.5% maintenance margin.
+  // Leverage never changes the dollar risk; the default is still the LOWEST leverage that keeps margin ≤ 50% of the balance.
+  const safetyCap = Math.max(1, Math.floor(1 / (1.25 * (dist / entry) + 0.005)));
+  const ceiling = Math.min(u?.max ?? (core ? 20 : 10), 100, safetyCap);
   const marginCap = Math.min((ctx.equity * (ctx.maxMarginPct ?? 50)) / 100, ctx.maxMarginUsd ?? Infinity);
 
   let notional = qty * entry;

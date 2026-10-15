@@ -2,7 +2,7 @@ import { listAlerts, listEvaluationDetails, listTheses, listTrades } from "@/lib
 import { load } from "../_components/data";
 import { ScoreBar } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, LongText, Id, Mono, PageHeader, RMult, Stat, StatGrid, Table, biasGlyph, biasTone, money, num, statusTone, when } from "../_components/ui";
+import { Badge, Card, Fold, Id, LongText, Mono, PageHeader, Quiet, RMult, Stat, StatGrid, Table, biasGlyph, biasTone, money, num, statusTone, when } from "../_components/ui";
 
 const scoreTone = (v: number | null | undefined) => (v == null ? "gray" : Number(v) >= 70 ? "green" : Number(v) >= 50 ? "cyan" : "amber");
 
@@ -30,7 +30,8 @@ export default async function HistoryPage() {
         <Card><Stat label="Alerts" value={alerts.length} size="md" sub={`${alerts.filter((a) => a.status === "active").length} active · ${alerts.filter((a) => a.status === "triggered").length} triggered`} /></Card>
       </StatGrid>
 
-      <Card title="Every thesis & version" right={<Mono>newest first · up to 300</Mono>}>
+      <Quiet title="Append-only records" sub="tap any row to open it">
+      <Fold count={theses.length} title="Every thesis & version" right={<Mono>newest first · up to 300</Mono>}>
         <Table
           head={["Thesis", "Date", "Asset", "Bias", "Setup", "Decision", "Status", "Supersedes / reason", "Published"]}
           align={["l", "l", "l", "l", "r", "l", "l", "l", "l"]}
@@ -46,9 +47,9 @@ export default async function HistoryPage() {
             <span key="p" className="whitespace-nowrap text-white/60">{when(t.created_at)}</span>,
           ])}
         />
-      </Card>
+      </Fold>
 
-      <Card title="Every evaluation" right={<Mono>component scores out of 100</Mono>}>
+      <Fold count={evals.length} title="Every evaluation" right={<Mono>component scores out of 100</Mono>}>
         <Table
           head={["Evaluation", "Thesis", "Dir", "Levels", "Setup", "Inval.", "Target", "Total", "Graded"]}
           align={["l", "l", "r", "r", "r", "r", "r", "l", "l"]}
@@ -62,9 +63,9 @@ export default async function HistoryPage() {
             <span key="g" className="whitespace-nowrap text-white/60">{when(e.evaluated_at)}</span>,
           ])}
         />
-      </Card>
+      </Fold>
 
-      <Card title="Every trade">
+      <Fold count={trades.length} title="Every trade">
         <Table
           head={["Trade", "Thesis", "Venue", "Symbol", "Dir", "Status", "P&L", "R", "Created"]}
           align={["l", "l", "l", "l", "l", "l", "r", "r", "l"]}
@@ -80,9 +81,9 @@ export default async function HistoryPage() {
             <span key="c" className="whitespace-nowrap text-white/60">{when(t.created_at)}</span>,
           ])}
         />
-      </Card>
+      </Fold>
 
-      <Card title="Every alert">
+      <Fold count={alerts.length} title="Every alert">
         <Table
           head={["Alert", "Thesis", "Asset", "Condition", "Trigger", "Status", "Created"]}
           align={["l", "l", "l", "l", "r", "l", "l"]}
@@ -94,7 +95,8 @@ export default async function HistoryPage() {
             <Badge key="s" tone={statusTone(a.status)} dot>{a.status}</Badge>, <span key="cr" className="whitespace-nowrap text-white/60">{when(a.created_at)}</span>,
           ])}
         />
-      </Card>
+      </Fold>
+      </Quiet>
     </div>
   );
 }

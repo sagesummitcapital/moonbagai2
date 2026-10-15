@@ -5,7 +5,7 @@ import { LiveMetric, LivePrice } from "../_components/LivePrice";
 import { NON_TRADABLE, best, cryptoSetFrom, kindFor, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { Meter } from "../_components/charts";
-import { Badge, Card, Id, Mono, PageHeader, Stat, StatGrid, Table, Updated, biasGlyph, biasTone, gradeName, gradeTone, list, num, statusTone, when } from "../_components/ui";
+import { Badge, Card, Fold, Id, Mono, PageHeader, Quiet, Stat, StatGrid, Table, Updated, biasGlyph, biasTone, gradeName, gradeTone, list, num, statusTone, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -138,8 +138,8 @@ export default async function OpportunitiesPage() {
         />
       </Card>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Grok handoffs (Robinhood)">
+      <Quiet title="Records" sub="tap any row to open it">
+        <Fold count={openHandoffs.length} title="Grok handoffs (Robinhood)">
           <Table
             head={["Handoff", "Symbol", "Direction", "Entry condition", "Invalidation", "Score", "Status"]}
             align={["l", "l", "l", "l", "l", "r", "l"]}
@@ -151,9 +151,9 @@ export default async function OpportunitiesPage() {
             ])}
             empty="No open handoffs for Grok."
           />
-        </Card>
+        </Fold>
 
-        <Card title="TradingView alerts" right={<Badge tone="gray">{liveAlerts.length}</Badge>}>
+        <Fold count={liveAlerts.length} title="TradingView alerts" right={<Badge tone="gray">{liveAlerts.length}</Badge>}>
           <Table
             head={["Alert", "Asset", "Condition", "Trigger", "Action", "Status", "Updated"]}
             align={["l", "l", "l", "r", "l", "l", "l"]}
@@ -167,8 +167,8 @@ export default async function OpportunitiesPage() {
             ])}
             empty="No live alerts recorded."
           />
-        </Card>
-      </div>
+        </Fold>
+      </Quiet>
     </div>
   );
 }

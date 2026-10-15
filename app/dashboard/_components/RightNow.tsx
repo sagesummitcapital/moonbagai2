@@ -33,21 +33,26 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
 }) {
   const quiet = !trades.length && !alerts.length && !handoffs.length;
   const late = freshness.filter((f) => f.at && Date.now() - new Date(f.at).getTime() > f.cadenceH * 2 * 3600_000);
+  const missing = freshness.filter((f) => !f.at);
   return (
     <Card
       title="Right now"
       tone={trades.length || alerts.length ? "accent" : late.length ? "warn" : undefined}
       right={
         <>
-          <Badge tone={trades.length ? "green" : "gray"} dot>{trades.length} open trade{trades.length === 1 ? "" : "s"}</Badge>
-          <Badge tone={alerts.length ? "green" : "gray"} dot>{alerts.length} desk alert{alerts.length === 1 ? "" : "s"}</Badge>
-          <Badge tone={handoffs.length ? "cyan" : "gray"} dot>{handoffs.length} hand-off{handoffs.length === 1 ? "" : "s"} pending</Badge>
-          <Badge tone={armedAlerts ? "cyan" : "gray"}>{armedAlerts} TradingView alert{armedAlerts === 1 ? "" : "s"} armed</Badge>
+          {trades.length > 0 && <Badge tone="green" dot>{trades.length} open trade{trades.length === 1 ? "" : "s"}</Badge>}
+          {alerts.length > 0 && <Badge tone="green" dot>{alerts.length} desk alert{alerts.length === 1 ? "" : "s"}</Badge>}
+          {handoffs.length > 0 && <Badge tone="cyan" dot>{handoffs.length} hand-off{handoffs.length === 1 ? "" : "s"} pending</Badge>}
+          {late.length > 0 && <Badge tone="amber" dot>{late.length} feed{late.length === 1 ? "" : "s"} late</Badge>}
+          <span className="text-[12px] text-white/40">{armedAlerts} TradingView alert{armedAlerts === 1 ? "" : "s"} armed</span>
         </>
       }
     >
       {quiet ? (
-        <p className="text-[13.5px] text-white/60">Nothing needs you right now — no open trade, no DESK ALERT, no hand-off waiting on Grok. Waiting for price to reach a level is the normal state.</p>
+        <p className="text-[14px] leading-relaxed text-white/65">
+          Nothing needs you right now — no open trade, no DESK ALERT, no hand-off waiting on Grok. Waiting for price to reach a level is the normal state.
+          {late.length > 0 && <> <span className="text-amber-200">{late.map((f) => f.label).join(", ")} {late.length === 1 ? "is" : "are"} late.</span></>}
+        </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {trades.map((t) => {
@@ -138,17 +143,26 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
         </div>
       )}
 
-      {/* how old is what you are looking at */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-white/[0.06] pt-3">
-        <span className="text-[11.5px] uppercase tracking-[0.14em] text-white/35">Data age</span>
-        {freshness.map((f) => (
-          f.href ? (
-            <Link key={f.label} href={f.href} className="hover:underline"><Updated label={f.label} at={f.at} cadenceH={f.cadenceH} verb={f.verb ?? "updated"} /></Link>
-          ) : (
-            <Updated key={f.label} label={f.label} at={f.at} cadenceH={f.cadenceH} verb={f.verb ?? "updated"} />
-          )
-        ))}
-      </div>
+      {/* how old is what you are looking at — one tap away unless something is late */}
+      <details open={late.length > 0} className="group mt-4 border-t border-white/[0.06] pt-2.5">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-white/40 hover:text-white/70 [&::-webkit-details-marker]:hidden">
+          <span className="uppercase tracking-[0.14em]">Data age</span>
+          <span className={late.length ? "text-amber-200" : "text-white/40"}>
+            {late.length ? `${late.length} late` : missing.length === freshness.length ? "no records yet" : "all feeds on time"}
+          </span>
+          <span className="ml-auto group-open:hidden">show ▾</span>
+          <span className="ml-auto hidden group-open:inline">hide ▴</span>
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          {freshness.map((f) => (
+            f.href ? (
+              <Link key={f.label} href={f.href} className="hover:underline"><Updated label={f.label} at={f.at} cadenceH={f.cadenceH} verb={f.verb ?? "updated"} /></Link>
+            ) : (
+              <Updated key={f.label} label={f.label} at={f.at} cadenceH={f.cadenceH} verb={f.verb ?? "updated"} />
+            )
+          ))}
+        </div>
+      </details>
     </Card>
   );
 }
