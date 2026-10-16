@@ -65,13 +65,16 @@ export default async function LeveragePage() {
   const paperScore = limits?.scoreboard.find((x) => x.origin === "paper");
   const limitRecord = `limit-sweep recipe · backtest +0.13R/trade (278) · paper ${paperScore?.closed ? `${paperScore.closed} closed, ${Number(paperScore.avg_r ?? 0).toFixed(2)}R avg` : "just started"}`;
   const aplus: APlus[] = [];
-  for (const r of [...(board?.core ?? []), ...(board?.movers ?? [])]) {
+  // POSITIVE R ONLY (Stavros 2026-10-16: "if you test things and they are negative r:r, thats not something i want to do"):
+  // the limit recipe's A+ cards show only while its paper record is positive (or has < 3 closed; the backtest is +0.13R).
+  const limitPositive = !paperScore?.closed || Number(paperScore.closed) < 3 || Number(paperScore.avg_r ?? 0) > 0;
+  if (limitPositive) for (const r of [...(board?.core ?? []), ...(board?.movers ?? [])]) {
     for (const [side, p] of [["long", r.long_plan], ["short", r.short_plan]] as const) {
       if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord });
     }
   }
   for (const o of limits?.open ?? []) {
-    if (o.origin === "paper" && o.grade === "A+" && !aplus.some((x) => x.coin === o.symbol && x.side === o.direction)) {
+    if (limitPositive && o.origin === "paper" && o.grade === "A+" && !aplus.some((x) => x.coin === o.symbol && x.side === o.direction)) {
       aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), rr: o.plan_r == null ? null : Number(o.plan_r), strategy: "Paper limit (24h order)", record: limitRecord });
     }
   }
