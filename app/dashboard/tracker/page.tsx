@@ -24,6 +24,24 @@ const BE_BAND = 0.1;
 
 type Row = { r: number | null; pct: number | null; pnl: number | null };
 
+type Metrics = Record<string, number | string | null>;
+type ScoreRow = { week_start: string; metrics: Metrics; targets: Record<string, string> | null; met: Record<string, boolean> | null; score: number | null; score_of: number | null; focus: string | null; focus_kpi: string | null; last_change_verdict: string | null };
+type Review72 = { trade_id: string; symbol: string; direction: string; opened_at: string; r_realized: number | null; mfe_r: number | null; capture_pct: number | null; best_play: string | null; what_price_did: string | null; improve: string | null; verdict: string | null };
+/** Monday of this week in Phoenix (YYYY-MM-DD). */
+function phoenixMonday() {
+  const d = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date())}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+const KPIS: [key: string, label: string, fmt: (v: number) => string][] = [
+  ["sent_avg_r", "Moonbag's calls (avg R)", (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}R`],
+  ["model_avg_r", "All desk plays (avg R)", (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}R`],
+  ["bias_hit_pct", "Open-plan bias right", (v) => `${v.toFixed(0)}%`],
+  ["you_avg_r", "Your trades (avg R)", (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}R`],
+  ["capture_pct", "Move you kept", (v) => `${v.toFixed(0)}%`],
+  ["rule_breaks", "Risk-rule breaks", (v) => `${v.toFixed(0)}`],
+];
+
 function tally(rows: Row[]) {
   let wins = 0, losses = 0, be = 0, totalR = 0, pct = 0, pnl = 0;
   for (const x of rows) {
@@ -49,13 +67,24 @@ const tone = (v: number | null) => (v == null || v === 0 ? "text-white/70" : v >
 export default async function TrackerPage({ searchParams }: { searchParams?: { m?: string; book?: string } }) {
   const { data, error } = await load(async () => {
     const db = supabaseAdmin();
-    const [trades, open, signals] = await Promise.all([
+    const wk = phoenixMonday();
+    const [trades, open, signals, cards, live, reviews] = await Promise.all([
       listTrades({ status: "closed", limit: 1000 }),
       listTrades({ status: "open", limit: 200 }),
       db.from("lev_signals").select("*").not("outcome", "is", null).order("resolved_at", { ascending: false }).limit(500),
+      db.from("lev_scorecard").select("week_start, metrics, targets, met, score, score_of, focus, focus_kpi, last_change_verdict").order("week_start", { ascending: false }).limit(8),
+      db.rpc("lev_weekly_scorecard", { p_week_start: wk }),
+      db.from("trade_review_72h").select("trade_id, symbol, direction, opened_at, r_realized, mfe_r, capture_pct, best_play, what_price_did, improve, verdict").order("opened_at", { ascending: false }).limit(20),
     ]);
     if (signals.error) throw new Error(signals.error.message);
-    return { trades, open, signals: (signals.data ?? []) as LevSignal[] };
+    return {
+      trades, open, signals: (signals.data ?? []) as LevSignal[],
+      // feedback loop (display only): weekly scorecards, this week so far, and the 72h trade reviews
+      cards: (cards.data ?? []) as ScoreRow[],
+      thisWeek: (live.data ?? null) as Metrics | null,
+      reviews: (reviews.data ?? []) as Review72[],
+      wk,
+    };
   });
   if (!data) return <DataNotice error={error} />;
 
@@ -288,7 +317,54 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         )}
       </Card>
 
-      {/* ---- 3. the month */}
+      {/* ---- 3. getting better? (the weekly feedback loop) */}
+      <Card title="Getting better?" sub="Scored every Saturday against the last 4 weeks. One focus a week fixes the biggest miss." right={<Mono>{data.cards[0] ? `last scored ${data.cards[0].score}/${data.cards[0].score_of}` : "first score Saturday"}</Mono>}>
+        {data.cards[0]?.focus && (
+          <Note className="mb-3"><strong className="text-white">This week&apos;s focus:</strong> {data.cards[0].focus}{data.cards[0].last_change_verdict ? <span className="text-white/50"> · last focus: {data.cards[0].last_change_verdict}</span> : null}</Note>
+        )}
+        <Table
+          head={["", `This week so far`, ...data.cards.slice(0, 5).map((c) => new Date(`${c.week_start}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" }))]}
+          align={["l", "r", ...data.cards.slice(0, 5).map(() => "r" as const)]}
+          minWidth={620}
+          rows={[
+            ...KPIS.map(([k, label, f]) => {
+              const cell = (m: Metrics | null | undefined, ok?: boolean) => {
+                const v = m?.[k];
+                if (v == null) return <span className="text-white/30">—</span>;
+                return <span className={`font-mono ${ok == null ? "text-white/80" : ok ? "text-accent-green" : "text-rose-300"}`}>{f(Number(v))}{ok == null ? "" : ok ? " ✓" : " ✗"}</span>;
+              };
+              return [<span key="l" className="text-white/80">{label}</span>, <span key="t">{cell(data.thisWeek)}</span>, ...data.cards.slice(0, 5).map((c) => <span key={c.week_start}>{cell(c.metrics, c.met?.[k])}</span>)];
+            }),
+            [<strong key="s" className="text-white">Score</strong>, <span key="t" className="text-white/40">Saturday</span>, ...data.cards.slice(0, 5).map((c) => <strong key={c.week_start} className="font-mono text-amber-200">{c.score}/{c.score_of}</strong>)],
+          ]}
+        />
+        <Note className="mt-2">✓ / ✗ = met that week&apos;s target. &quot;Moonbag&apos;s calls&quot; = the grade 4–5 alerts and limit setups it sent you, followed to the end. &quot;Move you kept&quot; = your R ÷ the best R price offered in the 72h after your entry.</Note>
+      </Card>
+
+      {data.reviews.length > 0 && (
+        <Fold title="72-hour reviews — what price did after your entries" count={data.reviews.length} open>
+          <div className="space-y-2">
+            {data.reviews.slice(0, 8).map((r) => (
+              <div key={r.trade_id} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 text-[13px] leading-relaxed">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-white">{r.symbol}</strong>
+                  <Badge tone={biasTone(r.direction)}>{biasGlyph(r.direction)} {r.direction}</Badge>
+                  <span className="font-mono text-white/60">{when(r.opened_at)}</span>
+                  <span className={`font-mono ${tone(r.r_realized)}`}>you {r.r_realized == null ? "—" : signed(Number(r.r_realized), 2, "R")}</span>
+                  <span className="font-mono text-white/60">best {r.mfe_r == null ? "—" : signed(Number(r.mfe_r), 2, "R")}</span>
+                  {r.capture_pct != null && <span className="font-mono text-amber-200">kept {Number(r.capture_pct).toFixed(0)}%</span>}
+                  {r.verdict && r.verdict !== "backfill" && <Badge tone="gray">{r.verdict.replace(/_/g, " ")}</Badge>}
+                </div>
+                {r.what_price_did && <div className="mt-1 text-white/70">{r.what_price_did}</div>}
+                {r.best_play && <div className="mt-1 text-white/60">Best play: {r.best_play}</div>}
+                {r.improve && <div className="mt-1 text-accent-green/90">Next time: {r.improve}</div>}
+              </div>
+            ))}
+          </div>
+        </Fold>
+      )}
+
+      {/* ---- 4. the month */}
       {monthPicker}
       {monthTiles}
 
