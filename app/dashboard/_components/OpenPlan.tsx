@@ -115,7 +115,7 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
         </div>
       )}
 
-      {plan.woods && <WoodsBlock w={plan.woods} />}
+      {plan.woods && <WoodsBlock w={plan.woods} at={plan.updated_at ?? plan.created_at ?? null} />}
 
       {/* the coins: bias, the plan lines, both limits */}
       <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -207,7 +207,7 @@ function Tick({ v, label }: { v?: boolean | null; label: string }) {
   const cls = v === true ? "border-accent-green/50 bg-accent-green/[0.12] text-accent-green" : v === false ? "border-white/10 text-white/35" : "border-white/10 text-white/25";
   return <span title={label} className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border px-1.5 font-mono text-[11px] ${cls}`}>{v === true ? "✓" : v === false ? "·" : "?"} {label}</span>;
 }
-function WoodsBlock({ w }: { w: import("@/lib/moonbag/openPlan").WoodsMap }) {
+function WoodsBlock({ w, at }: { w: import("@/lib/moonbag/openPlan").WoodsMap; at: string | null }) {
   const stTone = w.state === "bullish" ? "text-accent-green" : w.state === "bearish" ? "text-rose-300" : "text-amber-200";
   return (
     <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
@@ -215,6 +215,7 @@ function WoodsBlock({ w }: { w: import("@/lib/moonbag/openPlan").WoodsMap }) {
         <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">Woods map</span>
         {w.state && <span className={`font-mono text-[13px] font-semibold uppercase ${stTone}`}>{w.state}</span>}
         {w.flip && <span className="text-[12.5px] text-white/60">{w.flip}</span>}
+        <span className="font-mono text-[11px] text-white/35">morning map · written {whenShort(at)} — the live checklist is in the Woods machine</span>
       </div>
       {w.anchor?.text && <p className="mt-1.5 text-[13.5px] leading-snug text-white/85">{w.anchor.text}</p>}
       {w.checklist && w.checklist.length > 0 && (

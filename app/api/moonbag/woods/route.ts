@@ -8,7 +8,17 @@ export const dynamic = "force-dynamic";
 export const GET = withAgent(["claude", "grok"], async (req) => {
   const coin = new URL(req.url).searchParams.get("coin") ?? undefined;
   const levels = await getWoodsLevels(coin);
-  return json({ ok: true, text: woodsText(levels), levels });
+  // The Woods machine (every 15 min on BloFin bars): checklist + the limit tickets with confidence, stamped with data time.
+  let q = supabaseAdmin().from("woods_machine").select("coin, side, data_as_of, price, checklist, trigger, limit_plan, confidence, grade, blocked").order("confidence", { ascending: false });
+  if (coin) q = q.eq("coin", coin.toUpperCase());
+  const { data: machine } = await q;
+  const ph = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" }) : "—");
+  const rows = (machine ?? []) as { coin: string; side: string; data_as_of: string | null; trigger: boolean; limit_plan: Record<string, number | string> | null; confidence: number | null; grade: string | null; blocked: string | null }[];
+  const tickets = rows.map((r) => {
+    const lp = r.limit_plan;
+    return `${r.trigger ? "TRIGGER · " : ""}${r.coin} ${r.side.toUpperCase()} ${r.grade ?? "?"} ${r.confidence ?? "?"}/100${lp ? ` · limit ${lp.entry} · SL ${lp.stop} · TP1 ${lp.tp1} (${lp.rr1}R, 70%) · TP2 ${lp.tp2} (${lp.rr2}R)` : ""}${r.blocked ? ` · NOT NOW: ${r.blocked}` : ""} · data ${ph(r.data_as_of)} Phoenix`;
+  });
+  return json({ ok: true, text: [woodsText(levels), "", "WOODS MACHINE (every 15 min, BloFin bars):", ...tickets].join("\n"), levels, machine: rows });
 });
 
 /**

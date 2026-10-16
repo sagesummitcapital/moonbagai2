@@ -4,7 +4,8 @@ import type { DailyThesis } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { getLossJournal } from "@/lib/moonbag/lossJournal";
 import { getLimits, getSizingContext, limitInputs } from "@/lib/moonbag/limits";
-import CopyButton from "../_components/CopyButton";
+import { WoodsMachine } from "../_components/WoodsMachine";
+import { feedHealth, getWoodsMachine } from "@/lib/moonbag/woodsMachine";
 import { getGoal, getOpenPlan } from "@/lib/moonbag/openPlan";
 import { TraderCode } from "../_components/TraderCode";
 import { GoalBar, OpenPlanCard } from "../_components/OpenPlan";
@@ -45,8 +46,13 @@ export default async function LeveragePage() {
   const liveSetups = signals.filter((s) => ["watching", "armed", "triggered", "taken"].includes(s.status) && !s.outcome);
   const resolved = signals.filter((s) => s.outcome);
   const progress = milestone ? Math.max(0, Math.min(100, ((equity - startingEquity) / (milestone - startingEquity)) * 100)) : 100;
-  const lastRun = data.hourly[0]?.ts;
+  // "Watch late" = the hourly Desk Lead itself has not run (agent_runs), not "no new hourly log row" — it only writes
+  // lev_hourly on runs where a coin's map changes. Data freshness comes from Moonbag's own BloFin feed (every 5 min).
+  const machine = await getWoodsMachine().catch(() => null);
+  const lastRun = machine?.deskLead?.started_at ?? data.hourly[0]?.ts;
   const stale = lastRun ? Date.now() - new Date(lastRun).getTime() > 2.5 * 3600_000 : true;
+  const deskBlind = machine?.deskLead ? /failed to connect|DEGRADED|not connected/i.test(machine.deskLead.summary ?? "") : false;
+  const feed = machine ? feedHealth(machine.feed) : null;
   const ladder = Array.isArray(rules.milestones) ? (rules.milestones as number[]) : [240, 1000, 10000, 100000, 1000000];
   const riskPct = Number(risk?.risk_per_trade_pct ?? 2);
   const seriesFor = (asset: string) => data.hourly.filter((h) => h.asset === asset).slice(0, 24).reverse().map((h) => Number(h.price));
@@ -92,7 +98,9 @@ export default async function LeveragePage() {
   // ---------------------------------------------------------------- "needs you now" flags (display only — every one is a number the page already has)
   const flags: Flag[] = [];
   if (data.equityCalc?.needs_check) flags.push({ key: "balance", tone: "amber", title: "Weekly balance check due", detail: `Last confirmed ${money(data.equityCalc.confirmed)} ${data.equityCalc.days_since_confirmed.toFixed(0)}d ago — ask Grok for the real BloFin balance.`, href: "#account", hrefLabel: "Account →" });
-  if (stale) flags.push({ key: "stale", tone: "amber", title: "Hourly watch is late", detail: lastRun ? `Last entry ${ago(lastRun)} — stored prices and levels are old; prices marked live are still current. Check the scheduled task.` : "The hourly watch has not written its first entry yet.", href: "#hourly", hrefLabel: "Hourly log →" });
+  if (stale) flags.push({ key: "stale", tone: "amber", title: "Hourly watch is late", detail: lastRun ? `Last run ${ago(lastRun)} — check the scheduled task.` : "The hourly watch has not run yet.", href: "#hourly", hrefLabel: "Hourly log →" });
+  else if (deskBlind) flags.push({ key: "blind", tone: "amber", title: "Last hourly run couldn't reach TradingView", detail: `Ran ${ago(lastRun)} without TradingView (rate limit). The Woods machine and prices below use Moonbag's own BloFin feed and are unaffected.` });
+  if (feed && feed.tone === "red") flags.push({ key: "feed", tone: "red", title: "Market data is stale — don't trade off this page", detail: `Newest closed BloFin bar ${feed.lastBar ? ago(feed.lastBar) : "missing"}. The feed refreshes every 5 minutes; if this stays red, something is broken.` });
   for (const o of limits?.open ?? []) {
     if (o.status === "touched") flags.push({ key: `touched-${o.limit_id}`, tone: "amber", title: `${o.symbol} ${o.direction === "long" ? "buy" : "sell"} limit ${px2(o.limit_price)} was touched — filled?`, detail: `${o.origin === "paper" ? "Paper limit" : "Your limit"} · stop ${px2(o.current_stop ?? o.stop)} · TP1 ${px2(o.tp1)}`, href: "#limits", hrefLabel: "Limits →" });
   }
@@ -118,13 +126,17 @@ export default async function LeveragePage() {
         right={
           <>
             <span className="font-mono text-[15px] font-semibold tabular-nums text-white">{money(equity)}</span>
-            <Badge tone={stale ? "amber" : "green"} dot>{stale ? `watch late · ${lastRun ? ago(lastRun) : "never ran"}` : `checked ${lastRun ? ago(lastRun) : "—"}`}</Badge>
+            <Badge tone={stale ? "amber" : "green"} dot>{stale ? `watch late · ${lastRun ? ago(lastRun) : "never ran"}` : `desk checked ${lastRun ? ago(lastRun) : "—"}`}</Badge>
+            {feed && <Badge tone={feed.tone} dot>{`data ${feed.lastBar ? whenShort(feed.lastBar) : "—"} · ${feed.label}`}</Badge>}
           </>
         }
       />
 
       {/* ------------------------------------------------ 1. what needs you */}
       <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." />
+
+      {/* ------------------------------------------------ 1b. the Woods machine — main strategy, live every 15 min */}
+      {machine && machine.rows.length > 0 && <div id="woods"><WoodsMachine m={machine} sizing={sizing} /></div>}
 
       {/* ------------------------------------------------ 2. today's plan */}
       {openPlan && <OpenPlanCard plan={openPlan.today ?? openPlan.latest} record={openPlan.record} isToday={!!openPlan.today} />}
@@ -242,7 +254,6 @@ export default async function LeveragePage() {
                                 <strong className="text-white">{i.qty} {o.symbol}</strong> · {i.leverage}x · margin {money(i.margin)} · risk {money(i.riskUsd)} ({num(i.riskPct, 2)}%)
                                 {i.notes.length > 0 && <> · <Badge tone="amber">{i.notes.length} note{i.notes.length > 1 ? "s" : ""}</Badge></>}
                               </span>
-                              <CopyButton text={i.text} label="Copy inputs" />
                             </span>
                           }
                         >
@@ -266,10 +277,7 @@ export default async function LeveragePage() {
                             ]}
                           />
                           {i.notes.length > 0 && <Note className="mt-2">{i.notes.join(" · ")}</Note>}
-                          <div className="mt-3 flex items-center gap-2">
-                            <CopyButton text={i.text} label="Copy inputs" />
-                            <span className="text-[12px] text-white/45">paste to Grok after you place it so it records the order</span>
-                          </div>
+                          <div className="mt-3 text-[12px] text-white/45">After you place it, tell Grok so it records the order.</div>
                         </Expander>
                       </div>
                     );

@@ -2,6 +2,7 @@
 // stop loss, grok should kick back the best setup for that trade"). One call: coin + side + entry + stop → targets from the
 // recorded levels (TP1 = the Woods first pop: first level ≥ 1R, placed just in front of it, 70%; aim 2:1, no minimum — flagged under 2R), size, leverage, margin, liquidation, risk — the same
 // sizing rules as every other card. Analysis only; Stavros places the order.
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildLevels } from "./levels";
 import { getSizingContext, limitInputs, type LimitOrder } from "./limits";
 import { anchorState, getWoodsLevels } from "./woods";
@@ -67,7 +68,15 @@ export async function quickInputs(q: QuickIn) {
   if (coin === "BTC" && q.side === "long" && anc.state !== "above") woods.push("Hedge (rule 10): BTC long not confirmed above the line — consider an ETH short of about half this size, stop above ETH's last 1H swing high; close it on 4H acceptance above the line.");
   const rr1 = Math.abs((tp1 ?? 0) - q.entry) / risk;
   if (rr1 < 2) notes.push(`first pop is ${rr1.toFixed(1)}R — under your 2:1 aim (no minimum; your call)`);
+  // Data stamp (Stavros 2026-10-16: "make sure i always know the time of this data, if i use bad data its a bad trade").
+  const feed = await supabaseAdmin().from("data_feed").select("last_bar, ok").eq("feed", "blofin").eq("asset", coin).eq("tf", "15m").maybeSingle().then((r: { data: unknown }) => r.data as { last_bar: string | null; ok: boolean } | null, () => null);
+  const barClose = feed?.last_bar ? Date.parse(feed.last_bar) + 15 * 60_000 : null;
+  const ageMin = barClose ? Math.round((Date.now() - barClose) / 60_000) : null;
+  const stamp = barClose
+    ? `Data: BloFin bars to ${new Date(barClose).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" })} Phoenix (${ageMin}m ago)${ageMin != null && ageMin > 45 ? " — STALE, check the live price before you place it" : ""}`
+    : "Data: no BloFin feed time on record — check the live price before you place it";
   const lines = [
+    stamp,
     `Bias: ${q.side} — your call${c?.bias ? ` (desk 1h bias ${String(c.bias).toUpperCase()})` : ""}`,
     `Entering when: ${fp(q.entry)} (market or limit)`,
     `Wrong if: price trades through ${fp(q.stop)} (${stopPct.toFixed(2)}%)`,

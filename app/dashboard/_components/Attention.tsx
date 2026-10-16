@@ -5,14 +5,10 @@ import type { Trade } from "@/lib/moonbag/types";
 import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import { fmtPct, fmtRR, tradeMetrics } from "@/lib/moonbag/desk";
 import type { APlus } from "./Board";
-import CopyButton from "./CopyButton";
 import { TradeRail, type Stored } from "./LivePrice";
 import { Action, Badge, Card, Id, Tile, biasGlyph, biasTone, money, num, px2, whenShort } from "./ui";
 
 export type Flag = { key: string; tone: "amber" | "red" | "cyan" | "green"; title: string; detail?: string; href?: string; hrefLabel?: string };
-
-const aplusText = (a: APlus) =>
-  `${a.coin} ${a.side.toUpperCase()} — ${a.strategy}\nlimit ${px2(a.entry)} · stop ${px2(a.stop)} · TP1 ${px2(a.tp1)} · ${a.rr == null ? "—" : `${a.rr.toFixed(1)}R`}\n${a.record}`;
 
 export function NeedsYou({ trades, live, storedFor, aplus, flags, nextCheck }: {
   trades: Trade[];
@@ -54,7 +50,6 @@ export function NeedsYou({ trades, live, storedFor, aplus, flags, nextCheck }: {
                       <Badge tone="green">A+</Badge>
                       <strong className="text-[15px] text-white">{a.coin} <span className={a.side === "long" ? "text-accent-green" : "text-rose-300"}>{a.side === "long" ? "▲ LONG" : "▼ SHORT"}</span></strong>
                     </div>
-                    <CopyButton text={aplusText(a)} label="Copy inputs" />
                   </div>
                   <div className="mt-2 grid grid-cols-4 gap-1 font-mono text-[13px] tabular-nums">
                     <span><span className="block text-[10.5px] uppercase text-white/40">Limit</span><span className="text-white">{px2(a.entry)}</span></span>
