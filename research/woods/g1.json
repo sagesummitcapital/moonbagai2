@@ -1,0 +1,1 @@
+[{}, {"p1": 1.0, "tp1_r": 2}, {"p1": 0.5, "tp1_r": 1.5, "tp2_r": 4}, {"p1": 0.7, "tp1_r": 1.0, "tp2_r": 5, "hold": 120}, {"div": false}, {"ltf": false}, {"div": false, "ltf": false}, {"os": 30}, {"os": 40}, {"min_stop": 0.008}, {"anchor": true}, {"confirm_h": 24}, {"buf": 0.3}, {"dump": "woods_base.csv"}]

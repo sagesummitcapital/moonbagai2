@@ -21,6 +21,33 @@ Written by the Strategist, 2026-10-11, at Stavros's request: "a clearly defined 
 
 Every rule below comes from our own backtests, live trades and lookbacks. Where the evidence is thin, it says so and the rule stays cautious.
 
+### 0.00 MAIN STRATEGY — the Woods framework (adopted 2026-10-16)
+
+Stavros, 2026-10-16: "i was able to get my mentor and a trader that ive looked up to for a while to give me a run down on strategy ... traders typically only use one and get really good at it ... we just repeat this strategy and can still test others but this is main strategy." This section governs the leverage desk; everything else in §0.2–§3 is a tool inside it or a paper test beside it.
+
+1. **Anchor:** BTC drives every trade. No alt long while BTC is below its key reclaim level (the line in the sand).
+2. **Top-down:** weekly/daily = zones. 4H = setup. 1H/15m = entry only.
+3. **Levels:** order blocks and demand zones (where buyers bid before a rally), supply zones (where sellers stopped it), liquidity pools (equal lows/highs, last week's low/high, range lows/highs).
+4. **No-man's land:** no trades in the middle of a range or of an order block. Trade the edges or the break. Expect chop before big moves.
+5. **Long trigger (all required):** (a) sweep of a low or liquidity pool, (b) close back above it (SFP), (c) 4H RSI bullish divergence from oversold, (d) 1H/15m trigger (higher low or demand candle). Shorts mirror.
+6. **News:** don't front-run CPI/PPI/FOMC. Trade the reaction after the sweep.
+7. **Entry:** limit orders at zone edges plus alerts. Skip the trade if price doesn't come to the level.
+8. **Stop:** just past the swept wick or extreme. If the level is reclaimed against us, we're wrong.
+9. **Management:** take most off at the first pop (70%), stop to break-even, let the rest run. (No minimum R since 2026-10-16 — Stavros: "no minimum r - but i will always aim for 2:1". The card shows the R; a first pop under 2R is flagged "under your 2:1 aim — your call".)
+10. **Hedge:** when a BTC long isn't fully confirmed, hedge with a correlated short (ETH, about half the size; close it on 4H acceptance).
+11. **Bias flip:** bullish only on acceptance (a 4H close that holds) above the level that last rejected price — not on a touch.
+12. **The map:** Woods' levels live in `woods_levels` (GET/POST /woods). 10/15 map: BTC swept ~80K and filled 79,710 + the 1D demand zone; 82,400–82,800 is the line in the sand — below = chop/neutral; 4H acceptance above 82,800 = bullish, possible squeeze through the highs. ETH 2,590 unconfirmed.
+
+**House risk rules unchanged:** 1–2% risk by grade, 4% daily drawdown stop, ≤ 15% open risk, cross margin with the stop on the exchange at entry.
+
+**How Moonbag runs it:** the 5:15 AM open planner writes the daily Woods map (anchor, zones, checklist a–d per coin and side, news, hedge, the edge limits) at the top of the leverage desk; the hourly Desk Lead checks the four-part trigger and sends "WOODS A+" cards only when all four are true (blocked for an alt long under the BTC line, mid-range entries and release windows), plus a flip watch on the BTC line; Grok's fast-inputs card adds the anchor, no-man's-land and hedge lines and the 70/30 split.
+
+**Evidence so far (research/woods, mechanical rules only):** all four legs −0.12R over 74 trades; without the divergence leg +0.05R over 186 (both halves ≥ −0.04); the 70%/BE/runner management beat a single 2R target by ~0.15R on the same entries. The discretionary zone reading isn't testable — live results (playbook `woods`, scored weekly in the strategy league) decide, and `woods_nodiv` runs in paper beside it.
+
+### 0.0 The trader's code (Stavros, 2026-10-15)
+
+Wait for your setup and manage your risk. Professionals know when to do nothing. A level touch isn't a trade — wait for confirmation. Know your stop before your entry; if the risk doesn't fit, the trade doesn't fit. More contracts don't fix bad discipline. Add only when the trade confirms. Put a shot clock on every trade. After your stop is hit, the trade is over. Take the loss, goldfish memory, next setup. No clear head, no trade. Missing a trade isn't losing money — chasing it can be. Slow down. (Full text and how the desk enforces each line: docs/TRADER_CODE.md. Two new rules from it: no re-entry on the same coin and side in the same session after a stop-out without a fresh setup and 3-line plan; after two losses in a day Grok asks "Clear head?" before any inputs.)
+
 ### 0.1 Universal rules (every book)
 
 | Rule | BloFin (leverage) | Coinbase (spot) | Robinhood trading | Robinhood holdings |
@@ -60,16 +87,18 @@ The same for every book:
    Never enter on the first touch or a wick.
 3. **Direction.** With the 4h trend, or at a range edge. Against the trend only after a reclaim. Trading against the 5 AM Phoenix 4H candle (when its body is at least half its range) costs 10 points.
 4. **Stop.** Beyond the 4h/daily structure that proves the idea wrong (the swept wick or the far side of the level, never a 15m/1h micro-swing), plus half the 1h ATR. At least 0.8% from entry on BTC/ETH and 1.5% on other coins, and never less than 1.5 × the 1h ATR. A wider stop means a smaller position and lower leverage, not more risk.
-5. **Targets.** TP1 = the next real level, placed just in front of it, never beyond it. It must be 2R or more. TP2 = the level after that.
+5. **Targets.** TP1 = the next real level, placed just in front of it, never beyond it. Aim for 2R or more; no hard minimum since 2026-10-16 (Stavros: "no minimum r - but i will always aim for 2:1") — under 2R is flagged "your call". TP2 = the level after that.
 6. **Grade (the Gate's 0-100 score).** 85+ = A+. 70-84 = A. 55-69 = B. Only A and A+ reach the phone.
 
 **Size and leverage.**
 
 | Grade | BTC / ETH risk | Other coins risk | BTC/ETH leverage ceiling | Other coins ceiling |
 | --- | --- | --- | --- | --- |
-| A+ | 2% | 2% | 20x | 10x |
-| A | 2% | 1% | 15x | 8x |
-| B | 1% | 0.5% | 10x | 5x |
+| A+ | 2% | 2% | 150x | 150x |
+| A | 2% | 1% | 150x | 150x |
+| B | 1% | 0.5% | 150x | 150x |
+
+Leverage ceiling: 150x on every coin (Stavros 2026-10-16: "raise to 150x since that is what exchange allows"), or BloFin's own max for that coin if lower — and never above the safe cap that keeps liquidation ≥ 1.25 × the stop distance away. The safe cap is what really limits it.
 
 - Coins to buy = risk $ ÷ distance from entry to stop. Leverage never changes the dollar risk.
 - Leverage = the lowest whole number that keeps margin at or under half the balance. Ceilings halve in a hot market.
@@ -90,7 +119,7 @@ When Stavros asks "give me inputs for <coin>", run this checklist in order. The 
 3. **Level.** Is price at a real 4h/daily level (not mid-range)?
 4. **Trigger.** Has a 1h candle closed back inside after a sweep, or closed beyond the level and held? If not, give a limit order at the level only when the trigger has already printed; otherwise NO TRADE.
 5. **Stop = invalidation.** Below the 4h/daily support (long) or above the resistance (short) that the trade depends on, plus half the 1h ATR, at least 0.8% (BTC/ETH) or 1.5% (others) from entry and at least 1.5 × the 1h ATR. Wider stop = smaller size and lower leverage, same 2% risk. Never pull the stop closer to make 2R work: if TP1 is under 2R with the real stop, it is NO TRADE.
-6. **Reward.** Is the next real level 2R or more away? TP1 goes just in front of it.
+6. **Reward.** Is the next real level 2R or more away (the aim)? TP1 goes just in front of it. Under 2R: show the R and flag it — his call.
 7. **Data and red-folder days.** No new entry within 2 hours of major US data (CPI, FOMC, jobs, ISM). On a CPI, FOMC or jobs-report (NFP) day (Moonbag's econ_days, Phoenix date) only A+ keeps full risk; every other grade is HALF its usual risk (Stavros, 2026-10-14).
 8. **Grade and risk.** If the Moonbag desk has a live signal on this coin, use its grade and the table above. If it has none, Grok does not score it: treat it as B (1% on BTC/ETH, 0.5% on any other coin). Halve it after 2 losses in a row.
 9. **Size.** Coins = risk $ ÷ |entry − stop|. Notional = coins × entry.
@@ -109,7 +138,7 @@ Why: <the level and the 1h close, one line> · Skip if: <what cancels it>
 
 **Worked example** ($250 balance, desk grade A, BTC): long 83,000, stop 82,300 under the 4h support (0.84%). Risk 2% = $5. Size = 5 ÷ 700 = 0.0071 BTC = $593. Leverage 5x, margin about $119, liquidation near 66,400. TP1 must be 84,400 or higher. With no desk grade the same trade is 1% = $2.50, 0.0036 BTC, 3x.
 
-**NO TRADE** when: no level, no 1h close, reward under 2R, coin cooling, no risk budget, 4% daily drawdown hit, or data within 2 hours. Say it in one line with the price that would change it.
+**NO TRADE** when: no level, no 1h close, coin cooling, no risk budget, 4% daily drawdown hit, or data within 2 hours. Say it in one line with the price that would change it.
 
 **LIMIT ORDERS (2026-10-12, §3.12).** Same levels, entered by a resting limit instead of at market: put the limit half a 1h ATR *through* the level (below the support for a long, above the resistance for a short) so it only fills on a sweep; level 0.15–2 daily ATRs from price, on the side of the daily 50 EMA; stop and minimums as above; TP1 the next opposite level, at least 2R (aim 3R); stop to entry at +1.5R; cancel after 24 hours or if price reaches TP1 first. A DCA ladder shares one stop and the 2% is for all rungs together. Grok records every resting limit in Moonbag (POST /limits) so it gets a TradingView alert and a line under "Open limits".
 
@@ -275,9 +304,9 @@ Three heads route the work, agents each own a few tasks, and every run writes on
 - Aim to be done within about 72 hours; there is no time stop (Stavros, 2026-10-12). At 72h the desk sends one review line.
 - Stavros places every order.
 - Stop beyond real 4h/daily structure plus half the 1h ATR, at least 0.8% from entry (1.5% for rotation coins) and at least 1.5 × the 1h ATR. The stop must sit inside 80% of the distance to liquidation.
-- **Reward to TP1 at least 2R** (Stavros, 2026-10-10: "i want 2:1 r:r"). No exceptions below 2R.
+- **Aim for 2R to TP1** (Stavros, 2026-10-10: "i want 2:1 r:r"); no hard minimum since 2026-10-16 (Stavros: "no minimum r - but i will always aim for 2:1"). Under 2R is shown and flagged, never blocked.
 - Isolated margin. Margin at most half the account.
-- **Leverage ceiling:** 20x for BTC/ETH, 10x for rotation coins (database-enforced).
+- **Leverage ceiling:** 150x on every coin (Stavros 2026-10-16: "raise to 150x since that is what exchange allows"; database-enforced), or BloFin's max for the coin if lower, never above the liquidation safe cap.
 - **Risk per trade: 2% of the BloFin balance at most, and a 4% maximum daily drawdown** (Stavros, 2026-10-11; replaces the 4% cap of 2026-10-10):
 
   | Grade | BTC / ETH | Any other coin |
@@ -335,7 +364,7 @@ Lines come from price alerts. The connector can't draw permanent chart drawings,
 | --- | --- |
 | Structure & level | 25: a 4h/daily level touched 2+ times = 15; + clean invalidation = 5; + confluence = 5 |
 | Higher-timeframe alignment | 20: with the 4h trend = 20; range edge = 12; counter-trend after a 1h reclaim = 6; counter-trend with no reclaim = 0, plus a −15 penalty |
-| Reward : risk to TP1 | 20: 2R = 12; 2.5R = 16; 3R+ = 20 (under 2R = no trade) |
+| Reward : risk to TP1 | 20: 2R = 12; 2.5R = 16; 3R+ = 20 (under 2R = 0 points, flagged; no hard minimum since 2026-10-16) |
 | Trigger | 15: scored when validation prints. 1h close through the level = 10; follow-through or volume = +5 |
 | Regime fit | 10: right regime for the setup = 10; mixed = 5; wrong = 0 |
 | Evidence | 10: forward results for this setup. Unproven = 5; 3+ positive = 8; 10+ with avg > 0.3R = 10; 10+ negative = 0 (retired) |
@@ -374,9 +403,11 @@ Lines come from price alerts. The connector can't draw permanent chart drawings,
 
 | Grade | BTC/ETH ceiling | Rotation coin ceiling |
 | --- | --- | --- |
-| A+ (5) | 20x | 10x |
-| A (4) | 15x | 8x |
-| B (3) | 10x | 5x |
+| A+ (5) | 150x | 150x |
+| A (4) | 150x | 150x |
+| B (3) | 150x | 150x |
+
+(Since 2026-10-16 every grade shares the 150x ceiling; the liquidation safe cap — liq ≥ 1.25 × stop distance — sets the real limit per trade.)
 
 **The ceiling is halved when the market is hot:** 1h ATR% is more than 1.5× its 30-day average, funding is extreme, or major data is due within 24h.
 
@@ -387,7 +418,7 @@ Lines come from price alerts. The connector can't draw permanent chart drawings,
 3. **Range:** Stavros may go anywhere from the floor up to the ceiling. The order card shows the range.
 4. **Safety check, always:** liquidation must sit at least 1.25× the stop distance beyond entry. If it doesn't, size comes down.
 
-**Learning loop:** the Auditor tracks leverage used vs outcome, slippage and liquidation proximity. It adjusts the ceilings only on evidence, never above Stavros's 20x.
+**Learning loop:** the Auditor tracks leverage used vs outcome, slippage and liquidation proximity. It adjusts the ceilings only on evidence, never above Stavros's 150x.
 
 ### 3.6 Trade inputs — one recipe for Moonbag and Grok (Stavros, 2026-10-10)
 
@@ -403,7 +434,7 @@ Whoever gives Stavros inputs for a BloFin trade uses this exact recipe, so both 
    Use a market order only if price is within a quarter of the 1h ATR of the level. Otherwise use a limit at the level.
 3. **Stop loss = invalidation:** just beyond the structure that proves the idea wrong — below the support a long depends on, above the resistance a short depends on (the swept wick, or the far side of the level), plus a buffer of half the 1h ATR. Use the 4h/daily structure, never a 15m/1h micro-swing. At least 0.8% from entry on BTC/ETH and 1.5% on other coins, and at least 1.5 × the 1h ATR. If TP1 is then under 2R, it is not a trade — never move the stop closer to make the numbers work.
 4. **Take profit.** TP1 = the next real level in the trade's direction; take half there. TP2 = the level after that; the runner goes there.
-5. **R:R at least 2:1** from entry to TP1 against entry to stop. If the next level is closer than 2R, there is no trade from here: wait for a limit at a better level, or skip.
+5. **R:R — aim for 2:1** from entry to TP1 against entry to stop; no minimum since 2026-10-16. If the next level is closer than 2R, say so, name the entry where it would reach 2R, and flag "under your 2:1 aim — your call".
 6. **Risk at most 2% of the BloFin balance**, using the §3.2 table, and stop for the day at a 4% drawdown:
    - BTC/ETH: A+/A 2%, B 1%.
    - Other coins: A+ 2%, A 1%, B 0.5%.
@@ -412,7 +443,7 @@ Whoever gives Stavros inputs for a BloFin trade uses this exact recipe, so both 
    - If unsure of the grade, use the lower one.
 7. **No chase.** If the coin is cooling (§3.1: 10%+ off its 3-day low or high, or more than 2 daily ATRs from its daily 20 EMA), there is no trade. Wait for a base.
 8. **Size (the amount).** Coins = risk $ ÷ |entry − stop|. Notional = coins × entry.
-9. **Leverage.** Use the lowest whole leverage that keeps margin at or below half the balance, within the ceiling (§3.5: BTC/ETH up to 20x, other coins up to 10x, lower for lower grades, halved in a hot market).
+9. **Leverage.** Use the lowest whole leverage that keeps margin at or below half the balance, within the ceiling (150x on every coin since 2026-10-16, capped so liquidation stays ≥ 1.25 × the stop distance away).
    - Liquidation must sit at least 1.25× the stop distance beyond entry. If it doesn't, cut leverage.
    - Margin = notional ÷ leverage. Isolated margin.
 10. **Time and management.** Aim for about 72 hours; there is no time stop. At TP1, take half and move the stop to entry, then trail the runner (§3.7).
@@ -640,7 +671,7 @@ Each post is at most 280 characters. Optional lines are dropped first.
 | --- | --- |
 | Daily and weekly trend agree | 2 |
 | Entry at a real level (breakout retest, prior high/low, 50-day) | 2 |
-| R:R to target 1: 2R+ = 2; under 2R = no trade (2:1 minimum, 2026-10-11) | 2 |
+| R:R to target 1: 2R+ = 2; under 2R = 0 (aim 2:1; no hard minimum since 2026-10-16) | 2 |
 | Relative strength vs SPY (20 days) | 1 |
 | Volume confirms | 1 |
 | In a Moonbag theme | 1 |
@@ -780,6 +811,10 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-16 (v31):** Leverage ceiling raised to 150x on every coin (Stavros 2026-10-16: "raise to 150x since that is what exchange allows"). Database cap (lev_universe ≤ 150, risk_config 150) and the card ceiling updated; the liquidation safe cap (liq ≥ 1.25 × stop distance) still decides the real maximum for each trade. Dollar risk is unchanged — leverage never changes it.
+- **2026-10-16 (v30):** No minimum R:R (Stavros: "yes i want no minimum r - but i will always aim for 2:1"). The database 2R gate is off; cards, fast inputs and the Desk Lead (v28) show the R and flag anything under 2R as "under your 2:1 aim — your call". Woods TP1 = the first pop (first level ≥ 1R, 70%).
+- **2026-10-16 (v29):** §0.00 — the Woods framework (Stavros's mentor) becomes the MAIN leverage strategy; house risk rules unchanged, cross margin by default with the stop on the exchange. New: woods_levels map + GET/POST /woods, daily Woods map in the open plan, WOODS A+ trigger + flip watch in the Desk Lead, Woods lines in fast inputs (anchor, no-man's land, hedge, 70/30). TP1 keeps the 2R house minimum. Mechanical test: −0.12R (all four legs) / +0.05R (without divergence) — live tracking decides.
+- **2026-10-15 (v28):** §0.0 The trader's code (Stavros's text, docs/TRADER_CODE.md) — the psychology the rules already enforce, plus two small additions: no same-session re-entry after a stop-out without a fresh setup and 3-line plan; "Clear head?" check after two losses in a day. One line of the code shows under the desk title each day.
 - **2026-10-15 (v27):** Fib 0.75 tested (research/fib, Stavros's idea): on ordinary swings every fib level loses (0.75: −0.24R over 1,187 trades; 0.5–0.786 the same). On BIG 1h legs (≥ 7 × ATR) running with the 200 EMA, the 0.75 limit made +0.24R over 53 trades (both halves positive) and beat 0.618 — adopted to PAPER as playbook fib_75 (lev_fib_plan() on each 4h LIMIT DESK run, messaged as "FIB 0.75 SETUP (paper stage — half risk)" for BTC/ETH/SOL and in-play coins). Caveat: the edge sits mostly in the alts so far.
 - **2026-10-15 (v26):** Stavros's divergence idea tested (research/div): RSI divergence, Woods-style divergence combos (TOTAL/TOTAL2/TOTAL3/USDT.D/USDC.D/BTC/ETH), RSI heatmap OB/OS and USDT.D direction have no edge as entries after fees (−0.06 to −0.25R); USDT.D mirrors BTC on the same bar (−0.98) and doesn't lead it. HTF combo + 1h confirmation (+0.37R, 9 trades) is paper-tracked. Today's 80.1k→82.1k move was caught by the existing limit recipe (BTC long 79,910 under the PDL → TP1 81,721, +2.2R); the open plan now names BOTH limits when bias is neutral. Leverage: up to 100x allowed, capped by the liquidation safety rule (liquidation ≥ 1.25 × stop distance; ≈65x on a 0.8% BTC stop); isolated by default, cross only on A/A+ with the stop on the exchange; the database coin caps (BTC/ETH 20x, alts 10x) stay until Stavros approves raising them. FAST INPUTS: GET /quick returns the full card from his entry + side + stop.
 - **2026-10-15 (v25):** North star and $10M goal (§0). Long-term holds (Coinbase, Robinhood) are separated from strict-R:R leverage trading. New weekday open plan (§0.2b: lev_open_plan, graded daily, calibrated confidence). US-open strategies tested: opening-range breakout, fade, overnight sweep and previous-day sweep all rejected; Open Drive 30m is paper. Deposits are tracked.

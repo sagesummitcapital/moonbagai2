@@ -115,6 +115,8 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
         </div>
       )}
 
+      {plan.woods && <WoodsBlock w={plan.woods} />}
+
       {/* the coins: bias, the plan lines, both limits */}
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         {plan.coins.map((c) => (
@@ -194,5 +196,50 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
         </div>
       </Expander>
     </Card>
+  );
+}
+
+
+/* ------------------------------------------------------------------ the Woods map (main strategy, 2026-10-16) */
+const KIND: Record<string, string> = { line_in_sand: "Line in the sand", flip: "Bias flip", demand: "Demand", supply: "Supply", order_block: "Order block", liquidity: "Liquidity", range_high: "Range high", range_low: "Range low", target: "Target", note: "Note" };
+const fmtZ = (lo?: number | null, hi?: number | null) => (lo == null && hi == null ? "—" : lo != null && hi != null && lo !== hi ? `${px2(lo)}–${px2(hi)}` : px2(lo ?? hi));
+function Tick({ v, label }: { v?: boolean | null; label: string }) {
+  const cls = v === true ? "border-accent-green/50 bg-accent-green/[0.12] text-accent-green" : v === false ? "border-white/10 text-white/35" : "border-white/10 text-white/25";
+  return <span title={label} className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border px-1.5 font-mono text-[11px] ${cls}`}>{v === true ? "✓" : v === false ? "·" : "?"} {label}</span>;
+}
+function WoodsBlock({ w }: { w: import("@/lib/moonbag/openPlan").WoodsMap }) {
+  const stTone = w.state === "bullish" ? "text-accent-green" : w.state === "bearish" ? "text-rose-300" : "text-amber-200";
+  return (
+    <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">Woods map</span>
+        {w.state && <span className={`font-mono text-[13px] font-semibold uppercase ${stTone}`}>{w.state}</span>}
+        {w.flip && <span className="text-[12.5px] text-white/60">{w.flip}</span>}
+      </div>
+      {w.anchor?.text && <p className="mt-1.5 text-[13.5px] leading-snug text-white/85">{w.anchor.text}</p>}
+      {w.checklist && w.checklist.length > 0 && (
+        <div className="mt-2.5 space-y-1.5">
+          {w.checklist.map((x) => (
+            <div key={`${x.coin}-${x.side}`} className="flex flex-wrap items-center gap-1.5">
+              <span className={`w-24 shrink-0 font-mono text-[12.5px] ${x.side === "long" ? "text-accent-green" : "text-rose-300"}`}>{x.coin} {x.side}</span>
+              <Tick v={x.a} label="sweep" /><Tick v={x.b} label="SFP" /><Tick v={x.c} label="4H div" /><Tick v={x.d} label="1H trig" />
+              {x.note && <span className="text-[12px] text-white/50">{x.note}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {(w.zones?.length || w.news || w.hedge) && (
+        <details className="group mt-2">
+          <summary className="cursor-pointer list-none text-[12px] text-white/45 hover:text-white/70 [&::-webkit-details-marker]:hidden">Zones{w.news ? " · news" : ""}{w.hedge ? " · hedge" : ""} ▾</summary>
+          <div className="mt-2 grid gap-1 text-[12.5px] sm:grid-cols-2">
+            {(w.zones ?? []).map((z, i) => (
+              <div key={i} className="flex gap-2"><span className="w-12 shrink-0 font-mono text-white/45">{z.coin}</span><span className="text-white/70">{KIND[z.kind] ?? z.kind}{z.tf ? ` (${z.tf})` : ""}</span><span className="ml-auto font-mono tabular-nums text-white/85">{fmtZ(z.low, z.high)}</span></div>
+            ))}
+          </div>
+          {w.news && <p className="mt-2 text-[12.5px] text-white/60"><span className="text-white/45">News:</span> {w.news}</p>}
+          {w.hedge && <p className="mt-1 text-[12.5px] text-white/60"><span className="text-white/45">Hedge:</span> {w.hedge}</p>}
+        </details>
+      )}
+    </div>
   );
 }

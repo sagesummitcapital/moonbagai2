@@ -16,7 +16,7 @@ export const GET = withAgent(["grok", "claude"], async (req) => {
   const entry = Number(u.searchParams.get("entry"));
   const stop = Number(u.searchParams.get("stop"));
   if (!coin || !entry || !stop) throw new BadRequest("coin, entry and stop are required");
-  const margin = u.searchParams.get("margin") === "cross" ? "cross" : "isolated";
+  const margin = u.searchParams.get("margin") === "isolated" ? "isolated" : "cross"; // house rule 2026-10-16: cross by default
   const r = await quickInputs({ coin, side, entry, stop, grade: u.searchParams.get("grade"), margin });
   return json(r);
 });

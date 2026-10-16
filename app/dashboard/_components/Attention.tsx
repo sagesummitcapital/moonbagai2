@@ -110,6 +110,7 @@ export function OpenTradeTile({ t, live, stored }: { t: Trade; live?: LP; stored
         qty={t.qty_open ?? t.quantity}
         equity={t.account_equity}
       />
+      <TradeFacts t={t} />
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11.5px] tabular-nums text-white/45">
         <span>risk {money(t.risk_dollars)} <span className="text-rose-300/80">{fmtPct(m.riskPct)}</span> / <span className="text-accent-green/80">{fmtPct(m.rewardPct)}</span> acct</span>
         <span>open {num(t.qty_open ?? t.quantity, 4)}{t.quantity ? ` (${num((100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity), 0)}%)` : ""}</span>
@@ -118,5 +119,37 @@ export function OpenTradeTile({ t, live, stored }: { t: Trade; live?: LP; stored
         <Id>{t.trade_id}</Id>
       </div>
     </Tile>
+  );
+}
+
+/** Every number for an open leverage trade at a glance (Stavros 2026-10-16: "make sure i have all data i need to easily see
+ *  where things are for a lev trade"). Display only. Liquidation is an isolated-margin estimate — BloFin's own number rules. */
+function TradeFacts({ t }: { t: Trade }) {
+  const sg = t.direction === "short" ? -1 : 1;
+  const e = Number(t.entry), lev = Number(t.leverage);
+  const liq = e > 0 && lev > 0 ? e * (1 - sg * (1 / lev - 0.005)) : null;
+  const stop = Number(t.current_stop ?? t.stop);
+  const liqOk = liq != null && stop > 0 ? Math.abs(e - liq) >= 1.25 * Math.abs(e - stop) : true;
+  const tp1 = t.current_tp1 ?? t.tp1 ?? t.target, tp2 = t.current_tp2 ?? t.tp2;
+  const risk = Math.abs(e - stop);
+  const rAt = (x: unknown) => (x == null || !risk ? "" : ` · ${((sg * (Number(x) - e)) / risk).toFixed(1)}R`);
+  const openMs = t.opened_at ? Date.now() - new Date(t.opened_at).getTime() : null;
+  const openFor = openMs == null ? "—" : openMs < 3600_000 ? `${Math.max(1, Math.round(openMs / 60_000))}m` : openMs < 86400_000 ? `${(openMs / 3600_000).toFixed(1)}h` : `${(openMs / 86400_000).toFixed(1)}d`;
+  const cells: [string, string, string][] = [
+    ["Entry", px2(t.entry), "text-white"],
+    ["Stop", px2(stop), "text-rose-300"],
+    ["TP1", tp1 == null ? "—" : `${px2(tp1)}${rAt(tp1)}`, "text-accent-green"],
+    ["TP2", tp2 == null ? "—" : `${px2(tp2)}${rAt(tp2)}`, "text-accent-green"],
+    ["Size", t.position_notional == null ? `${num(t.qty_open ?? t.quantity, 4)}` : money(t.position_notional), "text-white"],
+    ["Lev · margin", `${t.leverage == null ? "—" : `${num(t.leverage, 0)}x`} · ${t.margin == null ? "—" : money(t.margin)}`, "text-white"],
+    ["Liq ≈", liq == null ? "—" : `${px2(liq)}${liqOk ? "" : " ⚠"}`, liqOk ? "text-amber-200" : "text-rose-300"],
+    ["Open for", openFor, "text-white"],
+  ];
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 font-mono text-[13px] tabular-nums sm:grid-cols-4">
+      {cells.map(([k, v, c]) => (
+        <span key={k} className="min-w-0"><span className="block text-[10.5px] uppercase tracking-wide text-white/40">{k}</span><span className={`break-words ${c}`}>{v}</span></span>
+      ))}
+    </div>
   );
 }

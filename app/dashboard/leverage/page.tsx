@@ -6,6 +6,7 @@ import { getLossJournal } from "@/lib/moonbag/lossJournal";
 import { getLimits, getSizingContext, limitInputs } from "@/lib/moonbag/limits";
 import CopyButton from "../_components/CopyButton";
 import { getGoal, getOpenPlan } from "@/lib/moonbag/openPlan";
+import { TraderCode } from "../_components/TraderCode";
 import { GoalBar, OpenPlanCard } from "../_components/OpenPlan";
 import { getBoard, tradingWindow } from "@/lib/moonbag/board";
 import { Board, type APlus } from "../_components/Board";
@@ -110,7 +111,7 @@ export default async function LeveragePage() {
       <PageHeader
         title="Leverage desk"
         kicker="BloFin"
-        sub="Moonbag checks the market every hour. You place every order. No trade is the default."
+        sub={<>Moonbag checks the market every hour. You place every order. No trade is the default.<TraderCode /></>}
         right={
           <>
             <span className="font-mono text-[15px] font-semibold tabular-nums text-white">{money(equity)}</span>

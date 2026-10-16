@@ -5,13 +5,18 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Trade } from "@/lib/moonbag/types";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
+import { OpenTradeTile } from "../_components/Attention";
+import { cryptoSetFrom, loadLive } from "../_components/live";
 import { DivergingBars } from "../_components/charts";
-import { Badge, Card, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, Table, biasGlyph, biasTone, money, num, when } from "../_components/ui";
+import { Badge, Card, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, Table, biasGlyph, biasTone, money, num, px2, when } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
 const TZ = "America/Phoenix";
 const monthKey = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(new Date(iso)).slice(0, 7);
+const dayKey = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+/** Monday of the Phoenix week that contains this day key. */
+const weekKey = (dk: string) => { const d = new Date(`${dk}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
 const monthLabel = (key: string) => new Date(`${key}-15T12:00:00Z`).toLocaleString("en-US", { month: "short", year: "numeric" });
 
 /** A trade counts as breakeven when it finished within a tenth of 1R of zero. */
@@ -44,12 +49,13 @@ const tone = (v: number | null) => (v == null || v === 0 ? "text-white/70" : v >
 export default async function TrackerPage({ searchParams }: { searchParams?: { m?: string; book?: string } }) {
   const { data, error } = await load(async () => {
     const db = supabaseAdmin();
-    const [trades, signals] = await Promise.all([
+    const [trades, open, signals] = await Promise.all([
       listTrades({ status: "closed", limit: 1000 }),
+      listTrades({ status: "open", limit: 200 }),
       db.from("lev_signals").select("*").not("outcome", "is", null).order("resolved_at", { ascending: false }).limit(500),
     ]);
     if (signals.error) throw new Error(signals.error.message);
-    return { trades, signals: (signals.data ?? []) as LevSignal[] };
+    return { trades, open, signals: (signals.data ?? []) as LevSignal[] };
   });
   if (!data) return <DataNotice error={error} />;
 
@@ -57,10 +63,12 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const nowKey = monthKey(new Date().toISOString());
   const months = Array.from(new Set([nowKey, ...all.map((t) => monthKey(t.closed_at!))])).sort().reverse().slice(0, 8);
   const m = searchParams?.m && /^\d{4}-\d{2}$/.test(searchParams.m) ? searchParams.m : nowKey;
-  const book = searchParams?.book === "blofin" || searchParams?.book === "robinhood" || searchParams?.book === "coinbase" ? searchParams.book : "all";
+  // Leverage is the daily income and the default view; Coinbase + Robinhood are long-term holds and live on their own tab
+  // (Stavros 2026-10-16: "keep the coinbase seperate on trade tracker ... a place to see my lev trade results").
+  const book: "blofin" | "longterm" = ["robinhood", "coinbase", "longterm"].includes(searchParams?.book ?? "") ? "longterm" : "blofin";
 
   const inMonth = all.filter((t) => monthKey(t.closed_at!) === m);
-  const shown = inMonth.filter((t) => book === "all" || t.venue === book);
+  const shown = inMonth.filter((t) => (book === "blofin" ? t.venue === "blofin" : t.venue !== "blofin"));
   const total = tally(shown.map(tradeRow));
 
   const group = (label: (t: Trade) => string, list = shown) => {
@@ -69,10 +77,10 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
     return Array.from(map.entries()).map(([name, ts]) => ({ name, ...tally(ts.map(tradeRow)) })).sort((a, b) => b.trades - a.trades);
   };
   const books = [
-    { name: "Leverage — BloFin", ...tally(inMonth.filter((t) => t.venue === "blofin").map(tradeRow)) },
-    { name: "Long-term — Robinhood", ...tally(inMonth.filter((t) => t.venue === "robinhood").map(tradeRow)) },
-    { name: "Crypto trend — Coinbase", ...tally(inMonth.filter((t) => t.venue === "coinbase").map(tradeRow)) },
+    { name: "Coinbase — crypto holds", ...tally(inMonth.filter((t) => t.venue === "coinbase").map(tradeRow)) },
+    { name: "Robinhood — stock holds", ...tally(inMonth.filter((t) => t.venue === "robinhood").map(tradeRow)) },
   ];
+
 
   // Moonbag's own calls, followed on paper whether or not they were taken — the benchmark for your trades.
   const sig = data.signals.filter((s) => s.resolved_at && monthKey(s.resolved_at) === m && ["tp1", "stop", "timeout"].includes(s.outcome ?? ""));
@@ -91,7 +99,26 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const ownHigh = tally(scored.filter((t) => Number(t.moonbag_score) >= 55).map(tradeRow));
   const ownLow = tally(scored.filter((t) => Number(t.moonbag_score) < 55).map(tradeRow));
 
-  const href = (mm: string, b = book) => `/dashboard/tracker?m=${mm}${b !== "all" ? `&book=${b}` : ""}`;
+  const href = (mm: string, b: string = book) => `/dashboard/tracker?m=${mm}${b !== "blofin" ? `&book=${b}` : ""}`;
+
+  // ---- leverage income: today / this week / this month / all time (Phoenix days), independent of the month picker
+  const todayK = dayKey(new Date().toISOString());
+  const levDay = (t: Trade) => dayKey(t.closed_at!);
+  const income = [
+    { label: "Today", ...tally(lev.filter((t) => levDay(t) === todayK).map(tradeRow)) },
+    { label: "This week", ...tally(lev.filter((t) => weekKey(levDay(t)) === weekKey(todayK)).map(tradeRow)) },
+    { label: "This month", ...tally(lev.filter((t) => monthKey(t.closed_at!) === nowKey).map(tradeRow)) },
+    { label: "All time", ...tally(lev.map(tradeRow)) },
+  ];
+  // day-by-day for the selected month (leverage only)
+  const days = Array.from(new Set(lev.filter((t) => monthKey(t.closed_at!) === m).map(levDay))).sort().reverse()
+    .map((d) => ({ name: new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), ...tally(lev.filter((t) => levDay(t) === d).map(tradeRow)) }));
+
+  // ---- open trades (display only)
+  const openLev = data.open.filter((t) => t.venue === "blofin");
+  const openLT = data.open.filter((t) => t.venue === "coinbase" || t.venue === "robinhood");
+  const cbSyms = data.open.filter((t) => t.venue === "coinbase" || t.venue === "blofin").map((t) => t.symbol);
+  const live = await loadLive((book === "blofin" ? openLev : openLT).map((t) => t.symbol), cryptoSetFrom(cbSyms));
   const statTable = (rows: (ReturnType<typeof tally> & { name: string })[], first: string, empty: string, bars = true) => {
     const live = rows.filter((r) => r.trades > 0);
     return (
@@ -123,92 +150,172 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
     );
   };
 
+  const tabs = (
+    <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
+      {([["blofin", "Leverage · daily income"], ["longterm", "Long-term holds"]] as const).map(([k, label]) => (
+        <Link key={k} href={href(m, k)} className={`whitespace-nowrap rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] font-medium text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
+      ))}
+    </div>
+  );
+  const monthPicker = (
+    <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 text-[13px]">
+      {months.map((k) => (
+        <Link key={k} href={href(k)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${k === m ? "border border-amber-300/50 bg-amber-300/10 font-medium text-white" : "text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
+      ))}
+    </div>
+  );
+  const tradeLog = (
+    <Fold count={shown.length} title={`Trade log — ${monthLabel(m)}`} open={book === "blofin"}>
+      {shown.length ? (
+        <Table
+          head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
+          align={["l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
+          minWidth={1100}
+          rows={shown.map((t) => {
+            const x = tradeMetrics(t);
+            return [
+              <span key="c"><span className="whitespace-nowrap">{when(t.closed_at)}</span><br /><Id>{t.trade_id}</Id></span>,
+              <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
+              <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
+              <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
+              <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
+              <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
+              <span key="rs" className={`font-mono ${tone(x.resultPct)}`}>{fmtPct(x.resultPct, 2)}</span>,
+              <span key="r" className={`font-mono ${tone(t.r_multiple)}`}>{t.r_multiple == null ? "—" : signed(Number(t.r_multiple), 2, "R")}</span>,
+              <span key="p" className={`font-mono ${tone(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}`}>{money(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}</span>,
+              t.leverage != null ? `${num(t.leverage, 0)}x` : "—",
+              t.holding_period ?? "—",
+              t.exit_reason ?? "—",
+            ];
+          })}
+        />
+      ) : (
+        <Empty>No closed trades in {monthLabel(m)}.</Empty>
+      )}
+    </Fold>
+  );
+  const monthTiles = (
+    <>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+        <Tile label={`Net ${monthLabel(m)}`} value={money(total.pnl)} cls={tone(total.pnl)} wide />
+        <Tile label="PnL %" value={signed(total.pct, 2, "%")} cls={tone(total.pct)} />
+        <Tile label="Total R" value={signed(total.totalR, 2, "R")} cls={tone(total.totalR)} />
+        <Tile label="Win rate" value={total.winRate == null ? "—" : `${total.winRate.toFixed(1)}%`} cls={total.winRate == null ? "text-white/60" : total.winRate >= 50 ? "text-accent-green" : "text-rose-300"} />
+        <Tile label="Wins" value={String(total.wins)} cls="text-accent-green" />
+        <Tile label="Losses" value={String(total.losses)} cls="text-rose-300" />
+        <Tile label="Trades" value={`${total.trades}${total.be ? ` · ${total.be} BE` : ""}`} cls="text-amber-200" />
+      </div>
+      <Note className="-mt-2">
+        Net = P&amp;L after fees. PnL % = each trade&apos;s result as a share of the account at the time, added up. R = result ÷ the risk to the original stop. Win rate leaves out breakevens (within {BE_BAND}R of zero).
+      </Note>
+    </>
+  );
+
+  if (book === "longterm") {
+    const holdRows = (venue: string) => openLT.filter((t) => t.venue === venue).map((t) => {
+      const p = live[t.symbol.toUpperCase()]?.ok ? live[t.symbol.toUpperCase()]?.price ?? null : null;
+      const q = Number(t.qty_open ?? t.quantity ?? 0), cost = Number(t.entry) * q;
+      const val = p != null ? p * q : null;
+      const up = val != null ? val - cost : null;
+      return [
+        <span key="s"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
+        <span key="e" className="font-mono">{px2(t.entry)}</span>,
+        <span key="q" className="font-mono">{num(q, 6)}</span>,
+        <span key="c" className="font-mono">{money(cost)}</span>,
+        <span key="p" className="font-mono">{p == null ? "—" : px2(p)}</span>,
+        <span key="u" className={`font-mono ${tone(up)}`}>{up == null ? "—" : `${money(up)} (${signed((up * 100) / (cost || 1), 1, "%")})`}</span>,
+        <span key="w" className="font-mono text-white/60">{t.current_stop ?? t.stop ? `${px2(t.current_stop ?? t.stop)} · warn only` : "no stop"}</span>,
+        <span key="o" className="whitespace-nowrap text-white/60">{when(t.opened_at)}</span>,
+      ];
+    });
+    const holdTable = (venue: string, empty: string) => (
+      <Table head={["Holding", "Avg entry", "Qty", "Cost", "Now", "Unrealised", "Warning line", "Bought"]} align={["l", "r", "r", "r", "r", "r", "r", "l"]} minWidth={860} rows={holdRows(venue)} empty={empty} />
+    );
+    return (
+      <div className="space-y-5">
+        <DataNotice error={error} />
+        <PageHeader
+          title="Trade tracker"
+          kicker="Long-term holds"
+          sub="Coinbase and Robinhood are long-term investments — kept apart from your leverage income. Moonbag never sells a hold on its own: a break below the warning line is a message to you, and only you decide to sell."
+          right={tabs}
+        />
+        <Card title="Coinbase — crypto holds" right={<Mono>{openLT.filter((t) => t.venue === "coinbase").length} open</Mono>}>
+          {holdTable("coinbase", "No Coinbase holds open.")}
+        </Card>
+        <Card title="Robinhood — stock holds" right={<Mono>{openLT.filter((t) => t.venue === "robinhood").length} open</Mono>}>
+          {holdTable("robinhood", "No Robinhood holds open.")}
+        </Card>
+        {monthPicker}
+        <Card title={`Closed — ${monthLabel(m)}`}>{statTable(books, "Book", `Nothing closed on Coinbase or Robinhood in ${monthLabel(m)}.`)}</Card>
+        <Quiet title="The log" sub="tap to open">{tradeLog}</Quiet>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
 
       <PageHeader
         title="Trade tracker"
-        sub="Every closed trade, logged from the database. Nothing is left out or added by hand."
-        right={
-          <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
-            {[["all", "All books"], ["blofin", "Leverage"], ["robinhood", "Long-term"], ["coinbase", "Coinbase"]].map(([k, label]) => (
-              <Link key={k} href={href(m, k)} className={`whitespace-nowrap rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] font-medium text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
-            ))}
-          </div>
-        }
+        kicker="Leverage · BloFin"
+        sub="Your daily income — every closed BloFin trade, straight from the database. Coinbase and Robinhood are on the Long-term tab."
+        right={tabs}
       />
 
-      <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 text-[13px]">
-        {months.map((k) => (
-          <Link key={k} href={href(k)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${k === m ? "border border-amber-300/50 bg-amber-300/10 font-medium text-white" : "text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
+      {/* ---- 1. income at a glance */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {income.map((x) => (
+          <div key={x.label} className="min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-3.5">
+            <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">{x.label}</div>
+            <div className={`mt-2 break-words font-mono text-[22px] font-semibold leading-none tabular-nums ${tone(x.pnl)}`}>{x.trades ? money(x.pnl) : "—"}</div>
+            <div className="mt-1.5 font-mono text-[12px] tabular-nums text-white/55">
+              {x.trades ? <><span className={tone(x.totalR)}>{signed(x.totalR, 2, "R")}</span> · {x.trades} trade{x.trades === 1 ? "" : "s"}{x.winRate != null ? ` · ${x.winRate.toFixed(0)}% win` : ""}</> : "no closed trades"}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <Tile label="PnL %" value={signed(total.pct, 2, "%")} cls={tone(total.pct)} wide />
-        <Tile label="Total R" value={signed(total.totalR, 2, "R")} cls={tone(total.totalR)} />
-        <Tile label="Win rate" value={total.winRate == null ? "—" : `${total.winRate.toFixed(1)}%`} cls={total.winRate == null ? "text-white/60" : total.winRate >= 50 ? "text-accent-green" : "text-rose-300"} />
-        <Tile label="Wins" value={String(total.wins)} cls="text-accent-green" />
-        <Tile label="Losses" value={String(total.losses)} cls="text-rose-300" />
-        <Tile label="BE" value={String(total.be)} cls="text-white/60" />
-        <Tile label="Trades" value={String(total.trades)} cls="text-amber-200" />
-      </div>
-      <Note className="-mt-2">
-        PnL % = each trade&apos;s result after fees as a share of the account at the time, added up. R = result ÷ the risk to the original stop. Win rate leaves out breakevens (within {BE_BAND}R of zero). Net for {monthLabel(m)}: <span className="font-mono tabular-nums text-white/70">{money(total.pnl)}</span>.
-      </Note>
+      {/* ---- 2. open right now */}
+      <Card title="Open leverage trades" right={<Mono>{openLev.length} open{openLev.length ? ` · risk ${money(openLev.reduce((a, t) => a + Number(t.risk_dollars ?? 0), 0))}` : ""}</Mono>}>
+        {openLev.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {openLev.map((t) => <OpenTradeTile key={t.trade_id} t={t} live={live[t.symbol.toUpperCase()]} />)}
+          </div>
+        ) : (
+          <Empty>No open leverage trade. When you take one, tell Grok and it shows up here with entry, stop, targets, size, leverage, liquidation and live P&amp;L.</Empty>
+        )}
+      </Card>
 
-      <Card title="Books">{statTable(books, "Book", `No closed trades in ${monthLabel(m)}.`)}</Card>
+      {/* ---- 3. the month */}
+      {monthPicker}
+      {monthTiles}
 
-      <Quiet title="Breakdowns & the log" sub="tap any row to open it">
+      <Card title={`Day by day — ${monthLabel(m)}`}>{statTable(days, "Day", `No closed leverage trades in ${monthLabel(m)}.`)}</Card>
+
+      {tradeLog}
+
+      <Quiet title="Breakdowns" sub="tap any row to open it">
       <div className="space-y-2">
         <Fold title="By market">{statTable(group((t) => t.symbol), "Symbol", "No closed trades this month.")}</Fold>
         <Fold title="By side">{statTable(group((t) => (t.direction === "short" ? "Short" : "Long")), "Side", "No closed trades this month.", false)}</Fold>
+        <Fold title="By setup">{statTable(group((t) => t.setup_type ?? "Off-plan / untagged"), "Setup", "No closed trades this month.")}</Fold>
+
+        <Fold title="Moonbag's calls — the benchmark" right={<Mono>followed on paper, taken or not</Mono>}>
+          {statTable(calls, "Signal grade", "No Moonbag signals finished this month yet.")}
+          <Note>If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</Note>
+        </Fold>
+
+        <Fold title="Moonbag vs your calls" right={<Mono>all closed BloFin trades</Mono>}>
+          {statTable(head2head, "Who called it", "No closed leverage trades yet.")}
+          <Note>
+            {scored.length
+              ? `Your own trades that Moonbag would have scored 55+: ${ownHigh.trades} (${signed(ownHigh.totalR, 2, "R")}). Scored under 55: ${ownLow.trades} (${signed(ownLow.totalR, 2, "R")}). If the under-55 group keeps winning, the scoring is missing something you see — the weekly review turns that into a rule.`
+              : "Each of your own trades is scored after the fact with Moonbag's rubric, so we can see whether the scoring misses setups you catch. Results build up as trades close."}
+          </Note>
+        </Fold>
       </div>
-      <Fold title="By setup">{statTable(group((t) => t.setup_type ?? "Off-plan / untagged"), "Setup", "No closed trades this month.")}</Fold>
-
-      <Fold title="Moonbag's calls — the benchmark" right={<Mono>followed on paper, taken or not</Mono>}>
-        {statTable(calls, "Signal grade", "No Moonbag signals finished this month yet.")}
-        <Note>If these rows beat your own trades, the calls are worth waiting for. If your trades beat them, the scoring needs work — the weekly review looks at exactly this.</Note>
-      </Fold>
-
-      <Fold title="Moonbag vs your calls — leverage" right={<Mono>all closed BloFin trades</Mono>}>
-        {statTable(head2head, "Who called it", "No closed leverage trades yet.")}
-        <Note>
-          {scored.length
-            ? `Your own trades that Moonbag would have scored 55+: ${ownHigh.trades} (${signed(ownHigh.totalR, 2, "R")}). Scored under 55: ${ownLow.trades} (${signed(ownLow.totalR, 2, "R")}). If the under-55 group keeps winning, the scoring is missing something you see — the weekly review turns that into a rule.`
-            : "Each of your own trades is scored after the fact with Moonbag's rubric, so we can see whether the scoring misses setups you catch. Results build up as trades close."}
-        </Note>
-      </Fold>
-
-      <Fold count={shown.length} title={`Trade log — ${monthLabel(m)}`}>
-        {shown.length ? (
-          <Table
-            head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
-            align={["l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
-            minWidth={1100}
-            rows={shown.map((t) => {
-              const x = tradeMetrics(t);
-              return [
-                <span key="c"><span className="whitespace-nowrap">{when(t.closed_at)}</span><br /><Id>{t.trade_id}</Id></span>,
-                <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
-                <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
-                <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
-                <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
-                <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
-                <span key="rs" className={`font-mono ${tone(x.resultPct)}`}>{fmtPct(x.resultPct, 2)}</span>,
-                <span key="r" className={`font-mono ${tone(t.r_multiple)}`}>{t.r_multiple == null ? "—" : signed(Number(t.r_multiple), 2, "R")}</span>,
-                <span key="p" className={`font-mono ${tone(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}`}>{money(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}</span>,
-                t.leverage != null ? `${num(t.leverage, 0)}x` : "—",
-                t.holding_period ?? "—",
-                t.exit_reason ?? "—",
-              ];
-            })}
-          />
-        ) : (
-          <Empty>No closed trades in {monthLabel(m)}.</Empty>
-        )}
-      </Fold>
       </Quiet>
     </div>
   );

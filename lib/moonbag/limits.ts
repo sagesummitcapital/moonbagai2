@@ -135,7 +135,7 @@ const qtyDecimals = (price: number) => (price >= 1000 ? 4 : price >= 10 ? 2 : pr
 const floorTo = (x: number, d: number) => Math.floor(x * 10 ** d) / 10 ** d;
 const fp = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: v >= 1 ? 2 : 4, maximumFractionDigits: v >= 1 ? 2 : 4 });
 
-export function limitInputs(o: LimitOrder, ctx: SizingContext): LimitInputs | null {
+export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: number } = {}): LimitInputs | null {
   const entry = Number(o.limit_price), stop = Number(o.current_stop ?? o.stop);
   if (!entry || !stop || !ctx.equity || entry === stop) return null;
   const sg = o.direction === "long" ? 1 : -1;
@@ -157,11 +157,11 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext): LimitInputs | nu
 
   const u = ctx.ceilings?.[sym];
   const core = u ? u.tier === "core" : sym === "BTC" || sym === "ETH";
-  // Leverage (Stavros, 2026-10-15: "up to 100x — safety rule wins"): the ceiling is the coin's database cap (lev_universe,
-  // ≤ 100) and never more than keeps liquidation ≥ 1.25 × the stop distance away, allowing ~0.5% maintenance margin.
+  // Leverage (Stavros, 2026-10-15: "up to 100x — safety rule wins"; raised to 150x 2026-10-16: "raise to 150x since that is what exchange allows"): the ceiling is the coin's database cap (lev_universe,
+  // ≤ 150) and never more than keeps liquidation ≥ 1.25 × the stop distance away, allowing ~0.5% maintenance margin.
   // Leverage never changes the dollar risk; the default is still the LOWEST leverage that keeps margin ≤ 50% of the balance.
   const safetyCap = Math.max(1, Math.floor(1 / (1.25 * (dist / entry) + 0.005)));
-  const ceiling = Math.min(u?.max ?? (core ? 20 : 10), 100, safetyCap);
+  const ceiling = Math.min(u?.max ?? 150, 150, safetyCap);
   const marginCap = Math.min((ctx.equity * (ctx.maxMarginPct ?? 50)) / 100, ctx.maxMarginUsd ?? Infinity);
 
   let notional = qty * entry;
@@ -176,7 +176,7 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext): LimitInputs | nu
   const liq = entry * (1 - sg / leverage);
   const liqOk = Math.abs(entry - liq) >= 1.25 * dist;
   if (!liqOk) notes.push("liquidation is too close to the stop — use less leverage");
-  const qtyTp1 = floorTo(qty / 2, d);
+  const qtyTp1 = floorTo(qty * (opts.split ?? 0.5), d);
   const qtyTp2 = floorTo(qty - qtyTp1, d);
   const stopPct = (dist / entry) * 100;
   const beAt = entry + sg * 1.5 * dist;

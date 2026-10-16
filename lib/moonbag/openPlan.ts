@@ -44,6 +44,18 @@ export type OpenPlan = {
   grade: number | null;
   lesson: string | null;
   graded_at: string | null;
+  woods?: WoodsMap | null;
+};
+
+/** The Woods map the morning planner writes (Stavros's main strategy from 2026-10-16). */
+export type WoodsMap = {
+  anchor?: { state?: string; text?: string; line?: string } | null;
+  state?: string | null;          // chop | bullish | bearish | neutral
+  flip?: string | null;           // "4H acceptance above 82,800 = bullish"
+  zones?: { coin: string; kind: string; low?: number | null; high?: number | null; tf?: string | null; note?: string | null }[];
+  checklist?: { coin: string; side: string; a?: boolean | null; b?: boolean | null; c?: boolean | null; d?: boolean | null; note?: string | null }[];
+  news?: string | null;
+  hedge?: string | null;
 };
 
 export type OpenRecord = {
