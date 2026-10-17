@@ -15,8 +15,8 @@ const LEGS: [key: "a" | "b" | "c" | "d", label: string][] = [
   ["d", "1H trigger"],
 ];
 
-const COMP_LABEL: Record<string, string> = { level: "level", anchor: "BTC anchor", rr: "R:R", rsi: "4H RSI", trend: "trend", record: "track record" };
-const COMP_MAX: Record<string, number> = { level: 25, anchor: 20, rr: 20, rsi: 15, trend: 10, record: 10 };
+const COMP_LABEL: Record<string, string> = { level: "level", anchor: "BTC anchor", rr: "R:R", rsi: "4H RSI", trend: "trend", record: "track record", macro: "Eliz macro", bias: "weekly bias", fib: "fib 0.75–0.786" };
+const COMP_MAX: Record<string, number> = { level: 25, anchor: 20, rr: 20, rsi: 15, trend: 10, record: 10, macro: 10, bias: 10, fib: 10 };
 
 function gradeTone(g: string | null) {
   return g === "A+" ? "green" : g === "A" ? "cyan" : g === "B" ? "amber" : "gray";
@@ -77,6 +77,21 @@ function Ticket({ r, sizing }: { r: WoodsRow; sizing: SizingContext | null }) {
         <div className="mt-1.5 text-[12px] leading-snug text-white/55">
           Swept {r.checklist.pool}{r.checklist.wick != null ? ` · wick ${px2(r.checklist.wick)}` : ""}{r.checklist.bar ? ` · 4H bar ${whenShort(r.checklist.bar)}` : ""}
           {r.checklist.rsi_note ? <span className="block text-white/40">{r.checklist.rsi_note}</span> : null}
+        </div>
+      )}
+      {(r.checklist?.fib_zone || r.checklist?.ema200 != null) && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11.5px]">
+          {r.checklist?.fib_zone && (
+            <span className={`rounded-md px-1.5 py-0.5 ${r.checklist.fib_confluence ? "bg-accent-green/[0.1] text-accent-green" : "bg-white/[0.04] text-white/45"}`}>
+              {r.checklist.fib_confluence ? "FIB ✓" : "fib"} {px2(r.checklist.fib_zone[0])}–{px2(r.checklist.fib_zone[1])}
+            </span>
+          )}
+          {r.checklist?.ctx_aligned && <span className="rounded-md bg-accent-green/[0.1] px-1.5 py-0.5 text-accent-green" title="Paper test only: market context (USDT.D / TOTAL) on this side">CTX ✓ · paper</span>}
+          {r.checklist?.ema200 != null && (
+            <span className={`rounded-md px-1.5 py-0.5 ${r.checklist.ema200_confluence ? "bg-accent-cyan/[0.1] text-accent-cyan" : "bg-white/[0.04] text-white/45"}`} title="Paper test only: not in the score until the Saturday review proves it adds R">
+              {r.checklist.ema200_confluence ? "EMA200 ✓" : "EMA200"} {px2(r.checklist.ema200)} · paper
+            </span>
+          )}
         </div>
       )}
 
@@ -148,6 +163,36 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           <strong>Anchor:</strong> {anchor.text}
         </div>
       )}
+      {anchor?.macro?.text && (
+        <div className="-mt-1.5 mb-3 rounded-lg bg-accent-cyan/[0.05] px-3 py-2 text-[13px] text-accent-cyan/90">
+          <strong>Macro:</strong> {anchor.macro.text.replace(/^Eliz: /, "Eliz — ")} <a href="/dashboard/mentors" className="ml-1 text-white/45 hover:text-white/70">playbook →</a>
+        </div>
+      )}
+      {anchor?.context && (() => {
+        const cx = anchor.context;
+        const on = cx.state === "risk_on" || cx.state === "leaning_on";
+        const off = cx.state === "risk_off" || cx.state === "leaning_off";
+        const sgn = (v: number | null | undefined, d = 2) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(d)}`);
+        return (
+          <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${on ? "bg-accent-green/[0.06] text-accent-green/90" : off ? "bg-rose-400/[0.06] text-rose-200" : "bg-white/[0.03] text-white/65"}`}>
+            <strong>Market:</strong> {cx.text}
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11.5px] tabular-nums text-white/55">
+              <span>USDT.D {cx.usdt_d?.toFixed(2) ?? "—"}% ({sgn(cx.usdt_d_24h)} 24h · {sgn(cx.usdt_d_7d)} 7d)</span>
+              <span>TOTAL ${cx.total_bn != null ? (cx.total_bn / 1000).toFixed(2) : "—"}T ({sgn(cx.total_24h_pct)}% 24h · {sgn(cx.total_7d_pct)}% 7d)</span>
+              <span>ETH/BTC {cx.ethbtc?.toFixed(5) ?? "—"} ({sgn(cx.ethbtc_7d_pct)}% 7d)</span>
+              <span className="text-white/35">4H bar {whenShort(cx.as_of)} · paper test, not scored yet</span>
+            </div>
+          </div>
+        );
+      })()}
+      <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${anchor?.bias?.confirmed ? "bg-violet-400/[0.07] text-violet-200" : "bg-white/[0.03] text-white/60"}`}>
+        <strong>Your week:</strong>{" "}
+        {!anchor?.bias?.bias
+          ? "no weekly bias yet — Moonbag's draft lands Monday 5:15 AM; tell Grok your view to lock it in."
+          : anchor.bias.confirmed
+            ? `${anchor.bias.bias.toUpperCase()}${anchor.bias.conviction ? ` (conviction ${anchor.bias.conviction}/5)` : ""}${anchor.bias.thoughts ? ` — ${anchor.bias.thoughts}` : ""}`
+            : `Moonbag's draft says ${anchor.bias.bias.toUpperCase()} — not confirmed. Tell Grok "accept" or your own view.`}
+      </div>
       {recentTriggers.length > 0 && (
         <div className="mb-3 space-y-1">
           {recentTriggers.map((e) => (
@@ -170,7 +215,7 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} />)}</div>
         </details>
       )}
-      <p className="mt-3 text-[11.5px] text-white/35">Sized from your calculated BloFin balance. A+ ≥ 75 · A ≥ 60 · B ≥ 45. A and A+ are paper-tracked automatically and graded every Saturday. Analysis only — you place every order.</p>
+      <p className="mt-3 text-[11.5px] text-white/35">Sized from your calculated BloFin balance. Score = the components (out of 110) scaled to 100 · A+ ≥ 75 · A ≥ 60 · B ≥ 45. A and A+ are paper-tracked automatically and graded every Saturday. Analysis only — you place every order.</p>
     </Card>
   );
 }

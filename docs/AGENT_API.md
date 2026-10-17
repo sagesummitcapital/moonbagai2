@@ -340,6 +340,28 @@ trade doesn't fit ... After your stop gets hit, the trade is over ... No clear h
 - If he's asking for inputs with no level and no trigger ("bored, not bullish"), say NO TRADE and name the level that would make it one.
 One line, no lectures.
 
+WEEKLY BIAS — STAVROS'S MONDAY CALL (2026-10-16: "i can just put my thoughts in for macro / weekly on mondays, and then
+strategy is already as automated as possible from there"). Monday 5:15 AM Moonbag posts a DRAFT bias built from the Eliz +
+Woods framework. When Stavros gives his weekly view (any day, usually Monday) — "this week I'm long above 80k, buy 78-79k,
+wrong below 76k", or just "accept" — call POST /bias {"bias":"long"|"short"|"neutral"|"range","conviction":1-5,
+"thoughts": <his words, verbatim>, "levels": {"buy_zone":[lo,hi],"sell_zone":[lo,hi],"line":x,"invalidation":x}} (only the
+levels he gave), or {"accept_draft": true} for "accept". Reply with "text". "What's my bias this week?" → GET /bias, relay "text".
+His confirmed bias weighs 10 points in every Woods ticket; it never changes risk rules.
+DEPOSITS: when you POST /accounts with "deposit", the "equity" you send is the balance AFTER the deposit landed (it already
+includes it) — Moonbag dates the deposit just before that balance so it is counted once (fixed 2026-10-16).
+
+MENTORS — ELIZ (MACRO) + WOODS (MICRO) (Stavros, 2026-10-16: "i really like eliz on macro and woods on micro ... i can send you
+their updates and you fold them in ... pretend this is their last cycle and lets get as much knowledge about how they think").
+Whenever Stavros forwards or pastes ANYTHING from Eliz or Woods (a weekly map, a daily map, a trade, a lesson, an answer to one
+of our questions — text, or the text you read off a screenshot), IMMEDIATELY:
+  POST /mentors {"mentor":"eliz"|"woods","raw_text": <their words, WORD FOR WORD — never summarise or fix them>,
+                 "posted_at": <when THEY posted it, if known>, "kind": "weekly_map"|"daily"|"trade"|"lesson"|"q_and_a"|"update",
+                 "title": <short>, "source": <X / Discord / call / screenshot …>}
+and reply with the "text" field. Use /mentors (not /ideas) for these two people; everyone else's ideas still go to /ideas.
+Claude folds it in within a day (levels on the Woods map, principles, graded calls) and logs the strategy change. When he
+asks "what does Eliz think" / "what's Woods's map" / "what should I ask them", call GET /mentors?mentor=eliz|woods and relay
+"text" word for word — it ends with the questions to ask them next. Their views never change his risk rules.
+
 WOODS MACHINE (Stavros, 2026-10-16: "make it a machine ... make sure i always know the time of this data"). GET /woods now
 also returns the Woods machine — computed in the database every 15 minutes on BloFin candles: per coin and side the four
 checklist legs, a resting limit at the nearest pool outside no-man's land (entry, SL, TP1 70%, TP2, R:R), a 0–100 confidence

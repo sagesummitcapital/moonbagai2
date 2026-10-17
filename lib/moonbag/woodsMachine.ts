@@ -10,11 +10,13 @@ export type WoodsRow = {
   as_of: string;
   data_as_of: string | null;
   price: number | null;
-  anchor: { btc: number; line_low: number | null; line_high: number | null; state: string; text: string } | null;
+  anchor: { btc: number; line_low: number | null; line_high: number | null; state: string; text: string; macro?: { state: string; text: string }; bias?: { bias: string | null; confirmed: boolean; conviction: number | null; week: string; thoughts: string | null } | null;
+    context?: { state: string; text: string; as_of: string | null; total_bn: number | null; total_24h_pct: number | null; total_7d_pct: number | null; usdt_d: number | null; usdt_d_24h: number | null; usdt_d_7d: number | null; ethbtc: number | null; ethbtc_24h_pct: number | null; ethbtc_7d_pct: number | null } } | null;
   checklist: {
     a: boolean; b: boolean; c: boolean | null; d: boolean | null;
     pool: string | null; level: number | null; wick: number | null; bar: string | null;
     rsi_now: number | null; rsi_note: string | null; trigger_at: string | null;
+    fib_zone?: [number, number] | null; fib_confluence?: boolean; ema200?: number | null; ema200_confluence?: boolean; ctx_aligned?: boolean; ctx_state?: string;
   } | null;
   trigger: boolean;
   limit_plan: {

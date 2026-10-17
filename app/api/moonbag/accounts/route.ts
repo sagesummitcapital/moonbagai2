@@ -33,7 +33,11 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   // trading P&L don't count new money as profit. Positive = deposit, negative = withdrawal.
   let flow = null;
   if (body.deposit != null && Number(body.deposit) !== 0) {
-    const ins = await supabaseAdmin().from("account_flows").insert({ venue: body.venue, amount: Number(body.deposit), note: body.note == null ? null : String(body.note), reported_by: agent }).select("*").single();
+    // The balance posted in the same call already INCLUDES this deposit, so the flow is dated just before the snapshot —
+    // otherwise moonbag_calc_equity() adds it on top a second time (the 2026-10-16 $997.93 double count).
+    const snapAt = (snapshot as { reported_at?: string } | null)?.reported_at;
+    const flowAt = snapAt ? new Date(Date.parse(snapAt) - 1000).toISOString() : undefined;
+    const ins = await supabaseAdmin().from("account_flows").insert({ venue: body.venue, amount: Number(body.deposit), note: body.note == null ? null : String(body.note), reported_by: agent, ...(flowAt ? { flow_at: flowAt } : {}) }).select("*").single();
     if (ins.error) throw new BadRequest(ins.error.message);
     flow = ins.data;
   }
