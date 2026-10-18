@@ -13,6 +13,57 @@ const fp = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: v >
 
 export type QuickIn = { coin: string; side: "long" | "short"; entry: number; stop: number; grade?: string | null; margin?: "isolated" | "cross" };
 
+/** Live last price from BloFin's public ticker (seconds old), falling back to the newest 15m candle close. */
+export async function livePrice(coin: string): Promise<{ price: number; source: string; at: number } | null> {
+  const c = coin.toUpperCase().replace(/USDT.*$/, "");
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 3000);
+    const r = await fetch(`https://openapi.blofin.com/api/v1/market/tickers?instId=${c}-USDT`, { cache: "no-store", signal: ctl.signal });
+    clearTimeout(t);
+    const j = (await r.json()) as { code?: string; data?: { last?: string; ts?: string }[] };
+    const last = Number(j?.data?.[0]?.last);
+    if (j?.code === "0" && last > 0) return { price: last, source: "BloFin live", at: Number(j.data?.[0]?.ts) || Date.now() };
+  } catch { /* fall through */ }
+  const row = await supabaseAdmin().from("candles").select("c, ts").eq("asset", c).eq("tf", "15m").order("ts", { ascending: false }).limit(1).maybeSingle()
+    .then((r: { data: unknown }) => r.data as { c: number; ts: string } | null, () => null);
+  return row ? { price: Number(row.c), source: "last 15m close (live ticker unavailable)", at: Date.parse(row.ts) + 15 * 60_000 } : null;
+}
+
+/**
+ * FAST INPUTS WITH NO NUMBERS (Stavros, 2026-10-18: "i just asked grok about a long on btc and it gave me an 82k price ... i need grok to
+ * give me fast inputs for trades - price was at 80.9 and climbing"). Entry = the LIVE price (market); stop = just past the nearest recorded
+ * structure on the wrong side (+ ½ × 1h ATR), never tighter than the coin minimum or 1.5 × 1h ATR; then the normal card (secure 2R).
+ */
+export async function quickLive(coin: string, side: "long" | "short", margin: "isolated" | "cross" = "cross", grade?: string | null) {
+  const c = coin.toUpperCase().replace(/USDT.*$/, "");
+  const sg = side === "long" ? 1 : -1;
+  const lp = await livePrice(c);
+  if (!lp) return { ok: false as const, text: `NO TRADE — no live price for ${c}.` };
+  const px = lp.price;
+  const db = supabaseAdmin();
+  const bars = await db.from("candles").select("h, l, c, ts").eq("asset", c).eq("tf", "1h").order("ts", { ascending: false }).limit(15)
+    .then((r: { data: unknown }) => (r.data as { h: number; l: number; c: number }[] | null) ?? [], () => []);
+  let atr = 0;
+  for (let i = 0; i < bars.length - 1; i++) atr += Math.max(bars[i].h - bars[i].l, Math.abs(bars[i].h - bars[i + 1].c), Math.abs(bars[i].l - bars[i + 1].c));
+  atr = bars.length > 1 ? atr / (bars.length - 1) : px * 0.004;
+  const minStop = MIN_STOP[c] ?? 0.015;
+  const minDist = Math.max(minStop * px, 1.5 * atr);
+  const lv = await buildLevels().catch(() => null);
+  const cl = lv?.coins.find((x) => x.asset === c);
+  const structure = (side === "long" ? [...(cl?.support ?? []), cl?.rangeLow] : [...(cl?.resistance ?? []), cl?.rangeHigh])
+    .filter((x): x is number => x != null && sg * (px - x) > 0)
+    .sort((a, b) => sg * (b - a));
+  const lvl = structure.find((x) => sg * (px - (x - sg * 0.5 * atr)) >= minDist);
+  let stop = lvl != null ? lvl - sg * 0.5 * atr : px - sg * minDist;
+  if (sg * (px - stop) < minDist) stop = px - sg * minDist;
+  const card = await quickInputs({ coin: c, side, entry: px, stop, grade, margin });
+  if (!card.ok) return card;
+  const when = new Date(lp.at).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit", second: "2-digit" });
+  const head = `LIVE ${c} ${fp(px)} (${lp.source}, ${when} Phoenix) — entry at market now. Stop ${fp(stop)} = ${lvl != null ? `just past the ${fp(lvl)} level` : "the minimum distance (no level close enough)"} + ½ × 1h ATR.`;
+  return { ...card, text: `${head}\n${card.text}`, entry: px, stop, live: lp };
+}
+
 export async function quickInputs(q: QuickIn) {
   const coin = q.coin.toUpperCase().replace(/USDT.*$/, "");
   const sg = q.side === "long" ? 1 : -1;
@@ -33,18 +84,24 @@ export async function quickInputs(q: QuickIn) {
   const levels = raw.filter((x): x is number => x != null && sg * (x - q.entry) > 0).sort((a, b) => sg * (a - b));
   const front = (x: number) => x - sg * Math.min(risk * 0.1, x * 0.0005);
   let tp1: number | null = null, tp2: number | null = null, src = "2R / 3R (no recorded level far enough)";
-  // Woods rule 9: take MOST off at the first pop, stop to break-even, let the rest run.
-  // TP1 = the first recorded level at least 1R away (the "first pop"), 70% of the size; TP2 = the next level at least 3R away.
-  const ok1 = levels.filter((x) => Math.abs(front(x) - q.entry) >= 1 * risk);
-  if (ok1.length) {
-    tp1 = front(ok1[0]);
-    const nxt = levels.filter((x) => Math.abs(front(x) - q.entry) >= Math.max(3 * risk, Math.abs(tp1! - q.entry) * 1.5));
-    tp2 = nxt.length ? front(nxt[0]) : q.entry + sg * Math.max(3 * risk, Math.abs(tp1 - q.entry) * 1.5);
-    src = "recorded levels";
+  // SECURE 2R (Stavros 2026-10-18: "lets always try to secure 2r minimum on moonbag trades even if you think there is a 4+r opportunity"):
+  // TP1 = exactly 2R (70% off, stop to entry) when the first level is 2R+ away — that level becomes the runner (TP2);
+  // when a level sits before 2R, TP1 = that level (flagged), TP2 = the next level at least 3R away.
+  const first = levels.find((x) => Math.abs(front(x) - q.entry) >= 1 * risk);
+  if (first != null && Math.abs(front(first) - q.entry) >= 2 * risk) {
+    tp1 = q.entry + sg * 2 * risk;
+    const runner = levels.find((x) => Math.abs(front(x) - q.entry) >= 3 * risk);
+    tp2 = runner != null ? front(runner) : Math.abs(front(first) - q.entry) > 2 * risk ? front(first) : q.entry + sg * 3 * risk;
+    src = "TP1 secured at 2R; runner at the recorded level";
+  } else if (first != null) {
+    tp1 = front(first);
+    const nxt = levels.find((x) => Math.abs(front(x) - q.entry) >= Math.max(3 * risk, Math.abs(tp1! - q.entry) * 1.5));
+    tp2 = nxt != null ? front(nxt) : q.entry + sg * Math.max(3 * risk, Math.abs(tp1 - q.entry) * 1.5);
+    src = "recorded levels (a level sits before 2R)";
   } else {
     if (levels.length) notes.push(`nearest level ${fp(levels[0])} is only ${(Math.abs(levels[0] - q.entry) / risk).toFixed(1)}R away — expect a reaction there`);
-    tp1 = q.entry + sg * 1 * risk; tp2 = q.entry + sg * 3 * risk;
-    src = "1R first pop / 3R runner (no recorded level far enough)";
+    tp1 = q.entry + sg * 2 * risk; tp2 = q.entry + sg * 3 * risk;
+    src = "2R secure / 3R runner (no recorded level far enough)";
   }
 
   const order = {
@@ -67,7 +124,7 @@ export async function quickInputs(q: QuickIn) {
   }
   if (coin === "BTC" && q.side === "long" && anc.state !== "above") woods.push("Hedge (rule 10): BTC long not confirmed above the line — consider an ETH short of about half this size, stop above ETH's last 1H swing high; close it on 4H acceptance above the line.");
   const rr1 = Math.abs((tp1 ?? 0) - q.entry) / risk;
-  if (rr1 < 2) notes.push(`first pop is ${rr1.toFixed(1)}R — under your 2:1 aim (no minimum; your call)`);
+  if (rr1 < 1.99) notes.push(`a level sits at ${rr1.toFixed(1)}R — under your 2:1 aim (your call)`);
   // Data stamp (Stavros 2026-10-16: "make sure i always know the time of this data, if i use bad data its a bad trade").
   const feed = await supabaseAdmin().from("data_feed").select("last_bar, ok").eq("feed", "blofin").eq("asset", coin).eq("tf", "15m").maybeSingle().then((r: { data: unknown }) => r.data as { last_bar: string | null; ok: boolean } | null, () => null);
   const barClose = feed?.last_bar ? Date.parse(feed.last_bar) + 15 * 60_000 : null;
@@ -82,7 +139,7 @@ export async function quickInputs(q: QuickIn) {
     `Wrong if: price trades through ${fp(q.stop)} (${stopPct.toFixed(2)}%)`,
     `${coin} ${q.side === "long" ? "Long" : "Short"} · Entry ${fp(q.entry)} · SL ${fp(q.stop)} · TP1 ${fp(tp1!)} (${rr1.toFixed(1)}R, ${inp.qtyTp1}) · TP2 ${fp(tp2!)} (${inp.qtyTp2})`,
     `Size ${inp.qty} ${coin} (≈ $${inp.notional.toFixed(2)}) · Leverage ${inp.leverage}x ${q.margin ?? "cross"} (max safe ${Math.min(maxSafeLev, 150)}x for this stop) · Margin $${inp.margin.toFixed(2)} · Risk $${inp.riskUsd.toFixed(2)} (${inp.riskPct}% of $${ctx.equity.toFixed(2)}) · Liq ≈ ${fp(inp.liq)}`,
-    `Manage (Woods): take 70% at TP1 (the first pop), stop to entry, let 30% run to TP2. Targets from ${src}.`,
+    `Manage: take 70% at TP1 (secure 2R), stop to entry, let 30% run to TP2. Targets: ${src}.`,
     ...woods,
     ...(q.margin !== "isolated" ? ["Cross margin (house rule): the whole balance backs this trade — the stop MUST be on the exchange at entry."] : []),
     ...([...notes, ...inp.notes].length ? [`Note: ${[...notes, ...inp.notes].join(" · ")}`] : []),

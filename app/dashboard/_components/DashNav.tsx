@@ -20,6 +20,7 @@ export const NAV: Group[] = [
       { href: "/dashboard/positions", label: "Positions" },
       { href: "/dashboard/opportunities", label: "Opportunities" },
       { href: "/dashboard/tracker", label: "Trade tracker" },
+      { href: "/dashboard/journal", label: "Desk journal" },
       { href: "/dashboard/lab", label: "Strategy lab" },
       { href: "/dashboard/mentors", label: "Mentors" },
     ],
