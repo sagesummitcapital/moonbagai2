@@ -86,6 +86,7 @@ function Ticket({ r, sizing }: { r: WoodsRow; sizing: SizingContext | null }) {
               {r.checklist.fib_confluence ? "FIB ✓" : "fib"} {px2(r.checklist.fib_zone[0])}–{px2(r.checklist.fib_zone[1])}
             </span>
           )}
+          {r.checklist?.combo_aligned && <span className="rounded-md bg-violet-400/[0.12] px-1.5 py-0.5 text-violet-200" title="Paper test only: 4H RSI divergence combo (BTC + TOTAL2 + TOTAL3) on this side">COMBO ✓ · paper</span>}
           {r.checklist?.ctx_aligned && <span className="rounded-md bg-accent-green/[0.1] px-1.5 py-0.5 text-accent-green" title="Paper test only: market context (USDT.D / TOTAL) on this side">CTX ✓ · paper</span>}
           {r.checklist?.ema200 != null && (
             <span className={`rounded-md px-1.5 py-0.5 ${r.checklist.ema200_confluence ? "bg-accent-cyan/[0.1] text-accent-cyan" : "bg-white/[0.04] text-white/45"}`} title="Paper test only: not in the score until the Saturday review proves it adds R">
@@ -166,6 +167,12 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
       {anchor?.macro?.text && (
         <div className="-mt-1.5 mb-3 rounded-lg bg-accent-cyan/[0.05] px-3 py-2 text-[13px] text-accent-cyan/90">
           <strong>Macro:</strong> {anchor.macro.text.replace(/^Eliz: /, "Eliz — ")} <a href="/dashboard/mentors" className="ml-1 text-white/45 hover:text-white/70">playbook →</a>
+        </div>
+      )}
+      {anchor?.combo && (anchor.combo.state || anchor.combo.woodsbot) && (
+        <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${anchor.combo.state === "bear" || anchor.combo.woodsbot?.side === "short" ? "bg-rose-400/[0.07] text-rose-200" : "bg-violet-400/[0.08] text-violet-100"}`}>
+          <strong>Divergence combo:</strong> {anchor.combo.state ? anchor.combo.text : `WoodsBot flagged a ${anchor.combo.woodsbot?.side === "short" ? "bearish" : "bullish"} 4H RSI divergence on BTC + TOTAL2 + TOTAL3 (bar ${whenShort(anchor.combo.woodsbot?.bar ?? null)}). Moonbag's own scan: ${anchor.combo.text}`}
+          <div className="mt-1 text-[11.5px] text-white/50">Use: it's the 4H divergence leg for the whole market. Still wait for the 1H trigger at a swept level; stop past the swing low/high. Paper test — not scored yet.</div>
         </div>
       )}
       {anchor?.context && (() => {

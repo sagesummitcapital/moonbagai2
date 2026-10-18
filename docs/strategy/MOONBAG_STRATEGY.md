@@ -166,44 +166,36 @@ Stavros, 2026-10-15: "i want to go into open everyday with a clear strategy. if 
 - **Confidence is calibrated.** It is capped at 70% until 20 plans are graded. After that, it stays within 10 points of the real 30-day hit rate.
 - **What the open backtest found** (2026-10-15, fees on; research/open). The classic opening-range breakout loses on crypto: −0.15R on 15m bars and −0.11R over 1,166 trades on 1h bars from January to October. The failed-breakout fade (−0.15 / −0.22R) and the overnight-range sweep (−0.05R) lose too. The previous-day high/low sweep came out +0.22R, but one half lost (−0.53R), so it is unstable. One candidate survived: **OPEN DRIVE**. If BTC/ETH/SOL move at least one 1h ATR in the first 30 minutes, go with the move. The stop goes 0.25 ATR beyond the open price, the target is 2R, and the trade is flat by 4 PM New York. Result: +0.26R over 53 trades, 51% win rate, both halves and all three coins positive. It is fragile: the 15- and 45-minute versions were flat, and the 60-minute version lost over 9 months. So it is PAPER: the Desk Lead checks it at 10:00 New York, records it in the plan and sends a half-risk card. It goes live only after 20+ tracked trades average more than +0.1R.
 
-### 0.3 Coinbase spot (Grok executes)
+### 0.3 LONG-TERM HOLDS — Robinhood + Coinbase (the simple version, 2026-10-18)
 
-**BUY AND HOLD (Stavros, 2026-10-15: "we want to dca into positions on dips. im much more wanting to buy and hold for coinbase and robinhood. the stops are different than on my lev trades").** BTC and ETH are held, not traded. They are bought on dips with a ladder of resting limit buys, with no exchange stop and no take-profit. A hold exits only on a DAILY close below the coin's bear line (0.97 × its 200-day average: BTC ≈ 70,040, ETH ≈ 2,076 on 2026-10-15). An intraday wick never sells it. First ladder: BTC ≈ $16 at market, $16 at 78,500 and $16.50 at 75,000. ETH ≈ $10.50 at market, $10.50 at 2,250 and $10.50 at 2,120. His view: bullish unless BTC loses 78k; then he expects 74k. If every rung fills and both coins close below their bear lines, the worst case is about 10% of the account (Stavros approved; the old rule was 2% per trade). Hold handoffs use horizon 'position' and setup type 'cb_hold'. Ladder rungs on one coin count as one position. The breakout rules below still run for coins that are not held.
+Stavros: "i want a simple long term investment strategy as well - just like we simplified lev strat ... buy and hold space and government stocks ... spacex and tesla should never sell, if anything we buy dip ... buy dips on news events ... part can go into etfs ... im looking at coinbase and robinhood as 10+ year holds."
 
-- **Trades:** BTC, ETH, SOL, spot only, long or cash. 36 coins are paper-traded; alts are paper-only by Stavros's choice.
-- **Regime (trend filter):** BULL = daily close above 1.02 × the 200-day average. BEAR = daily close below 0.97 × it. Longs only in BULL.
-- **Entry:** a BULL coin closes the day above its prior 55-day high. Market buy after the 00:00 UTC close, never more than 1% above the handed-off price.
-- **Stop:** 3 × ATR(14) below entry.
-- **Target:** sell half at 3R. Then the stop on the rest goes to entry + 1.2%.
-- **Trail:** the rest trails the prior 20-day low (10-day low once BTC is above 100k).
-- **Regime exit:** if the coin turns BEAR on a daily close, sell everything in it.
-- **Risk:** 2% per trade including fees. 4% daily drawdown stop. 15% open risk. Max 3 positions. Half risk after 3 straight losses. New entries pause at 20% below the 30-day peak.
-- **Evidence:** 2021-26 backtest with fees, 29 trades, +1.15R average, worst drawdown −18.9%, against −76.7% for holding BTC. All 36 variants made money in both test periods.
-- **Thin spot:** that backtest ran at 5% risk (29.6% a year vs 19.6% for holding BTC). At 3% it made 19.4% a year. 2% was not tested and will return less: expect a much smaller drawdown than holding BTC, but it may not beat BTC on return in a strong bull run. No live trades yet.
+**The whole strategy in five rules**
+1. **Buy and hold for 10+ years.** Nothing in Robinhood or Coinbase is ever sold automatically. A sale happens only when Stavros says so in chat. SpaceX and Tesla are never sold.
+2. **Buy every week.** Each Monday, cash goes to the holdings furthest below their target weight (8-week ramp from 2026-10-19, then every new deposit).
+3. **Buy the dip on news.** When a space or government name drops 7%+ in a day, or 5%+ after its earnings or a big headline, Grok buys an extra week's slice that day (once per name per week, buys only). A name 15%+ below its 26-week high gets a double weekly buy.
+4. **Grow the list slowly.** New space / government-stake names start on the watchlist; the Saturday review proposes promotions; Stavros approves. The GraniteShares "American Stakes" ETF (government-owned stocks; filed, not yet listed) gets considered once it trades.
+5. **Balance with ETFs.** A quarter of Robinhood sits in ETFs so one bad headline can't sink the account.
 
-### 0.4 Robinhood trading sleeve (Grok executes)
+**Robinhood (100% long-term; the trading sleeve is retired)**
 
-**BUY AND HOLD (Stavros, 2026-10-15: "Yes, all holds").** Every new non-DCA buy is a hold (horizon 'position'). It is bought on a dip into support in an uptrend, rather than on a breakout. Its stop sits at the structure that breaks the thesis and is judged on DAILY closes only. It gets no breakeven move, no trims at targets and no time stop. The stop is raised only to a weekly higher low that is still at least 10% below price. Risk limits are unchanged: a wider stop means a smaller size. PLTR's soft stop moved from 197.90 (1.5% away) to a daily close below 184 (under the late-September base).
+| Bucket | Target | Names |
+|---|---|---|
+| Never sell: SpaceX + Tesla | 40% | SPCX 22 · TSLA 18 |
+| Government-stake stocks | 25% | INTC 8 (US owns ~10%) · MP 7 (DoD ~15%) · LHX 5 · GFS 5 |
+| ETFs | 25% | UFO 10 (space ETF, holds SpaceX) · VOO 8 (S&P 500) · ITA 7 (defense) |
+| Gold / silver | 10% | GLD 6 · SLV 4 |
+| Keep, no new buys | — | NVDA, PLTR |
 
-- **Trades:** US stocks and ETFs (price $5+, volume 1M+), and 1x inverse ETFs for bearish views. Long-only. No options, margin, leveraged ETFs, crypto or VRF.
-- **Setup score (0-10):** trend on daily and weekly, entry at a real level, 2R+ to target, strength vs SPY, volume, theme, evidence.
-  - **A (8+):** full size. **B (6.5-7.9):** half size. Below B: paper only.
-- **Entry:** at a real level (breakout retest, prior high/low, 50-day average), with entry, stop, size and invalidation written first. The order must be one the broker can place.
-- **Risk:** 1% per trade. 3% daily stop. $12 combined loss box. 5% open risk. Max 20% of the account per position, 6 positions.
-- **Weekly limits:** two fills a week, one symbol a day.
-- **Exits:** the stop, the target (2R or more), or the written invalidation. No partials at this account size.
-- **Pause:** 8% below the peak, 3 losses in a row, or equity under $90.
-- **Evidence (weak):** the mechanical version of the A setup lost in the backtest (about −0.09R to −0.16R per trade over 84-113 trades). Two live trades, +0.34R average. So both entry types stay **paper-first** until 5 closed paper trades show a positive average R. Until then expect few or no live fills. That is the rule working, not a fault.
+- News-dip buys: SPCX, TSLA, UFO, INTC, MP, LHX, GFS. Never metals, VOO, ITA, or the keep-only names.
+- Caps unchanged: one name at most 30%, SPCX + TSLA at most 45%. Robinhood's VRF/no-crypto block stays.
 
-### 0.5 Robinhood long-term holdings (DCA)
+**Coinbase (10+ year BTC/ETH hold)**
+- Every Monday: cash (minus a $5 reserve) ÷ remaining weeks of an 8-week ramp from 2026-10-19, split **BTC 70 / ETH 30**; then new deposits the same way.
+- Double that week's buy when BTC is in Eliz's weekly buy zone or 15%+ below its 26-week high. The working dip-ladder limits stay.
+- The old trend book (cb_run) keeps paper-tracking only; it never buys or sells live.
 
-- **What it is:** 25% of the Robinhood account, bought weekly over 8 weeks from 2026-10-09, then every Monday.
-- **Weights:** SPCX 25 · TSLA 20 · GLD 12 · NVDA 10 · INTC 8 · SLV 8 · MP 7 · GDX 5 · FCX 5.
-- **Caps:** one name at most 30% of the sleeve. SPCX + TSLA at most 45%.
-- **Buying:** each week's money goes to the names furthest below target. SPCX, TSLA and NVDA get a double buy when 15%+ below their 26-week high with the thesis intact. Metals never get a double buy.
-- **No stops.** These are not trades. A holding is sold only on a written thesis break, confirmed by the Saturday review and Stavros.
-- **What breaks a thesis (examples):** SPCX: Starlink growth stalls 2 quarters or Starship grounded 6+ months. TSLA: autonomy misses 2 more years while margins fall, or Musk leaves. NVDA: big-cloud spending cut 2 quarters running or gross margin under 60%. GLD: central banks turn net sellers for 2 quarters. Each name's full rule is in `lt_universe`.
-- **Evidence:** one week bought. Too early to judge. Benchmark is SPY bought on the same dates.
+**Scored against:** the same dollars put into VOO on the same dates, reported every Saturday.
 
 ### 0.6 The scoreboard
 
@@ -827,6 +819,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-18 (v38):** Long-term simplified — Robinhood 100% long-term (trading sleeve retired), space + government stocks + ETFs, weekly buys, automatic news-dip buys, never auto-sell; Coinbase BTC 70 / ETH 30 weekly DCA with dip double.
 - **2026-10-17 (v37):** Market context tracked — TOTAL, USDT.D, ETH/BTC: risk-on/off read in woods_scan, CTX✓ paper flag, Market line on the Woods machine, Monday lens item 7b, weekly CTX✓ test.
 - **2026-10-17 (v36):** Mentor X adopt — time levels (yearly/monthly/weekly open, prev month H/L, Monday H/L) and fib 0.75–0.786 in woods_scan, EMA200 paper flag, confidence out of 130; weekly bias (Monday Mentor Lens draft → Stavros confirms) scored in the machine and graded Saturdays; weekly X scrape; $1k deposit no longer double-counted.
 - **2026-10-16 (v35):** The mentor library — Eliz (macro) + Woods (micro): verbatim posts, principles, graded calls, questions to ask them, succession mode; Eliz wk10 levels on the Woods map and a macro score in woods_scan (confidence now out of 110, scaled to 100); POST/GET /mentors for Grok; intake in the open planner (v6) and the Saturday review (v19); nightly daily-candle sync + call grading (pg_cron).
