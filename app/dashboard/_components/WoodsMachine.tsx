@@ -171,8 +171,11 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
       )}
       {anchor?.combo && (anchor.combo.state || anchor.combo.woodsbot) && (
         <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${anchor.combo.state === "bear" || anchor.combo.woodsbot?.side === "short" ? "bg-rose-400/[0.07] text-rose-200" : "bg-violet-400/[0.08] text-violet-100"}`}>
-          <strong>Divergence combo:</strong> {anchor.combo.state ? anchor.combo.text : `WoodsBot flagged a ${anchor.combo.woodsbot?.side === "short" ? "bearish" : "bullish"} 4H RSI divergence on BTC + TOTAL2 + TOTAL3 (bar ${whenShort(anchor.combo.woodsbot?.bar ?? null)}). Moonbag's own scan: ${anchor.combo.text}`}
-          <div className="mt-1 text-[11.5px] text-white/50">Use: it's the 4H divergence leg for the whole market. Still wait for the 1H trigger at a swept level; stop past the swing low/high. Paper test — not scored yet.</div>
+          <strong>Divergence combo:</strong>{" "}
+          {anchor.combo.woodsbot
+            ? `WoodsBot ${anchor.combo.woodsbot.side === "short" ? "▼ bearish" : "▲ bullish"} combo on the ${whenShort(anchor.combo.woodsbot.bar)} 4H bar — ${anchor.combo.woodsbot.side === "short" ? "momentum fading across the market; look for shorts at swept highs, no new longs at highs" : "selling momentum fading across the market; look for longs at swept lows, no shorts into it"}.`
+            : "No WoodsBot combo in the last 40h."}
+          <div className="mt-1 text-[11.5px] text-white/50">Not an entry by itself: wait for the sweep + 1H trigger, stop past the swing. Moonbag&apos;s own scan (experimental, 4/10 right so far): {anchor.combo.text}</div>
         </div>
       )}
       {anchor?.context && (() => {
