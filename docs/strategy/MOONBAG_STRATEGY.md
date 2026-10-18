@@ -166,6 +166,18 @@ Stavros, 2026-10-15: "i want to go into open everyday with a clear strategy. if 
 - **Confidence is calibrated.** It is capped at 70% until 20 plans are graded. After that, it stays within 10 points of the real 30-day hit rate.
 - **What the open backtest found** (2026-10-15, fees on; research/open). The classic opening-range breakout loses on crypto: −0.15R on 15m bars and −0.11R over 1,166 trades on 1h bars from January to October. The failed-breakout fade (−0.15 / −0.22R) and the overnight-range sweep (−0.05R) lose too. The previous-day high/low sweep came out +0.22R, but one half lost (−0.53R), so it is unstable. One candidate survived: **OPEN DRIVE**. If BTC/ETH/SOL move at least one 1h ATR in the first 30 minutes, go with the move. The stop goes 0.25 ATR beyond the open price, the target is 2R, and the trade is flat by 4 PM New York. Result: +0.26R over 53 trades, 51% win rate, both halves and all three coins positive. It is fragile: the 15- and 45-minute versions were flat, and the 60-minute version lost over 9 months. So it is PAPER: the Desk Lead checks it at 10:00 New York, records it in the plan and sends a half-risk card. It goes live only after 20+ tracked trades average more than +0.1R.
 
+### 0.2c Secure 2R, fast inputs and the desk journal (2026-10-18)
+
+**SECURE 2R (Stavros, 2026-10-18: "lets always try to secure 2r minimum on moonbag trades even if you think there is a 4+r opportunity").** When the first real level is 2R or more away, TP1 = exactly 2R (take 70%, stop to entry) and that level becomes TP2, the runner. When a level sits before 2R, TP1 goes just in front of it and the card flags the R ("under your 2:1 aim — your call"). This overrides the "TP1 = next real level" wording in 0.2 step 5 and the checklist step 6 whenever the level is 2R+ away. A+ grade = 3R+ of room to the level. A+ setups push to TradingView, with an "A+ NEAR — set the limit now" alert as price approaches (0.6% BTC/ETH, 1.2% alts).
+
+**FAST INPUTS (Stavros, 2026-10-18: "i need grok to give me fast inputs for trades - price was at 80.9 and climbing").** "Long BTC?" with no numbers → GET /quick?coin=BTC&side=long with NO entry/stop: entry = the BloFin live price now, stop just past the nearest structure + ½ 1h ATR, secure-2R targets, size and leverage. Never take an entry from the open plan, the Woods machine, a limit or /levels for a "now" question. His own numbers → GET /quick with entry and stop.
+
+**DESK JOURNAL (Stavros, 2026-10-18: "I need you and grok to lock in and work together to improve our execution and communication ... all three of us contribute and work off it ... i may like moonbag limits or trade better").** One shared journal: Stavros (through Grok), Grok and Moonbag/Claude. Page moonbag.ai/dashboard/journal; API GET/POST /desk-journal (AGENT_API.md "DESK JOURNAL").
+- Every trade idea he sends Grok → POST /desk-journal kind "idea" (his words verbatim, his numbers, Grok's own take). Moonbag replies instantly with MOONBAG VIEW: its lean, his version, Moonbag now (market), Moonbag's limit, and WHERE WE'RE OFF. Grok relays it word for word under the /quick card.
+- His choice ("mine" / "moonbag limit" / "moonbag now" / "skip" + why) → kind "decision". Execution and communication feedback → kind "lesson", word for word. Close → kind "outcome".
+- Grok reads GET /desk-journal?days=3 at the start of each chat day.
+- Scorecard: 72h after each idea every version is played out on 15m bars (TP1 = +R, stop = −1R, open = marked at 72h, unfilled limits excluded) by desk_journal_score(); the Saturday review reports it (Weekly 4e). Rules change only with his OK.
+
 ### 0.3 LONG-TERM HOLDS — Robinhood + Coinbase (the simple version, 2026-10-18)
 
 Stavros: "i want a simple long term investment strategy as well - just like we simplified lev strat ... buy and hold space and government stocks ... spacex and tesla should never sell, if anything we buy dip ... buy dips on news events ... part can go into etfs ... im looking at coinbase and robinhood as 10+ year holds."
@@ -819,6 +831,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-18 (v39):** Secure 2R written into the playbook (TP1 = 2R when the level is 2R+ away, level = runner; A+ = 3R+ room; A+ NEAR alerts); fast inputs with no numbers = live BloFin card (GET /quick without entry/stop); the DESK JOURNAL — one shared journal for Stavros, Grok and Moonbag with an instant side-by-side MOONBAG VIEW and a 72h scorecard (§0.2c, Weekly 4e).
 - **2026-10-18 (v38):** Long-term simplified — Robinhood 100% long-term (trading sleeve retired), space + government stocks + ETFs, weekly buys, automatic news-dip buys, never auto-sell; Coinbase BTC 70 / ETH 30 weekly DCA with dip double.
 - **2026-10-17 (v37):** Market context tracked — TOTAL, USDT.D, ETH/BTC: risk-on/off read in woods_scan, CTX✓ paper flag, Market line on the Woods machine, Monday lens item 7b, weekly CTX✓ test.
 - **2026-10-17 (v36):** Mentor X adopt — time levels (yearly/monthly/weekly open, prev month H/L, Monday H/L) and fib 0.75–0.786 in woods_scan, EMA200 paper flag, confidence out of 130; weekly bias (Monday Mentor Lens draft → Stavros confirms) scored in the machine and graded Saturdays; weekly X scrape; $1k deposit no longer double-counted.
