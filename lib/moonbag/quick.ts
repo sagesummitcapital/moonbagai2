@@ -6,36 +6,22 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildLevels } from "./levels";
 import { getSizingContext, limitInputs, type LimitOrder } from "./limits";
 import { anchorState, getWoodsLevels } from "./woods";
+import { livePrice } from "./livePrice";
+import { getLiquidity, liquidityNotes } from "./liquidity";
+export { livePrice };
 
 const MIN_STOP: Record<string, number> = { BTC: 0.008, ETH: 0.008 };
 const MMR = 0.005; // BloFin maintenance margin, rough — BloFin's own liquidation price is the one to trust
 const fp = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: v >= 1 ? 2 : 4, maximumFractionDigits: v >= 1 ? 2 : 4 });
 
-export type QuickIn = { coin: string; side: "long" | "short"; entry: number; stop: number; grade?: string | null; margin?: "isolated" | "cross" };
-
-/** Live last price from BloFin's public ticker (seconds old), falling back to the newest 15m candle close. */
-export async function livePrice(coin: string): Promise<{ price: number; source: string; at: number } | null> {
-  const c = coin.toUpperCase().replace(/USDT.*$/, "");
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 3000);
-    const r = await fetch(`https://openapi.blofin.com/api/v1/market/tickers?instId=${c}-USDT`, { cache: "no-store", signal: ctl.signal });
-    clearTimeout(t);
-    const j = (await r.json()) as { code?: string; data?: { last?: string; ts?: string }[] };
-    const last = Number(j?.data?.[0]?.last);
-    if (j?.code === "0" && last > 0) return { price: last, source: "BloFin live", at: Number(j.data?.[0]?.ts) || Date.now() };
-  } catch { /* fall through */ }
-  const row = await supabaseAdmin().from("candles").select("c, ts").eq("asset", c).eq("tf", "15m").order("ts", { ascending: false }).limit(1).maybeSingle()
-    .then((r: { data: unknown }) => r.data as { c: number; ts: string } | null, () => null);
-  return row ? { price: Number(row.c), source: "last 15m close (live ticker unavailable)", at: Date.parse(row.ts) + 15 * 60_000 } : null;
-}
+export type QuickIn = { coin: string; side: "long" | "short"; entry: number; stop: number; grade?: string | null; margin?: "isolated" | "cross"; risk?: number | null };
 
 /**
  * FAST INPUTS WITH NO NUMBERS (Stavros, 2026-10-18: "i just asked grok about a long on btc and it gave me an 82k price ... i need grok to
  * give me fast inputs for trades - price was at 80.9 and climbing"). Entry = the LIVE price (market); stop = just past the nearest recorded
  * structure on the wrong side (+ ½ × 1h ATR), never tighter than the coin minimum or 1.5 × 1h ATR; then the normal card (secure 2R).
  */
-export async function quickLive(coin: string, side: "long" | "short", margin: "isolated" | "cross" = "cross", grade?: string | null) {
+export async function quickLive(coin: string, side: "long" | "short", margin: "isolated" | "cross" = "cross", grade?: string | null, risk?: number | null) {
   const c = coin.toUpperCase().replace(/USDT.*$/, "");
   const sg = side === "long" ? 1 : -1;
   const lp = await livePrice(c);
@@ -57,7 +43,7 @@ export async function quickLive(coin: string, side: "long" | "short", margin: "i
   const lvl = structure.find((x) => sg * (px - (x - sg * 0.5 * atr)) >= minDist);
   let stop = lvl != null ? lvl - sg * 0.5 * atr : px - sg * minDist;
   if (sg * (px - stop) < minDist) stop = px - sg * minDist;
-  const card = await quickInputs({ coin: c, side, entry: px, stop, grade, margin });
+  const card = await quickInputs({ coin: c, side, entry: px, stop, grade, margin, risk });
   if (!card.ok) return card;
   const when = new Date(lp.at).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit", second: "2-digit" });
   const head = `LIVE ${c} ${fp(px)} (${lp.source}, ${when} Phoenix) — entry at market now. Stop ${fp(stop)} = ${lvl != null ? `just past the ${fp(lvl)} level` : "the minimum distance (no level close enough)"} + ½ × 1h ATR.`;
@@ -108,13 +94,15 @@ export async function quickInputs(q: QuickIn) {
     limit_id: "quick", symbol: coin, direction: q.side, limit_price: q.entry, stop: q.stop, current_stop: q.stop,
     tp1, tp2, grade: q.grade ?? "B", level: null, level_kind: null, expires_at: null, quantity: null,
   } as unknown as LimitOrder;
-  const inp = limitInputs(order, ctx, { split: 0.7 });
+  const inp = limitInputs(order, ctx, { split: 0.7, riskCap: q.risk ?? null });
   if (!inp) return { ok: false as const, text: "NO TRADE — couldn't size it." };
 
   const maxSafeLev = Math.max(1, Math.floor(1 / (1.25 * (risk / q.entry) + MMR)));
   // Woods checks: BTC anchor (rule 1), no-man's land (rule 4), hedge (rule 10).
   const btc = lv?.coins.find((x) => x.asset === "BTC");
-  const anc = anchorState(btc?.price ?? (coin === "BTC" ? q.entry : null), wl);
+  // Live BTC for the anchor (desk journal #9: the anchor quoted the Thursday desk-check price as "now").
+  const btcLive = await livePrice("BTC").catch(() => null);
+  const anc = anchorState(btcLive?.price ?? btc?.price ?? (coin === "BTC" ? q.entry : null), wl);
   const woods: string[] = [];
   if (anc.state !== "unknown") woods.push(`Anchor: ${anc.text}`);
   if (coin !== "BTC" && q.side === "long" && anc.state === "below") woods.push("Woods rule 1: NO alt long while BTC is below its reclaim level — skip it or wait.");
@@ -132,6 +120,9 @@ export async function quickInputs(q: QuickIn) {
   const stamp = barClose
     ? `Data: BloFin bars to ${new Date(barClose).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" })} Phoenix (${ageMin}m ago)${ageMin != null && ageMin > 45 ? " — STALE, check the live price before you place it" : ""}`
     : "Data: no BloFin feed time on record — check the live price before you place it";
+  // Liquidity bands (Stavros 2026-10-19) — display only.
+  const liq = await getLiquidity(coin).catch(() => null);
+  const liqLines = liq ? [liq.text, ...liquidityNotes(liq, q.side, q.entry, q.stop, tp1)] : [];
   const lines = [
     stamp,
     `Bias: ${q.side} — your call${c?.bias ? ` (desk 1h bias ${String(c.bias).toUpperCase()})` : ""}`,
@@ -141,6 +132,7 @@ export async function quickInputs(q: QuickIn) {
     `Size ${inp.qty} ${coin} (≈ $${inp.notional.toFixed(2)}) · Leverage ${inp.leverage}x ${q.margin ?? "cross"} (max safe ${Math.min(maxSafeLev, 150)}x for this stop) · Margin $${inp.margin.toFixed(2)} · Risk $${inp.riskUsd.toFixed(2)} (${inp.riskPct}% of $${ctx.equity.toFixed(2)}) · Liq ≈ ${fp(inp.liq)}`,
     `Manage: take 70% at TP1 (secure 2R), stop to entry, let 30% run to TP2. Targets: ${src}.`,
     ...woods,
+    ...liqLines,
     ...(q.margin !== "isolated" ? ["Cross margin (house rule): the whole balance backs this trade — the stop MUST be on the exchange at entry."] : []),
     ...([...notes, ...inp.notes].length ? [`Note: ${[...notes, ...inp.notes].join(" · ")}`] : []),
   ];

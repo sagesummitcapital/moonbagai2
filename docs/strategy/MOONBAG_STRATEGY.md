@@ -176,6 +176,15 @@ Stavros, 2026-10-15: "i want to go into open everyday with a clear strategy. if 
 - Every trade idea he sends Grok → POST /desk-journal kind "idea" (his words verbatim, his numbers, Grok's own take). Moonbag replies instantly with MOONBAG VIEW: its lean, his version, Moonbag now (market), Moonbag's limit, and WHERE WE'RE OFF. Grok relays it word for word under the /quick card.
 - His choice ("mine" / "moonbag limit" / "moonbag now" / "skip" + why) → kind "decision". Execution and communication feedback → kind "lesson", word for word. Close → kind "outcome".
 - Grok reads GET /desk-journal?days=3 at the start of each chat day.
+- **Grok ↔ Claude, daily (2026-10-19: "can you check that daily and respond to grok directly ill have grok check daily as well").** Grok posts anything for Claude as kind "note" starting "FOR CLAUDE"; the daily cycle (5:50 AM Phoenix) answers each one as author claude starting "FOR GROK — re #id". Code changes get logged for a Cowork session; anything touching risk, guardrails or holds goes to Stavros. Ops calls inside the strategy are settled between Grok and Claude here, not by Stavros.
+- **Mentor/caller calls** (Woods, Eliz, Johnny/Sage) give entry + stop (+ sometimes risk), never leverage: log THEIR numbers as the idea and get the inputs from GET /quick with &risk= (caller's risk can only lower the house risk, never raise it).
+
+**LIQUIDITY BANDS (Stavros, 2026-10-19: "i want you to be looking at and using liquidity levels as well, test thesis to see what makes the most sense").** An estimated liquidation heatmap from OKX perpetual open interest, rebuilt hourly (liq_refresh at :07): each hour's new OI opens at that hour's price across 10x/25x/50x/100x, a band disappears once price trades through it; liq_snap keeps the 6 biggest bands above and below price. Tested on Aug 28 → Oct 16 (BTC/ETH/SOL, fees on):
+- Bands are **not magnets** — the bigger band was hit first no more often than distance alone predicts. Rejected.
+- Trading a **break** through a band: −0.24R. Rejected.
+- A 1h **close-back sweep** of a band: ≈ 0R (a plain 24h-high/low sweep: −0.25R) — better levels, still not a trade on its own.
+- A **resting fade limit at the biggest band** (house stop, TP 2R): +0.08R vs −0.16R for a small band → **LIQ✓ paper flag, 0 points**, scored weekly (Weekly 4f). Promote only on evidence (+0.15R over 10+ resolved).
+- How we use them now: display + notes on every card — entry at a band (LIQ✓), stop parked inside a band (sweep risk: put it beyond), TP1 just past a band (put it in front). They never change size, stop or grade.
 - Scorecard: 72h after each idea every version is played out on 15m bars (TP1 = +R, stop = −1R, open = marked at 72h, unfilled limits excluded) by desk_journal_score(); the Saturday review reports it (Weekly 4e). Rules change only with his OK.
 
 ### 0.3 LONG-TERM HOLDS — Robinhood + Coinbase (the simple version, 2026-10-18)
@@ -203,7 +212,7 @@ Stavros: "i want a simple long term investment strategy as well - just like we s
 - Caps unchanged: one name at most 30%, SPCX + TSLA at most 45%. Robinhood's VRF/no-crypto block stays.
 
 **Coinbase (10+ year BTC/ETH hold)**
-- Every Monday: cash (minus a $5 reserve) ÷ remaining weeks of an 8-week ramp from 2026-10-19, split **BTC 70 / ETH 30**; then new deposits the same way.
+- Every Monday: cash (minus a $5 reserve) ÷ remaining weeks of an 8-week ramp from 2026-10-19, split **BTC 70 / ETH 30**; then new deposits the same way. Cash held by working dip-ladder limits counts as already allocated, and ladder fills count toward the ramp — so the Monday buy = (free cash − $5) ÷ remaining weeks (Grok/Claude, desk journal #31, 2026-10-19).
 - Double that week's buy when BTC is in Eliz's weekly buy zone or 15%+ below its 26-week high. The working dip-ladder limits stay.
 - The old trend book (cb_run) keeps paper-tracking only; it never buys or sells live.
 
@@ -831,6 +840,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-19 (v40):** Liquidity bands — estimated liquidation heatmap (OKX OI model, hourly), four theses tested (magnet ✗, break ✗, sweep ≈0, biggest-band fade limit +0.08R → LIQ✓ paper flag, Weekly 4f), shown on /quick, /levels and the MOONBAG VIEW; Grok ↔ Claude daily journal loop (FOR CLAUDE / FOR GROK, Daily step 0); caller calls logged with their numbers and &risk=; Coinbase ramp counts ladder-held cash as allocated; live prices on /levels and the /quick anchor (stale > 45 min flagged).
 - **2026-10-18 (v39):** Secure 2R written into the playbook (TP1 = 2R when the level is 2R+ away, level = runner; A+ = 3R+ room; A+ NEAR alerts); fast inputs with no numbers = live BloFin card (GET /quick without entry/stop); the DESK JOURNAL — one shared journal for Stavros, Grok and Moonbag with an instant side-by-side MOONBAG VIEW and a 72h scorecard (§0.2c, Weekly 4e).
 - **2026-10-18 (v38):** Long-term simplified — Robinhood 100% long-term (trading sleeve retired), space + government stocks + ETFs, weekly buys, automatic news-dip buys, never auto-sell; Coinbase BTC 70 / ETH 30 weekly DCA with dip double.
 - **2026-10-17 (v37):** Market context tracked — TOTAL, USDT.D, ETH/BTC: risk-on/off read in woods_scan, CTX✓ paper flag, Market line on the Woods machine, Monday lens item 7b, weekly CTX✓ test.

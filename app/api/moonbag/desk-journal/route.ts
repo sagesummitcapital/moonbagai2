@@ -27,7 +27,7 @@ const KINDS = ["idea", "grok_view", "decision", "note", "lesson", "outcome"] as 
 const n = (v: unknown) => (v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
 
 /**
- * Body: {kind, text, author?, coin?, side?, entry?, stop?, tp1?, tp2?, thread_id?, trade_id?, grok_take?:{entry,stop,tp1,tp2,text}}
+ * Body: {kind, text, author?, coin?, side?, entry?, stop?, tp1?, tp2?, risk?, source?, thread_id?, trade_id?, grok_take?:{entry,stop,tp1,tp2,text}}
  * - kind "idea": a trade he's thinking about (his words verbatim in text). entry/stop optional (none = at market now).
  *   grok_take = Grok's own numbers, if Grok gave any. Moonbag replies instantly with its view + WHERE WE'RE OFF.
  * - kind "decision": thread_id + text = "mine" | "moonbag limit" | "moonbag now" | "skip" (+ why). Add trade_id once he's in.
@@ -60,7 +60,8 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   if (!coin) throw new BadRequest("coin is required");
   if (side !== "long" && side !== "short") throw new BadRequest('side must be "long" or "short"');
   const entry = n(b.entry), stop = n(b.stop), tp1 = n(b.tp1);
-  const view = await moonbagView(coin, side, { entry, stop, tp1 });
+  const risk = n(b.risk);
+  const view = await moonbagView(coin, side, { entry, stop, tp1, risk });
   const atMarket = entry == null;
   const live = view.refs.live;
   const idea = await db.from("desk_journal").insert({

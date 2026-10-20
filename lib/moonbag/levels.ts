@@ -6,6 +6,8 @@
 import { fmtRR, getLeverageDesk } from "./desk";
 import { getLimits, type LimitOrder } from "./limits";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { livePrice, STALE_MIN } from "./livePrice";
+import { getLiquidity, type Liquidity } from "./liquidity";
 
 const n = (v: unknown, d = 2) =>
   v === null || v === undefined || v === "" || Number.isNaN(Number(v))
@@ -23,6 +25,8 @@ export type LevelCoin = {
   limits: LimitOrder[];
   price: number | null;
   checkedAt: string | null;
+  priceAt?: string | null;
+  priceSource?: string;
   bias: string | null;
   htf: string | null;
   openTrade: null | { trade_id: string; direction: string; entry: number; stop: number | null; tp1: number | null; tp2: number | null; leverage: number | null };
@@ -70,11 +74,19 @@ export async function buildLevels() {
   mineLimits.forEach((o) => coins.add(o.symbol));
   lev.alerts.filter((a) => a.status === "active" && a.tv_alert_id).forEach((a) => coins.add(a.asset));
 
+  // LIVE prices (desk journal #9, 2026-10-19): the header used to print the last desk-check price (days old) as the price.
+  const lives = new Map<string, { price: number; source: string; at: number } | null>(
+    await Promise.all([...coins].map(async (c) => [c, await livePrice(c).catch(() => null)] as const)),
+  );
+  const liqs = new Map<string, Liquidity | null>(
+    await Promise.all([...coins].map(async (c) => [c, await getLiquidity(c).catch(() => null)] as const)),
+  );
   const out: LevelCoin[] = [...coins].map((asset) => {
     const h = lev.latest[asset];
     const t = lev.theses.find((x) => x.asset === asset);
     const lv = (h?.levels ?? t?.levels ?? {}) as { support?: number[]; resistance?: number[]; range_high?: number; range_low?: number };
-    const price = h ? Number(h.price) : null;
+    const lp = lives.get(asset) ?? null;
+    const price = lp ? lp.price : h ? Number(h.price) : null;
     const tr = lev.openTrades.find((x) => x.symbol === asset);
     const entry = tr ? Number(tr.entry) : null;
     const alerts = lev.alerts
@@ -115,6 +127,8 @@ export async function buildLevels() {
       limits,
       price,
       checkedAt: h?.ts ?? null,
+      priceAt: lp ? new Date(lp.at).toISOString() : h?.ts ?? null,
+      priceSource: lp ? lp.source : "desk check",
       bias: h?.bias ?? t?.bias ?? null,
       htf: h?.htf_bias ?? null,
       openTrade: tr
@@ -154,7 +168,10 @@ export async function buildLevels() {
   );
   for (const c of out) {
     L.push("");
-    L.push(`${c.asset}  ${n(c.price)} (desk check ${phx(c.checkedAt)}) · bias ${(c.bias ?? "—").toUpperCase()}${c.htf ? ` · 4h ${c.htf}` : ""}`);
+    const ageMin = c.priceAt ? Math.round((Date.now() - Date.parse(c.priceAt)) / 60_000) : null;
+    const stale = ageMin == null || ageMin > STALE_MIN;
+    L.push(`${c.asset}  ${n(c.price)} (${c.priceSource ?? "desk check"} ${phx(c.priceAt ?? c.checkedAt)}${stale ? ` — STALE${ageMin != null ? ` ${ageMin} min old` : ""}, check BloFin before trading` : ""}) · desk check ${phx(c.checkedAt)} · bias ${(c.bias ?? "—").toUpperCase()}${c.htf ? ` · 4h ${c.htf}` : ""}`);
+    { const lq = liqs.get(c.asset); if (lq) L.push(`  ${lq.text}`); }
     if (c.openTrade) {
       const o = c.openTrade;
       const s = o.stop == null ? null : Number(o.stop);

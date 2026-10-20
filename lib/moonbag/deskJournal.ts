@@ -5,6 +5,7 @@
 // review scores each version (his, Grok's, Moonbag live, Moonbag limit) in R. Analysis only — Stavros places every order.
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { quickInputs, quickLive } from "./quick";
+import { getLiquidity, liquidityNotes } from "./liquidity";
 
 export type JournalRow = {
   id: number; created_at: string; thread_id: number | null; author: string; recorded_by: string | null; kind: string;
@@ -51,15 +52,16 @@ async function lean(coin: string) {
  * Moonbag's instant answer to a trade idea: the live card, Moonbag's targets on HIS numbers (if he gave entry + stop), Moonbag's resting
  * limit, Moonbag's lean, and WHERE WE'RE OFF — line by line, so he can pick his version, Moonbag's limit, or skip.
  */
-export async function moonbagView(coin: string, side: "long" | "short", his: { entry?: number | null; stop?: number | null; tp1?: number | null }) {
+export async function moonbagView(coin: string, side: "long" | "short", his: { entry?: number | null; stop?: number | null; tp1?: number | null; risk?: number | null }) {
   const c = coin.toUpperCase().replace(/USDT.*$/, "");
-  const [live, limit, lw] = await Promise.all([
-    quickLive(c, side).catch(() => null),
+  const [live, limit, lw, liq] = await Promise.all([
+    quickLive(c, side, "cross", null, his.risk ?? null).catch(() => null),
     moonbagLimit(c, side).catch(() => null),
     lean(c).catch(() => []),
+    getLiquidity(c).catch(() => null),
   ]);
   const hasHis = his.entry != null && his.stop != null;
-  const mine = hasHis ? await quickInputs({ coin: c, side, entry: his.entry!, stop: his.stop! }).catch(() => null) : null;
+  const mine = hasHis ? await quickInputs({ coin: c, side, entry: his.entry!, stop: his.stop!, risk: his.risk ?? null }).catch(() => null) : null;
 
   const L: string[] = [];
   const liveOk = live && live.ok && "entry" in live;
@@ -113,6 +115,11 @@ export async function moonbagView(coin: string, side: "long" | "short", his: { e
   }
   const rated = versions.filter((v) => v.p).sort((a, b) => b.p!.rr1 - a.p!.rr1);
   if (rated.length > 1) off.push(`Best R:R: ${rated[0].who.toLowerCase()} at ${rated[0].p!.rr1.toFixed(1)}R${rated[0].p!.rr1 < 2 ? " — still under the 2:1 aim" : ""}.`);
+  if (liq) {
+    L.push(liq.text);
+    if (y) for (const t of liquidityNotes(liq, side, y.entry, y.stop, y.tp1)) off.push(`Yours — ${t}`);
+    if (limit) for (const t of liquidityNotes(liq, side, limit.entry, limit.stop, limit.tp1)) off.push(`Moonbag limit — ${t}`);
+  }
   L.push(off.length ? `WHERE WE'RE OFF:\n- ${off.join("\n- ")}` : "WHERE WE'RE OFF: nothing material — we see it the same way.");
   L.push("Your call: reply \"mine\", \"moonbag limit\", \"moonbag now\" or \"skip\" and Grok logs it.");
 
@@ -120,7 +127,7 @@ export async function moonbagView(coin: string, side: "long" | "short", his: { e
   return {
     text: L.join("\n"),
     price: px,
-    refs: { live: plan(lv), limit: plan(limit), mine: mine && mine.ok ? { tp1: mine.tp1, tp2: mine.tp2, rr1: mine.rr1 } : null, lean: lw, live_source: liveAt?.source ?? null },
+    refs: { liq: liq ? { as_of: liq.asOf, above: liq.above, below: liq.below } : null, live: plan(lv), limit: plan(limit), mine: mine && mine.ok ? { tp1: mine.tp1, tp2: mine.tp2, rr1: mine.rr1 } : null, lean: lw, live_source: liveAt?.source ?? null },
     liveCard: liveOk ? (live as { text: string }).text : null,
   };
 }

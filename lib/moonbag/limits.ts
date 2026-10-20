@@ -135,7 +135,7 @@ const qtyDecimals = (price: number) => (price >= 1000 ? 4 : price >= 10 ? 2 : pr
 const floorTo = (x: number, d: number) => Math.floor(x * 10 ** d) / 10 ** d;
 const fp = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: v >= 1 ? 2 : 4, maximumFractionDigits: v >= 1 ? 2 : 4 });
 
-export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: number } = {}): LimitInputs | null {
+export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: number; riskCap?: number | null } = {}): LimitInputs | null {
   const entry = Number(o.limit_price), stop = Number(o.current_stop ?? o.stop);
   if (!entry || !stop || !ctx.equity || entry === stop) return null;
   const sg = o.direction === "long" ? 1 : -1;
@@ -150,6 +150,9 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   if (ctx.redDay?.red && grade !== "A+") { riskPct /= 2; notes.push(`red-folder day${ctx.redDay.events ? ` (${ctx.redDay.events})` : ""}: half risk — no fill within 2h of the release`); }
   else if (ctx.redDay?.red) notes.push(`red-folder day${ctx.redDay.events ? ` (${ctx.redDay.events})` : ""}: A+ keeps full risk — no fill within 2h of the release`);
   if ((ctx.lossStreak ?? 0) >= 2) { riskPct /= 2; notes.push("2 losses in a row: half risk"); }
+  // Caller's risk (Stavros 2026-10-18: Woods/Eliz/Johnny "may give risk as well. Like 1% or .5%") — can only LOWER the house risk, never raise it.
+  if (opts.riskCap != null && opts.riskCap > 0 && opts.riskCap < riskPct) { riskPct = opts.riskCap; notes.push(`caller's risk ${opts.riskCap}%`); }
+  else if (opts.riskCap != null && opts.riskCap > riskPct) notes.push(`caller asked ${opts.riskCap}% — capped at the house ${riskPct}% for this grade/coin`);
   const riskUsd = (ctx.equity * riskPct) / 100;
 
   const d = qtyDecimals(entry);
