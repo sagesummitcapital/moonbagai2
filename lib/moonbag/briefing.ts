@@ -5,6 +5,7 @@
 
 import { getSystemState, getYesterdayReview } from "./db";
 import { fmtPct, fmtRR, getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert, tradeMetrics } from "./desk";
+import { livePrice, STALE_MIN } from "./livePrice";
 
 const n = (v: unknown, d = 2) =>
   v === null || v === undefined || v === "" || Number.isNaN(Number(v))
@@ -52,6 +53,8 @@ export type BriefCoin = {
   plan: string;
   deskAlert: boolean;
   checkedAt: string | null;
+  /** Where the price came from (CR-1, 2026-10-20): "BloFin live", "last 15m close …" or "desk check". */
+  priceSource?: string;
 };
 
 export async function buildBriefing() {
@@ -68,11 +71,16 @@ export async function buildBriefing() {
   // ------------------------------------------------------------ structured brief (the dashboard draws this)
   const live = lev.signals.filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && isDeskAlert(s));
   const research = lev.signals.filter((s) => ["watching", "armed", "triggered"].includes(s.status) && !s.outcome && !isDeskAlert(s));
+  // CR-1 (approved 2026-10-20): the brief and the X post use the LIVE BloFin price, never the last desk-check price.
+  const lives: Record<string, { price: number; source: string; at: number } | null> = Object.fromEntries(
+    await Promise.all(["BTC", "ETH"].map(async (a) => [a, await livePrice(a).catch(() => null)] as const)),
+  );
   const coins: BriefCoin[] = ["BTC", "ETH"].map((a) => {
     const h = lev.latest[a];
     const t = lev.theses.find((x) => x.asset === a);
     const lv = (h?.levels ?? t?.levels ?? {}) as { support?: number[]; resistance?: number[]; range_high?: number; range_low?: number };
-    const price = h ? Number(h.price) : null;
+    const lp = lives[a];
+    const price = lp ? lp.price : h ? Number(h.price) : null;
     const above = (lv.resistance ?? []).map(Number).filter((x) => price == null || x > price).sort((x, y) => x - y).slice(0, 2);
     const below = (lv.support ?? []).map(Number).filter((x) => price == null || x < price).sort((x, y) => y - x).slice(0, 2);
     const sig = live.find((s) => s.asset === a);
@@ -121,7 +129,8 @@ export async function buildBriefing() {
       playLine,
       plan,
       deskAlert: !!sig,
-      checkedAt: h?.ts ?? null,
+      checkedAt: lp ? new Date(lp.at).toISOString() : h?.ts ?? null,
+      priceSource: lp ? lp.source : "desk check",
     };
   });
 
@@ -173,13 +182,19 @@ export async function buildBriefing() {
         boxLimit: rh.box.limit,
         fills: rh.fillsThisWeek,
         maxFills: rh.risk?.max_fills_per_week ?? 2,
+        // CR-3 (approved 2026-10-20): Robinhood is 100% long-term buy-and-hold (§0.3) — the brief shows the plan, not the retired loss box.
+        ltNames: rh.longTerm.sleeve.length,
+        ltHeld: rh.longTerm.sleeve.filter((s) => Number(s.qty) > 0).length,
+        ltGap: rh.longTerm.sleeve.reduce((t, s) => t + Math.max(0, Number(s.gap_dollars) || 0), 0),
+        ltPending: rh.longTerm.sleeve.reduce((t, s) => t + (Number(s.pending_dollars) || 0), 0),
       },
       coinbase: cb
         ? {
             equity: cb.equity,
             open: cb.open.map((t) => t.symbol),
             openRiskPct: cb.openRiskPct,
-            regimes: cb.universe.map((u) => ({ symbol: u.symbol, regime: u.regime, trigger: u.trigger_px })),
+            // CR-2 (approved 2026-10-20): Coinbase is BTC/ETH long-term holds only (§0.3).
+            regimes: cb.universe.filter((u) => u.symbol === "BTC" || u.symbol === "ETH").map((u) => ({ symbol: u.symbol, regime: u.regime, trigger: u.trigger_px })),
           }
         : null,
     },
@@ -196,7 +211,9 @@ export async function buildBriefing() {
   if (brief.market.changeMind) L.push(`  Changes our mind: ${brief.market.changeMind}`);
   L.push("");
   for (const c of coins) {
-    L.push(`${c.asset}  ${n(c.price)}  ${arrow(c.bias)} ${c.change24 == null ? "" : `${fmtPct(c.change24)} 24h  `}${c.bias.toUpperCase()}${c.htf ? ` (4h ${c.htf}${c.regime ? ` · ${c.regime}` : ""})` : ""}`);
+    const ageMin = c.checkedAt ? Math.round((Date.now() - Date.parse(c.checkedAt)) / 60_000) : null;
+    const stamp = `(${c.priceSource ?? "desk check"} ${c.checkedAt ? phx(c.checkedAt) : "—"}${ageMin == null || ageMin > STALE_MIN ? " — STALE, check BloFin" : ""})`;
+    L.push(`${c.asset}  ${n(c.price)} ${stamp}  ${arrow(c.bias)} ${c.change24 == null ? "" : `${fmtPct(c.change24)} 24h  `}${c.bias.toUpperCase()}${c.htf ? ` (4h ${c.htf}${c.regime ? ` · ${c.regime}` : ""})` : ""}`);
     L.push(`  Range lines ${c.rangeLow != null ? n(c.rangeLow) : "—"} / ${c.rangeHigh != null ? n(c.rangeHigh) : "—"} · Above: ${c.above.length ? c.above.map((x) => n(x)).join(" · ") : "—"} · Below: ${c.below.length ? c.below.map((x) => n(x)).join(" · ") : "—"}`);
     L.push(`  ▸ ${c.plan}`);
   }
@@ -211,15 +228,11 @@ export async function buildBriefing() {
   L.push("");
   L.push("YOUR BOOKS");
   L.push(`  Leverage   ${usd(lev.equity)}${lev.milestone ? ` → next ${usd(lev.milestone)}` : ""} · ${lev.openTrades.length ? `${lev.openTrades.length} open trade` : "no open trade"} · risk ${n(risk.g5, 1)}% A+ / ${n(risk.g4, 1)}% A`);
-  L.push(`  Robinhood  ${rh.snapshot ? usd(rh.snapshot.equity) : "—"} · ${rh.open.length ? rh.open.map((t) => t.symbol).join(", ") : "cash"} · loss box ${usd(rh.box.used)}/${usd(rh.box.limit)} · fills ${rh.fillsThisWeek}/${n(rh.risk?.max_fills_per_week ?? 2, 0)}`);
+  { const r = brief.books.robinhood;
+    L.push(`  Robinhood  ${rh.snapshot ? usd(rh.snapshot.equity) : "—"} · long-term buy-and-hold · ${r.ltHeld}/${r.ltNames} plan names held · ${usd(r.ltGap)} still to buy toward target${r.ltPending > 0 ? ` · ${usd(r.ltPending)} in pending buys` : ""}`); }
   if (cb) {
-    const cbCoins = cb.universe
-      .map((u) => {
-        const held = cb.open.find((t) => t.symbol === u.symbol);
-        return held ? `${u.symbol} held (stop ${n(held.current_stop ?? held.stop)})` : `${u.symbol} ${u.regime ?? "—"} buy > ${u.trigger_px != null ? n(u.trigger_px) : "—"}`;
-      })
-      .join(" · ");
-    L.push(`  Coinbase   ${usd(cb.equity)} · open risk ${n(cb.openRiskPct, 1)}%/15% · ${cbCoins}`);
+    const held = ["BTC", "ETH"].filter((s) => cb.open.some((t) => t.symbol === s));
+    L.push(`  Coinbase   ${usd(cb.equity)} · BTC/ETH long-term holds (70/30) · ${held.length ? `held: ${held.join(", ")}` : "building"} · weekly Monday buy = (free cash − $5) ÷ weeks left`);
   }
   L.push("");
   L.push(`YESTERDAY  ${brief.yesterday.avg != null ? `forecasts graded ${brief.yesterday.avg}/100 avg (${brief.yesterday.graded})` : "not graded yet"}`);

@@ -75,7 +75,7 @@ export default async function OpportunitiesPage() {
       <PageHeader
         title="Opportunities"
         sub="What is sitting on a level right now: the plays on the TradingView range lines, today's theses checked against live price, and what has been handed to Grok."
-        right={<Updated label="desk hourly map" at={deskAt} cadenceH={2} verb="checked" />}
+        right={<Updated label="desk lead map" at={deskAt} cadenceH={11} verb="checked" />}
       />
 
       <StatGrid cols={4}>

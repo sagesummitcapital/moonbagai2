@@ -46,7 +46,7 @@ export function MorningBrief({ brief, live = {}, meta = {} }: { brief: Brief; li
       {/* what this brief is drawn from, and how old each piece is */}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <Updated label="thesis" at={meta.thesisAt} cadenceH={26} verb="written" />
-        <Updated label="desk map" at={meta.deskCheckedAt} cadenceH={2} verb="checked" />
+        <Updated label="desk lead" at={meta.deskCheckedAt} cadenceH={11} verb="checked" />
         <span className="font-mono text-[11.5px] text-white/35">prices below are live · plans were written at the desk check</span>
       </div>
 
@@ -130,15 +130,15 @@ export function MorningBrief({ brief, live = {}, meta = {} }: { brief: Brief; li
             <div className="flex items-baseline justify-between gap-2"><span className="text-white/50">Leverage</span><span className="font-mono tabular-nums text-white">{money(lev.equity)}</span></div>
             <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2 text-[12px] text-white/45">
               <span>{lev.milestone ? `→ ${money0(lev.milestone)} next` : "milestones reached"} · {lev.open ? `${lev.open} open trade${lev.open > 1 ? "s" : ""}` : "no open trade"}</span>
-              <Updated at={meta.levEquityAt} cadenceH={30} verb="" />
+              <Updated at={meta.levEquityAt} cadenceH={96} verb="confirmed" />
             </div>
             {lev.milestone && <Meter className="mt-1.5" value={lev.equity} max={lev.milestone} tone="green" height={5} />}
             <div className="mt-3 flex items-baseline justify-between gap-2"><span className="text-white/50">Robinhood</span><span className="font-mono tabular-nums text-white">{money(rh.equity)}</span></div>
             <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2 text-[12px] text-white/45">
-              <span>{rh.positions.length ? rh.positions.join(", ") : "cash"} · box {money(rh.boxUsed)}/{money(rh.boxLimit)} · fills {rh.fills}/{rh.maxFills}</span>
+              <span>long-term buy-and-hold · {rh.ltHeld}/{rh.ltNames} plan names held · {money(rh.ltGap)} to buy</span>
               <Updated at={meta.rhEquityAt} cadenceH={30} verb="" />
             </div>
-            <Meter className="mt-1.5" value={rh.boxUsed} max={rh.boxLimit} height={5} />
+            {rh.ltNames > 0 && <Meter className="mt-1.5" value={rh.ltHeld} max={rh.ltNames} tone="green" height={5} />}
           </div>
         </Tile>
         <Tile title="Yesterday">

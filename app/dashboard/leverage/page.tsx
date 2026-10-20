@@ -50,7 +50,8 @@ export default async function LeveragePage() {
   // lev_hourly on runs where a coin's map changes. Data freshness comes from Moonbag's own BloFin feed (every 5 min).
   const machine = await getWoodsMachine().catch(() => null);
   const lastRun = machine?.deskLead?.started_at ?? data.hourly[0]?.ts;
-  const stale = lastRun ? Date.now() - new Date(lastRun).getTime() > 2.5 * 3600_000 : true;
+  // CR-6 (2026-10-20): the Desk Lead runs at 5, 8, 1 and 6 Phoenix (longest normal gap 11h overnight) — late only past 12h.
+  const stale = lastRun ? Date.now() - new Date(lastRun).getTime() > 12 * 3600_000 : true;
   const deskBlind = machine?.deskLead ? /failed to connect|DEGRADED|not connected/i.test(machine.deskLead.summary ?? "") : false;
   const feed = machine ? feedHealth(machine.feed) : null;
   const ladder = Array.isArray(rules.milestones) ? (rules.milestones as number[]) : [240, 1000, 10000, 100000, 1000000];
@@ -97,8 +98,8 @@ export default async function LeveragePage() {
 
   // ---------------------------------------------------------------- "needs you now" flags (display only — every one is a number the page already has)
   const flags: Flag[] = [];
-  if (data.equityCalc?.needs_check) flags.push({ key: "balance", tone: "amber", title: "Weekly balance check due", detail: `Last confirmed ${money(data.equityCalc.confirmed)} ${data.equityCalc.days_since_confirmed.toFixed(0)}d ago — ask Grok for the real BloFin balance.`, href: "#account", hrefLabel: "Account →" });
-  if (stale) flags.push({ key: "stale", tone: "amber", title: "Hourly watch is late", detail: lastRun ? `Last run ${ago(lastRun)} — check the scheduled task.` : "The hourly watch has not run yet.", href: "#hourly", hrefLabel: "Hourly log →" });
+  if (data.equityCalc?.needs_check) flags.push({ key: "balance", tone: "amber", title: "Balance check due", detail: `Last confirmed ${money(data.equityCalc.confirmed)} ${data.equityCalc.days_since_confirmed.toFixed(0)}d ago (due every 4 days) — send Grok your real BloFin balance.`, href: "#account", hrefLabel: "Account →" });
+  if (stale) flags.push({ key: "stale", tone: "amber", title: "Desk Lead is late", detail: lastRun ? `Last run ${ago(lastRun)} (it runs at 5, 8, 1 and 6 Phoenix) — check the scheduled task.` : "The Desk Lead has not run yet.", href: "#hourly", hrefLabel: "Hourly log →" });
   else if (deskBlind) flags.push({ key: "blind", tone: "amber", title: "Last hourly run couldn't reach TradingView", detail: `Ran ${ago(lastRun)} without TradingView (rate limit). The Woods machine and prices below use Moonbag's own BloFin feed and are unaffected.` });
   if (feed && feed.tone === "red") flags.push({ key: "feed", tone: "red", title: "Market data is stale — don't trade off this page", detail: `Newest closed BloFin bar ${feed.lastBar ? ago(feed.lastBar) : "missing"}. The feed refreshes every 5 minutes; if this stays red, something is broken.` });
   for (const o of limits?.open ?? []) {
@@ -150,7 +151,7 @@ export default async function LeveragePage() {
           <Stat
             label="BloFin account"
             value={money(equity)}
-            sub={<>{data.equityCalc ? <>calculated: last confirmed {money(data.equityCalc.confirmed)} {data.equityCalc.days_since_confirmed.toFixed(0)}d ago{data.equityCalc.realized_since ? ` ${data.equityCalc.realized_since >= 0 ? "+" : "−"}${money(Math.abs(data.equityCalc.realized_since))} P&L since` : ""}{data.equityCalc.deposits_since ? ` + ${money(data.equityCalc.deposits_since)} deposits` : ""}{data.equityCalc.needs_check ? <> · <Badge tone="amber">weekly check due — ask Grok for the real balance</Badge></> : ""}</> : <Updated label="balance" at={data.equityReportedAt} cadenceH={30} verb="reported by Grokbot" />} {milestone ? `· ${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "· all milestones reached"}</>}
+            sub={<>{data.equityCalc ? <>calc from trades · confirmed {money(data.equityCalc.confirmed)} {data.equityCalc.days_since_confirmed.toFixed(0)}d ago{data.equityCalc.realized_since ? ` ${data.equityCalc.realized_since >= 0 ? "+" : "−"}${money(Math.abs(data.equityCalc.realized_since))} P&L since` : ""}{data.equityCalc.deposits_since ? ` + ${money(data.equityCalc.deposits_since)} deposits` : ""}{data.equityCalc.needs_check ? <> · <Badge tone="amber">balance check due (4+ days) — send Grok your real balance</Badge></> : ""}</> : <Updated label="balance" at={data.equityReportedAt} cadenceH={30} verb="reported by Grokbot" />} {milestone ? `· ${num(progress, 1)}% of the way from ${money0(startingEquity)} to ${money0(milestone)}` : "· all milestones reached"}</>}
             meter={
               milestone ? (
                 <Meter value={equity - startingEquity} max={milestone - startingEquity} tone="green" height={6} labels={[money0(startingEquity), <>next milestone <b className="font-mono text-white/75">{money0(milestone)}</b></>]} />
@@ -173,7 +174,7 @@ export default async function LeveragePage() {
                 </span>
               ))}
             </div>
-            <div className="mt-2"><Updated at={lastRun} cadenceH={2} verb="hourly watch · last entry" /> {stale ? "— no hourly entry in the last 2½ hours." : "— running. Pings DESK ALERTs (grade 3+ that pass the checklist)."}</div>
+            <div className="mt-2"><Updated at={lastRun} cadenceH={11} verb="Desk Lead · last entry" /> {stale ? "— no Desk Lead entry in the last 12 hours." : "— running (5, 8, 1 and 6 Phoenix). Pings DESK ALERTs (grade 3+ that pass the checklist); the Woods machine updates every 15 minutes."}</div>
             </div>
           </details>
         </div>

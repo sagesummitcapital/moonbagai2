@@ -13,6 +13,10 @@ import { Badge, Card, Chip, Chips, DocText, Empty, Fold, GoLink, LongText, Id, M
 
 export const dynamic = "force-dynamic";
 
+// CR-6 (2026-10-20, Stavros: "i am trying to fix the 'late' status"): the Desk Lead writes the desk map at 5, 8, 1 and 6 Phoenix —
+// the longest normal gap is overnight (6 PM → 5 AM, 11h), so that is its cadence, not the old 2h hourly watch.
+const DESK_LEAD_H = 11;
+
 export default async function TodayPage() {
   const { data, error } = await load(async () => {
     const [state, theses, yesterday, report] = await Promise.all([
@@ -61,8 +65,9 @@ export default async function TodayPage() {
   // A daily close dated D happens at 00:00 UTC on D+1, so that is the instant its age counts from.
   const cbCloseAt = cbCloseDay ? new Date(Date.parse(`${cbCloseDay}T00:00:00Z`) + 86400_000).toISOString() : null;
   const freshness: Freshness[] = [
-    { label: "BloFin hourly check", at: deskCheckedAt, cadenceH: 2, verb: "ran", href: "/dashboard/leverage" },
-    { label: "BloFin balance", at: lev?.equityReportedAt, cadenceH: 30, verb: "reported", href: "/dashboard/leverage" },
+    // CR-5 (2026-10-20): the hourly watch was paused 10/10 (its row showed late forever) — removed. The BloFin balance is
+    // calculated from trades between confirms, so it is only late 4+ days after Stavros's last confirm.
+    { label: "BloFin balance", at: lev?.equityCalc?.confirmed_at ?? lev?.equityReportedAt, cadenceH: 24 * 4, verb: "confirmed · calc from trades since", href: "/dashboard/leverage" },
     { label: "Robinhood snapshot", at: rh?.snapshot?.reported_at, cadenceH: 30, verb: "reported", href: "/dashboard/robinhood" },
     { label: "Coinbase snapshot", at: cb?.snapshot?.reported_at, cadenceH: 30, verb: "reported", href: "/dashboard/coinbase" },
     { label: "Coinbase daily close", at: cbCloseAt, cadenceH: 26, verb: cbCloseDay ? `${cbCloseDay} · processed` : "", href: "/dashboard/coinbase" },
@@ -128,9 +133,9 @@ export default async function TodayPage() {
                 )}
               </div>
               {lev.milestone ? (
-                <Meter className="mt-3" value={lev.equity} max={lev.milestone} tone="green" height={5} labels={[<>next milestone <b className="font-mono text-white/70">{money0(lev.milestone)}</b></>, <Updated key="u" label="balance" at={lev.equityReportedAt} cadenceH={30} verb="reported" />]} />
+                <Meter className="mt-3" value={lev.equity} max={lev.milestone} tone="green" height={5} labels={[<>next milestone <b className="font-mono text-white/70">{money0(lev.milestone)}</b></>, <Updated key="u" label="balance" at={lev.equityCalc?.confirmed_at ?? lev.equityReportedAt} cadenceH={96} verb="confirmed" />]} />
               ) : (
-                <p className="mt-3 text-[12px] text-white/45">milestones reached · <Updated label="balance" at={lev.equityReportedAt} cadenceH={30} verb="reported" /></p>
+                <p className="mt-3 text-[12px] text-white/45">milestones reached · <Updated label="balance" at={lev.equityCalc?.confirmed_at ?? lev.equityReportedAt} cadenceH={96} verb="confirmed" /></p>
               )}
             </>
           ) : (
@@ -204,7 +209,7 @@ export default async function TodayPage() {
       </div>
 
       {/* ------------------------------------------------ 3. the market today — one line, two prices */}
-      <Card title="Market today" right={<><Updated label="thesis" at={master?.created_at} cadenceH={26} verb="written" /><Updated label="desk check" at={deskCheckedAt} cadenceH={2} verb="" /></>}>
+      <Card title="Market today" right={<><Updated label="thesis" at={master?.created_at} cadenceH={26} verb="written" /><Updated label="desk lead" at={deskCheckedAt} cadenceH={DESK_LEAD_H} verb="" /></>}>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -241,7 +246,7 @@ export default async function TodayPage() {
             <MorningBrief
               brief={briefing.brief}
               live={live}
-              meta={{ deskCheckedAt, thesisAt: master?.created_at ?? null, levEquityAt: lev?.equityReportedAt ?? null, rhEquityAt: rh?.snapshot?.reported_at ?? null }}
+              meta={{ deskCheckedAt, thesisAt: master?.created_at ?? null, levEquityAt: lev?.equityCalc?.confirmed_at ?? lev?.equityReportedAt ?? null, rhEquityAt: rh?.snapshot?.reported_at ?? null }}
             />
             <div className="mt-3"><DocText summary="Text version — the same brief Grokbot sends" text={briefing.text} /></div>
           </Fold>
