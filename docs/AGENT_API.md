@@ -277,6 +277,14 @@ a. Whenever Stavros tells you about a resting limit (new, moved or cancelled), r
    A DCA ladder goes in one call: {"group_id":"<COIN>-dca-<date>","orders":[{rung 1},{rung 2},...]} — every rung carries the
    same stop. Moonbag's sync then puts a TradingView alert at each limit price ("MB … LIMIT BUY/SELL"), lists the coin under
    "Open limits" in the Moonbag – Crypto Futures watchlist, and pings his phone when price reaches it.
+a2. INVALID IF (Stavros, 2026-10-20: "when i set limit orders, you should have invalid if: and then send me a trading view
+   notification to cancel limit order if it hits that"). Every limit of his carries an invalid-if. If he (or the caller) gives
+   one, add it to the POST: "invalid_price" (the coin price that kills it before a fill — usually his full target: the move
+   happened without him), "invalid_btc" (the BTC level that kills it: shorts → BTC reclaiming Woods's line, longs → BTC losing
+   the range low), "invalid_by" (time; default 48h) and "invalid_if" (one sentence). If not, leave them out — Moonbag's sync
+   sets the defaults within the hour and creates "MB … CANCEL LIMIT …" TradingView alerts that ping him to cancel on BloFin.
+   Always tell him the invalid-if when you confirm a limit ("Invalid if: …" — GET /levels shows it under the limit). When a
+   CANCEL alert fires and he cancels, PATCH the limit to cancelled; the sync then removes the leftover cancel alerts.
 b. Moved / resized / cancelled: PATCH /limits/{limit_id} {"limit_price"|"quantity"|"stop"|"tp1"|"status":"cancelled"}.
 c. Filled: record the trade as usual (POST /trades, entry = fill price). Moonbag links it to the limit automatically (same coin
    and side, within 0.4%) and swaps the LIMIT alert for the trade's STOP/TP alerts. A partial ladder fill: record the filled

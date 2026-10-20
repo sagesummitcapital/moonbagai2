@@ -188,6 +188,7 @@ export async function buildLevels() {
     );
     for (const o of c.limits) {
       L.push(`  OPEN LIMIT  ${o.direction === "long" ? "BUY" : "SELL"} ${n(o.limit_price, 6)}${o.quantity != null ? ` × ${n(o.quantity, 6)}` : ""} · SL ${n(o.current_stop ?? o.stop, 6)} · TP1 ${n(o.tp1, 6)}${o.plan_r != null ? ` (${fmtRR(Number(o.plan_r))})` : ""}${o.status === "touched" ? " · TOUCHED" : ""}`);
+      if ((o as LimitOrder).invalid_if) L.push(`    INVALID IF → CANCEL: ${(o as LimitOrder).invalid_if}`);
     }
     if (c.plays.length) {
       for (const p of c.plays) {

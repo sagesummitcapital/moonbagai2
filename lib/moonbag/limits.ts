@@ -44,6 +44,12 @@ export type LimitOrder = {
   notes: string | null;
   reasoning: string | null;
   source: string;
+  /** CR-7 (2026-10-20, Stavros: "when i set limit orders, you should have invalid if: and then send me a trading view notification to cancel"). */
+  invalid_if?: string | null;
+  invalid_price?: number | null;
+  invalid_btc?: number | null;
+  invalid_by?: string | null;
+  invalid_alert_ids?: string[] | null;
 };
 
 export type LimitScore = {
@@ -55,9 +61,9 @@ export type LimitScore = {
 export const LIMIT_WRITE = [
   "venue", "symbol", "direction", "origin", "group_id", "rung", "limit_price", "quantity", "notional", "leverage", "margin",
   "stop", "current_stop", "tp1", "tp2", "risk_dollars", "risk_percent", "plan_r", "level", "level_kind", "grade", "setup_id",
-  "expires_at", "notes", "reasoning", "source",
+  "expires_at", "notes", "reasoning", "source", "invalid_if", "invalid_price", "invalid_btc", "invalid_by",
 ] as const;
-export const LIMIT_PATCH = ["status", "quantity", "limit_price", "stop", "current_stop", "tp1", "tp2", "expires_at", "filled_at", "fill_price", "trade_id", "notes"] as const;
+export const LIMIT_PATCH = ["status", "quantity", "limit_price", "stop", "current_stop", "tp1", "tp2", "expires_at", "filled_at", "fill_price", "trade_id", "notes", "invalid_if", "invalid_price", "invalid_btc", "invalid_by"] as const;
 
 export async function getLimits() {
   const db = supabaseAdmin();

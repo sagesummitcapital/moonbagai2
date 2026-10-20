@@ -235,6 +235,15 @@ export default async function LeveragePage() {
               ])}
               empty="No resting limits. Tell Grok when you place one and it shows up here with a TradingView alert at its price."
             />
+            {yourLimits.some((o) => (o as typeof o & { invalid_if?: string | null }).invalid_if) && (
+              <div className="mt-3 space-y-1.5 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[13px] text-white/80">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200/80">Invalid if → cancel the limit (TradingView pings you)</div>
+                {yourLimits.map((o) => {
+                  const inv = (o as typeof o & { invalid_if?: string | null }).invalid_if;
+                  return inv ? <p key={`inv-${o.limit_id}`}><strong className="text-white">{o.symbol}</strong> <span className="text-white/45">{o.limit_id}</span> — {inv}</p> : null;
+                })}
+              </div>
+            )}
             {sizing && limits.open.some((o) => inputsFor(o)) && (
               <Section
                 title="Trade inputs"
