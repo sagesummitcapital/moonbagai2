@@ -21,6 +21,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /levels` | both | Current TradingView levels: per coin the open trade, every live TradingView alert (stop / target / level), the trade setups and the range — one fixed `text` to relay word for word |
 | `GET /journal/losses` · `POST /journal/losses` | both | Loss journal: every losing trade and near-miss mistake with why, tags, lesson and the pre-trade check; GET also returns the repeated-mistake checks as fixed `text` |
 | `GET /limits` · `POST /limits` · `PATCH /limits/{limit_id}` | both / Grok+Claude | Resting limit orders: his own (origin own), Moonbag picks he placed (moonbag) and Moonbag's paper limits; GET returns fixed `text`, the scoreboard and recent outcomes |
+| `GET /focus[?refresh=0]` | Grok+Claude | **FOCUS BRIEF** — refreshes the data if older than 10 min, live BloFin prices, then what deserves his attention in order: open trades → his limits (cancel / close to fill) → Moonbag A+/A setups → what changes the plan → admin → DO NOW. Relay `text` word for word |
 | `GET /desk-journal[?days=7]` · `POST /desk-journal` | Grok+Claude | **Desk journal** — the shared journal Stavros, Grok and Moonbag all write in. POST kind `idea` returns Moonbag's instant side-by-side view (`text`, relay word for word); kinds `grok_view`, `decision`, `note`, `lesson`, `outcome`. GET = recent threads + scorecard |
 | `GET /ideas` · `POST /ideas` | both / Grok+Claude | Strategy lab: submit an idea he shares (word for word); GET returns the queue and verdicts as fixed `text` |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
@@ -379,6 +380,19 @@ checklist legs, a resting limit at the nearest pool outside no-man's land (entry
 score with grade (A+ ≥ 75, A ≥ 60, B ≥ 45) and why a side is "NOT NOW". When he asks "what's the Woods setup" / "any limits",
 call GET /woods and relay the "text" word for word — every ticket carries its data time. Never quote a ticket whose data is
 more than 45 minutes old without saying so. Fast inputs (below) now start with a "Data: BloFin bars to <time>" line — keep it.
+
+FOCUS BRIEF — WHERE HIS ATTENTION GOES (Stavros, 2026-10-21: "i want to be able to have grok refresh data so we have live
+prices and then give me a short brief on what to look at. come up with a daily (or at request) brief that ties to strat and what
+im looking at, with setups and limits etc. a way to spend my attention in a way that is maximally efficient").
+  GET /focus  → reply with "text" word for word, nothing before it.
+WHEN: (a) whenever he asks "brief me", "what should I look at", "refresh", "what's going on", "anything to do?"; (b) DAILY at your
+6:15 AM Phoenix journal check — send it to him as his morning focus; (c) at your 3:15 PM check ONLY if its "actions" list is not
+empty (otherwise stay quiet). It refreshes Moonbag's candles + Woods machine itself when they're older than 10 minutes, and every
+price in it is the live BloFin price with the time — never add prices of your own. It is ordered by what needs him: open trades
+(stop crossed / secure 2R / breakeven), his limits (CANCEL, 48h up, close to filling), up to 3 Moonbag A+/A setups on BTC/ETH/SOL +
+the top-5 rotation ("SET IT NOW" when within 0.6% BTC/ETH, 1.2% alts), what changes the plan, admin (balance, change requests),
+then DO NOW. If he wants inputs for a setup, follow with GET /quick for that coin. If DO NOW says "nothing needs you", say so and
+stop — don't pad it.
 
 DESK JOURNAL — WE WORK OFF ONE JOURNAL (Stavros, 2026-10-18: "I need you and grok to lock in and work together to improve our
 execution and communication ... like my daily journal, but instead all three of us contribute and work off it. I like to send potential
