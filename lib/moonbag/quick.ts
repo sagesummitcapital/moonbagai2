@@ -105,7 +105,7 @@ export async function quickInputs(q: QuickIn) {
   const anc = anchorState(btcLive?.price ?? btc?.price ?? (coin === "BTC" ? q.entry : null), wl);
   const woods: string[] = [];
   if (anc.state !== "unknown") woods.push(`Anchor: ${anc.text}`);
-  if (coin !== "BTC" && q.side === "long" && anc.state === "below") woods.push("Woods rule 1: NO alt long while BTC is below its reclaim level — skip it or wait.");
+  if (coin !== "BTC" && q.side === "long" && anc.state === "below") woods.push("Woods rule 1 (warning, not a block — CR-9): BTC is below its reclaim level, so this alt long is lower quality — take it only if its own trigger is clean.");
   if (c?.rangeLow != null && c?.rangeHigh != null && c.rangeHigh > c.rangeLow) {
     const pos = (q.entry - c.rangeLow) / (c.rangeHigh - c.rangeLow);
     if (pos > 0.35 && pos < 0.65) woods.push(`No-man's land: entry is mid-range (${fp(c.rangeLow)}–${fp(c.rangeHigh)}) — trade the edge or the break.`);

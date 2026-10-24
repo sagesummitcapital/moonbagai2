@@ -13,7 +13,8 @@ const callTone = (s: string) => (s === "right" ? "green" : s === "wrong" ? "red"
 export default async function MentorsPage() {
   const { data, error } = await load(getMentorLibrary);
   if (!data) return <DataNotice error={error} />;
-  const { posts, principles, calls, record, levels, questions } = data;
+  const { posts, principles, calls, record, levels, questions, profiles, tests, mbCalls, vs } = data;
+  const SECTION: Record<string, string> = { looks_at: "What they look at", changes_view: "What changes their view", judges: "How they judge a trade" };
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
@@ -66,6 +67,51 @@ export default async function MentorsPage() {
           );
         })}
       </div>
+
+      <Card title="How they think" sub="Moonbag's model of each mentor, rebuilt as their posts come in (CR-10). Every week the model predicts their call from what they saw, and the match rate shows whether it really thinks like them.">
+        <div className="grid gap-4 md:grid-cols-2">
+          {(["eliz", "woods"] as Mentor[]).map((m) => {
+            const t = tests.filter((x) => x.mentor === m && x.match);
+            const hit = t.length ? Math.round((100 * t.filter((x) => x.match === "match").length + 50 * t.filter((x) => x.match === "partial").length) / t.length) : null;
+            return (
+              <div key={m} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <span className="text-[14px] font-semibold text-white">{MENTORS[m].name}</span>
+                  <span className="text-[12px] text-white/50">{hit != null ? `model matches their call ${hit}% (${t.length} tests)` : "no weekly tests yet"}</span>
+                </div>
+                {(["looks_at", "changes_view", "judges"] as const).map((sec) => {
+                  const p = profiles.find((x) => x.mentor === m && x.section === sec);
+                  return (
+                    <div key={sec} className="mb-2">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-white/45">{SECTION[sec]}{p ? ` · v${p.version} · ${whenShort(p.updated_at)}` : ""}</div>
+                      {p ? <p className="whitespace-pre-wrap text-[13px] leading-snug text-white/80">{p.profile}</p> : <p className="text-[13px] text-white/45">Not built yet.</p>}
+                      {p?.what_changed && <p className="text-[11.5px] text-white/40">{p.what_changed}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card title="Moonbag vs the mentors" sub="Moonbag logs its own call each morning BEFORE reading theirs (CR-11). Only calls Moonbag made first count. Both are graded the same way: direction, level hit before the invalidation, and R. No claim of beating them before 30+ fair pairs each.">
+        {vs.length ? (
+          <div className="space-y-1 text-[13px] text-white/80">
+            {vs.map((r) => (
+              <p key={`${r.week}-${r.mentor}`}><span className="text-white/45">week of {r.week}</span> · {MENTORS[r.mentor]?.name ?? r.mentor}: {r.fair_pairs} fair pairs{r.unfair_pairs_excluded ? ` (${r.unfair_pairs_excluded} excluded — Moonbag called after them)` : ""} · Moonbag {r.moonbag_hit_pct ?? "—"}% direction · {r.moonbag_level_hit_pct ?? "—"}% levels{r.moonbag_avg_r != null ? ` · ${r.moonbag_avg_r}R` : ""} vs {MENTORS[r.mentor]?.name ?? r.mentor} {r.mentor_hit_pct ?? "—"}%</p>
+            ))}
+          </div>
+        ) : <p className="text-[13px] text-white/55">No pairs yet — Moonbag starts logging its calls each morning from 10/25.</p>}
+        {mbCalls.length > 0 && (
+          <div className="mt-3 space-y-1 text-[12.5px] text-white/65">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-white/45">Moonbag&apos;s latest calls</div>
+            {mbCalls.slice(0, 6).map((c) => (
+              <p key={c.id}>{c.window_start} {c.call_window} · {c.asset} <strong className="text-white/85">{c.bias}</strong>{c.trigger ? ` · ${c.trigger}` : ""}{c.target != null ? ` · target ${px2(c.target)}` : ""} · wrong below/above {px2(c.invalidation)} · <Badge tone={c.status === "graded" ? (c.direction_hit ? "green" : "red") : "amber"}>{c.status === "graded" ? (c.direction_hit ? "right" : "wrong") : "open"}</Badge></p>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card title="How Moonbag combines them">
         <ol className="list-decimal space-y-1 pl-5 text-[13.5px] leading-relaxed text-white/80">

@@ -17,15 +17,26 @@ export type MentorRecord = { mentor: Mentor; graded: number; right_n: number; hi
 export type MentorQuestion = { q_id: number; mentor: Mentor; question: string; why: string | null; priority: number; status: string };
 export type MentorLevel = { level_id: number; coin: string; kind: string; low: number | null; high: number | null; timeframe: string | null; note: string | null; source: string; updated_at: string };
 
+/** CR-10 (2026-10-23, Stavros: "Look for what they look at ... And what changes ... How they judge"): how each mentor thinks. */
+export type MentorProfile = { id: number; mentor: Mentor; section: "looks_at" | "changes_view" | "judges"; version: number; profile: string; what_changed: string | null; updated_at: string };
+export type ProfileTest = { id: number; mentor: Mentor; week: string; predicted: string | null; actual: string | null; match: "match" | "partial" | "miss" | null; note: string | null };
+/** CR-11 (2026-10-23, Stavros: "Eventually I would like you and Claude beating the mentors"). */
+export type MoonbagCall = { id: number; logged_at: string; call_window: string; window_start: string; asset: string; bias: string; trigger: string | null; target: number | null; invalidation: number; status: string; direction_hit: boolean | null; level_hit: boolean | null; r: number | null };
+export type VsRow = { week: string; mentor: Mentor; fair_pairs: number; unfair_pairs_excluded: number; graded_pairs: number; moonbag_hit_pct: number | null; moonbag_level_hit_pct: number | null; moonbag_avg_r: number | null; mentor_hit_pct: number | null };
+
 export async function getMentorLibrary() {
   const db = supabaseAdmin();
-  const [posts, principles, calls, record, levels, questions] = await Promise.all([
+  const [posts, principles, calls, record, levels, questions, profiles, tests, mbCalls, vs] = await Promise.all([
     db.from("mentor_posts").select("*").order("received_at", { ascending: false }).limit(30),
     db.from("mentor_principles").select("*").eq("status", "active").order("mentor").order("category").order("principle_id"),
     db.from("mentor_calls").select("*").order("made_at", { ascending: false }).limit(40),
     db.from("v_mentor_record").select("*"),
     db.from("woods_levels").select("*").eq("active", true).in("source", ["eliz", "woods"]).order("low", { ascending: false }),
     db.from("mentor_questions").select("*").in("status", ["open", "asked"]).order("priority").order("q_id"),
+    db.from("mentor_profile").select("id, mentor, section, version, profile, what_changed, updated_at").eq("is_current", true),
+    db.from("mentor_profile_tests").select("id, mentor, week, predicted, actual, match, note").order("week", { ascending: false }).limit(20),
+    db.from("moonbag_calls").select("id, logged_at, call_window, window_start, asset, bias, trigger, target, invalidation, status, direction_hit, level_hit, r").order("logged_at", { ascending: false }).limit(20),
+    db.from("v_moonbag_vs_mentors").select("*").limit(16),
   ]);
   return {
     posts: (posts.data ?? []) as MentorPost[],
@@ -34,6 +45,10 @@ export async function getMentorLibrary() {
     record: (record.data ?? []) as MentorRecord[],
     levels: (levels.data ?? []) as MentorLevel[],
     questions: (questions.data ?? []) as MentorQuestion[],
+    profiles: (profiles.error ? [] : profiles.data ?? []) as MentorProfile[],
+    tests: (tests.error ? [] : tests.data ?? []) as ProfileTest[],
+    mbCalls: (mbCalls.error ? [] : mbCalls.data ?? []) as MoonbagCall[],
+    vs: (vs.error ? [] : vs.data ?? []) as VsRow[],
   };
 }
 

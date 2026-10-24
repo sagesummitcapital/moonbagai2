@@ -21,14 +21,14 @@ export async function getWoodsLevels(coin?: string) {
 const n = (v: number | null) => (v == null ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: v >= 1 ? 2 : 4 }));
 const rng = (l: WoodsLevel) => (l.low != null && l.high != null && l.low !== l.high ? `${n(l.low)}–${n(l.high)}` : n(l.low ?? l.high));
 
-/** BTC anchor state from the stored line in the sand: below → no alt longs; inside → chop; above (on 4H acceptance) → bullish. */
+/** BTC anchor state from the stored line in the sand: below → alt longs lower quality (warning, CR-9); inside → chop; above (on 4H acceptance) → bullish. */
 export function anchorState(btcPrice: number | null, levels: WoodsLevel[]) {
   const line = levels.find((l) => l.coin === "BTC" && l.kind === "line_in_sand");
   if (!line || btcPrice == null) return { state: "unknown" as const, line: null, text: "BTC line in the sand not set — ask Woods / set it in the morning map." };
   const lo = Number(line.low), hi = Number(line.high ?? line.low);
   const state = btcPrice < lo ? ("below" as const) : btcPrice <= hi ? ("inside" as const) : ("above" as const);
   const text =
-    state === "below" ? `BTC ${n(btcPrice)} is BELOW the line in the sand ${rng(line)} — chop/neutral; no alt longs.`
+    state === "below" ? `BTC ${n(btcPrice)} is BELOW the line in the sand ${rng(line)} — chop/neutral; alt longs are lower quality (a warning, not a block).`
     : state === "inside" ? `BTC ${n(btcPrice)} is INSIDE the line ${rng(line)} — no-man's land; wait for the edge or the break.`
     : `BTC ${n(btcPrice)} is ABOVE ${rng(line)} — bullish only once a 4H candle has closed and held above ${n(hi)} (acceptance, not a touch).`;
   return { state, line, text };

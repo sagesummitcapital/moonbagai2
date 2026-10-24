@@ -25,7 +25,7 @@ Every rule below comes from our own backtests, live trades and lookbacks. Where 
 
 Stavros, 2026-10-16: "i was able to get my mentor and a trader that ive looked up to for a while to give me a run down on strategy ... traders typically only use one and get really good at it ... we just repeat this strategy and can still test others but this is main strategy." This section governs the leverage desk; everything else in §0.2–§3 is a tool inside it or a paper test beside it.
 
-1. **Anchor:** BTC drives every trade. No alt long while BTC is below its key reclaim level (the line in the sand).
+1. **Anchor:** BTC drives every trade. BTC below its key reclaim level (the line in the sand) makes alt longs LOWER QUALITY — a warning on the card, not a block (CR-9, Stavros 2026-10-23: "Yes all those sound good"; he doesn't want blanket directional filters). Each setup still has to pass its own trigger (rule 5) and the hard stops (4% daily stop, a closed 15m back through the swept level, no trading the news-spike candles).
 2. **Top-down:** weekly/daily = zones. 4H = setup. 1H/15m = entry only.
 3. **Levels:** order blocks and demand zones (where buyers bid before a rally), supply zones (where sellers stopped it), liquidity pools (equal lows/highs, last week's low/high, range lows/highs).
 4. **No-man's land:** no trades in the middle of a range or of an order block. Trade the edges or the break. Expect chop before big moves.
@@ -210,10 +210,12 @@ Stavros: "i want a simple long term investment strategy as well - just like we s
 
 - News-dip buys: SPCX, TSLA, UFO, INTC, MP, LHX, GFS. Never metals, VOO, ITA, or the keep-only names.
 - Caps unchanged: one name at most 30%, SPCX + TSLA at most 45%. Robinhood's VRF/no-crypto block stays.
+- **Market-dip buys (CR-12, Stavros 2026-10-24: "Approve dip-buy rule and move EOD to 12:45"; 10/23: "Make sure we are DCA when market dips like last two days").** On a broad dip — SPY down ≥ 1.5% on the day, or QQQ down ≥ 2.0%, or SPY ≥ 4% below its 20-day high (the first day it gets there) — buy **$3** split over the 1–2 most-underweight holds (gap ÷ target), min $1 an order, at most **2 dip days a week ($6)**. Checked in RockBot's 6:35 AM run (prior close) and the 12:45 PM run (same day, before the 1:00 PM Phoenix close). The dollars come out of the remaining 8-week ramp (it front-loads the ramp — no extra money), and cash never goes below a **$10 reserve**. On top of the single-name news-dip rule (rule 3), which stays. Buys only; SPCX/TSLA never sold.
 
 **Coinbase (10+ year BTC/ETH hold)**
 - Every Monday: cash (minus a $5 reserve) ÷ remaining weeks of an 8-week ramp from 2026-10-19, split **BTC 70 / ETH 30**; then new deposits the same way. Cash held by working dip-ladder limits counts as already allocated, and ladder fills count toward the ramp — so the Monday buy = (free cash − $5) ÷ remaining weeks (Grok/Claude, desk journal #31, 2026-10-19).
 - Double that week's buy when BTC is in Eliz's weekly buy zone or 15%+ below its 26-week high. The working dip-ladder limits stay.
+- **Market-dip buys (CR-12, 2026-10-24).** The working dip-ladder limits ARE the Coinbase dip buys. Extra, checked in the 5:41 PM run: when BTC is down ≥ 4% over 24h or ETH ≥ 6%, and free cash after the $5 reserve is ≥ $2, buy $2–4 split BTC 70 / ETH 30, at most 2 a week. Buys only.
 - The old trend book (cb_run) keeps paper-tracking only; it never buys or sells live.
 
 **Scored against:** the same dollars put into VOO on the same dates, reported every Saturday.
@@ -840,6 +842,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-24 (v41):** CR-12 standing market-dip buys for the long-term books (Robinhood $3 on SPY −1.5% / QQQ −2% / SPY 4% under its 20-day high, max 2 a week, from the ramp, $10 reserve; Coinbase $2–4 on BTC −4% / ETH −6% in 24h, max 2 a week); CR-9 BTC-line anchor is a warning on alt longs, not a block (hard stops unchanged).
 - **2026-10-19 (v40):** Liquidity bands — estimated liquidation heatmap (OKX OI model, hourly), four theses tested (magnet ✗, break ✗, sweep ≈0, biggest-band fade limit +0.08R → LIQ✓ paper flag, Weekly 4f), shown on /quick, /levels and the MOONBAG VIEW; Grok ↔ Claude daily journal loop (FOR CLAUDE / FOR GROK, Daily step 0); caller calls logged with their numbers and &risk=; Coinbase ramp counts ladder-held cash as allocated; live prices on /levels and the /quick anchor (stale > 45 min flagged).
 - **2026-10-18 (v39):** Secure 2R written into the playbook (TP1 = 2R when the level is 2R+ away, level = runner; A+ = 3R+ room; A+ NEAR alerts); fast inputs with no numbers = live BloFin card (GET /quick without entry/stop); the DESK JOURNAL — one shared journal for Stavros, Grok and Moonbag with an instant side-by-side MOONBAG VIEW and a 72h scorecard (§0.2c, Weekly 4e).
 - **2026-10-18 (v38):** Long-term simplified — Robinhood 100% long-term (trading sleeve retired), space + government stocks + ETFs, weekly buys, automatic news-dip buys, never auto-sell; Coinbase BTC 70 / ETH 30 weekly DCA with dip double.

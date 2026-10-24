@@ -68,7 +68,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   const a = btcRow?.anchor ?? null;
   if (a?.line_low != null && a?.line_high != null && btc != null) {
     const st = btc > a.line_high ? "ABOVE" : btc < a.line_low ? "BELOW" : "INSIDE";
-    L.push(`Frame: BTC ${st} Woods's line ${fp(a.line_low)}–${fp(a.line_high)} — ${st === "ABOVE" ? "longs favoured on 4H acceptance" : st === "BELOW" ? "no alt longs; shorts favoured" : "chop zone: trade the edges, not the middle"}${a.context?.state ? ` · market ${a.context.state}` : ""}`);
+    L.push(`Frame: BTC ${st} Woods's line ${fp(a.line_low)}–${fp(a.line_high)} — ${st === "ABOVE" ? "longs favoured on 4H acceptance" : st === "BELOW" ? "below the line — alt longs are lower quality (a warning, not a block — CR-9); each setup still needs its own trigger" : "chop zone: trade the edges, not the middle"}${a.context?.state ? ` · market ${a.context.state}` : ""}`);
   }
   const pl = plan.data as { market_bias: string | null; confidence: number | null; headline: string | null; no_trade_if: string | null } | null;
   if (pl) L.push(`Today's plan: ${(pl.market_bias ?? "neutral").toUpperCase()}${pl.confidence != null ? ` ${pl.confidence}%` : ""} — ${pl.headline ?? ""}`);
@@ -125,8 +125,8 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const notes = liquidityNotes(liq, s.direction, s.limit_price, Number(s.current_stop ?? s.stop), s.tp1).filter((x) => x.startsWith("LIQ✓") || x.startsWith("Stop"));
     const near = away <= NEAR_PCT(s.symbol);
     const blocked = wm.find((w) => w.coin === s.symbol && w.side === s.direction)?.blocked;
-    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}`);
-    if (near && !blocked) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
+    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}`);
+    if (near && !(blocked && !/BTC anchor/.test(blocked))) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
   }
 
   // 4) WHAT CHANGES THE PLAN
