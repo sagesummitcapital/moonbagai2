@@ -11,6 +11,7 @@ import { TraderCode } from "../_components/TraderCode";
 import { GoalBar, OpenPlanCard } from "../_components/OpenPlan";
 import { getBoard, tradingWindow } from "@/lib/moonbag/board";
 import { Board, type APlus } from "../_components/Board";
+import { APlusStrip, aplusRows } from "../_components/APlusStrip";
 import { NeedsYou, type Flag } from "../_components/Attention";
 import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_components/charts";
 import { LiveMetric, LivePrice, type Stored } from "../_components/LivePrice";
@@ -77,12 +78,12 @@ export default async function LeveragePage() {
   const limitPositive = !paperScore?.closed || Number(paperScore.closed) < 3 || Number(paperScore.avg_r ?? 0) > 0;
   if (limitPositive) for (const r of [...(board?.core ?? []), ...(board?.movers ?? [])]) {
     for (const [side, p] of [["long", r.long_plan], ["short", r.short_plan]] as const) {
-      if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord });
+      if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord, when: r.updated_at });
     }
   }
   for (const o of limits?.open ?? []) {
     if (limitPositive && o.origin === "paper" && o.grade === "A+" && !aplus.some((x) => x.coin === o.symbol && x.side === o.direction)) {
-      aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), rr: o.plan_r == null ? null : Number(o.plan_r), strategy: "Paper limit (24h order)", record: limitRecord });
+      aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), tp2: o.tp2 == null ? null : Number(o.tp2), rr: o.plan_r == null ? null : Number(o.plan_r), strategy: "Paper limit (24h order)", record: limitRecord, when: o.updated_at });
     }
   }
   for (const sg of signals) {
@@ -90,9 +91,17 @@ export default async function LeveragePage() {
     const st = data.setups.find((x) => x.setup_id === sg.setup_id);
     const rec = st ? (Number(st.bt_avg_r) > 0 || Number(st.signal_avg_r) > 0) : false;
     if (!rec) continue;
-    aplus.push({ key: `s-${sg.signal_id}`, coin: sg.asset, side: sg.direction, entry: Number(sg.entry), stop: Number(sg.stop), tp1: sg.tp1 == null ? null : Number(sg.tp1), rr: sg.rr_tp1 == null ? null : Number(sg.rr_tp1), strategy: st?.name ?? String(sg.setup_id), record: `backtest ${st?.bt_avg_r == null ? "—" : `${Number(st.bt_avg_r).toFixed(2)}R`} · signals ${st?.resolved ?? 0} resolved ${st?.signal_avg_r == null ? "" : `${Number(st.signal_avg_r).toFixed(2)}R`}` });
+    aplus.push({ key: `s-${sg.signal_id}`, coin: sg.asset, side: sg.direction, entry: Number(sg.entry), stop: Number(sg.stop), tp1: sg.tp1 == null ? null : Number(sg.tp1), tp2: sg.tp2 == null ? null : Number(sg.tp2), rr: sg.rr_tp1 == null ? null : Number(sg.rr_tp1), strategy: st?.name ?? String(sg.setup_id), record: `backtest ${st?.bt_avg_r == null ? "—" : `${Number(st.bt_avg_r).toFixed(2)}R`} · signals ${st?.resolved ?? 0} resolved ${st?.signal_avg_r == null ? "" : `${Number(st.signal_avg_r).toFixed(2)}R`}`, when: sg.created_at });
   }
   const boardUpdated = [...(board?.core ?? []), ...(board?.movers ?? [])].map((r) => r.updated_at).sort().pop() ?? null;
+  // The A+ strip (Stavros 2026-10-18): the working A+ limit_orders rows for BTC / ETH / SOL and the rotation top 5, shown in
+  // full at the top of the page. The small A+ cards in "needs you now" keep everything the strip does not already show.
+  // Paper A+ limits follow the same rule as "needs you now": hidden while the paper limit record is negative (limitPositive).
+  const stripAll = aplusRows(limits?.open, board?.movers.map((r) => r.asset));
+  const stripRows = stripAll.filter((o) => limitPositive || o.origin !== "paper");
+  const mutedPaper = stripAll.length - stripRows.length;
+  const inStrip = new Set(stripRows.map((o) => `${o.symbol}-${o.direction}`));
+  const aplusRest = aplus.filter((a) => !(a.key.startsWith("l-") && inStrip.has(`${a.coin}-${a.side}`)));
   const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
   const storedFor = (asset: string): Stored | undefined => (latest[asset] ? storedOf(latest[asset].price, latest[asset].ts) : undefined);
 
@@ -133,8 +142,15 @@ export default async function LeveragePage() {
         }
       />
 
+      {/* ------------------------------------------------ 0. A+ setups — loud when there is one, one quiet line when not */}
+      {limits ? (
+        <APlusStrip rows={stripRows} inputsFor={inputsFor} equity={sizing?.equity ?? null} feedStale={feed?.tone === "red"} mutedPaper={mutedPaper} />
+      ) : (
+        <div className="rounded-xl border border-amber-300/25 bg-amber-300/[0.05] px-4 py-2.5 text-[13.5px] text-amber-100">A+ setups unknown — the limit orders did not load this time. Refresh before trading off this page.</div>
+      )}
+
       {/* ------------------------------------------------ 1. what needs you */}
-      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." />
+      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplusRest} aplusTotal={aplusRest.length + stripRows.length} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." />
 
       {/* ------------------------------------------------ 1b. the Woods machine — main strategy, live every 15 min */}
       {machine && machine.rows.length > 0 && <div id="woods"><WoodsMachine m={machine} sizing={sizing} /></div>}
@@ -219,15 +235,16 @@ export default async function LeveragePage() {
             sub="Your resting BloFin limit orders (Grok records them; each has a TradingView alert at its price) and Moonbag's paper limits testing the backtested limit recipe."
           >
             <Table
-              head={["Coin", "Side", "Limit", "Stop", "TP1", "R : R", "Size", "Status", "Expires"]}
-              align={["l", "l", "r", "r", "r", "r", "r", "l", "l"]}
-              minWidth={820}
+              head={["Coin", "Side", "Limit", "Stop", "TP1", "TP2", "R : R", "Size", "Status", "Expires"]}
+              align={["l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
+              minWidth={900}
               rows={limits.open.map((o) => [
-                <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge><br /><Id>{o.limit_id}</Id></span>,
+                <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge>{o.grade && <> <Badge tone={o.grade === "A+" ? "green" : o.grade === "A" ? "cyan" : o.grade === "B" ? "amber" : "gray"}>{o.grade}</Badge></>}<br /><Id>{o.limit_id}</Id></span>,
                 <Badge key="d" tone={biasTone(o.direction)}>{biasGlyph(o.direction)} {o.direction === "long" ? "buy" : "sell"}</Badge>,
                 <span key="l" className="font-mono tabular-nums text-white">{px2(o.limit_price)}</span>,
                 <span key="s" className="font-mono tabular-nums text-rose-300">{px2(o.current_stop ?? o.stop)}</span>,
                 <span key="t" className="font-mono tabular-nums text-accent-green">{px2(o.tp1)}</span>,
+                <span key="t2" className="font-mono tabular-nums text-accent-green/80">{px2(o.tp2)}</span>,
                 <strong key="r" className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong>,
                 <span key="q" className="text-white/70">{o.quantity != null ? <>{num(o.quantity, 4)}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</> : (() => { const i = inputsFor(o); return i ? <a href={`#inputs-${o.limit_id}`} className="text-accent-cyan underline decoration-dotted underline-offset-2" title={i.text}>{i.qty} · {i.leverage}x</a> : "—"; })()}</span>,
                 <Badge key="st" tone={o.status === "touched" ? "amber" : "gray"}>{o.status === "touched" ? "touched — filled?" : "working"}</Badge>,

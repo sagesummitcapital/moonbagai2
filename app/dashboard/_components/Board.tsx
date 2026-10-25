@@ -75,7 +75,7 @@ function CoinCard({ r }: { r: BoardRow }) {
   );
 }
 
-export type APlus = { key: string; coin: string; side: string; entry: number; stop: number; tp1: number | null; rr: number | null; strategy: string; record: string; when?: string };
+export type APlus = { key: string; coin: string; side: string; entry: number; stop: number; tp1: number | null; tp2?: number | null; rr: number | null; strategy: string; record: string; /** when this setup's data was written — shown on the card so its age is never in doubt */ when?: string | null };
 
 export function Board({ core, movers, weekPlan, window, updatedAt }: {
   core: BoardRow[]; movers: BoardRow[]; weekPlan: WeekPlan; window: { open: boolean; monday: boolean }; updatedAt: string | null;

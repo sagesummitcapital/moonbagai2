@@ -1,24 +1,28 @@
 // "Needs you now" — the first thing on the leverage desk (Stavros, 2026-10-15: "anything worth my attention
 // should be prominent; everything else I can expand"). Display only: every item here is built from numbers the
-// page already loads. Open trades get the live rail; A+ setups get one-tap copy; everything else is one line + a link.
+// page already loads. Open trades get the live rail; A+ setups not already shown in full in the A+ strip above get a small
+// card with limit / stop / TP1 / TP2 and the data time; everything else is one line + a link.
 import type { Trade } from "@/lib/moonbag/types";
 import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import { fmtPct, fmtRR, tradeMetrics } from "@/lib/moonbag/desk";
 import type { APlus } from "./Board";
 import { TradeRail, type Stored } from "./LivePrice";
-import { Action, Badge, Card, Id, Tile, biasGlyph, biasTone, money, num, px2, whenShort } from "./ui";
+import { Action, Badge, Card, Id, Tile, Updated, biasGlyph, biasTone, money, num, px2, whenShort } from "./ui";
 
 export type Flag = { key: string; tone: "amber" | "red" | "cyan" | "green"; title: string; detail?: string; href?: string; hrefLabel?: string };
 
-export function NeedsYou({ trades, live, storedFor, aplus, flags, nextCheck }: {
+export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, nextCheck }: {
   trades: Trade[];
   live: Record<string, LP>;
   storedFor: (asset: string) => Stored | undefined;
   aplus: APlus[];
+  /** Total A+ setups on the page, when some are shown in full in the A+ strip above and not repeated here. */
+  aplusTotal?: number;
   flags: Flag[];
   /** One calm line for the quiet state, e.g. "Next hourly check at :25." */
   nextCheck?: string;
 }) {
+  const total = aplusTotal ?? aplus.length;
   const quiet = !trades.length && !aplus.length && !flags.length;
   const urgent = flags.some((f) => f.tone === "amber" || f.tone === "red");
   return (
@@ -28,12 +32,12 @@ export function NeedsYou({ trades, live, storedFor, aplus, flags, nextCheck }: {
       right={
         <>
           <Badge tone={trades.length ? "green" : "gray"} dot>{trades.length} open trade{trades.length === 1 ? "" : "s"}</Badge>
-          <Badge tone={aplus.length ? "green" : "gray"} dot>{aplus.length} A+ setup{aplus.length === 1 ? "" : "s"}</Badge>
+          <Badge tone={total ? "green" : "gray"} dot>{total} A+ setup{total === 1 ? "" : "s"}</Badge>
         </>
       }
     >
       {quiet ? (
-        <p className="text-[14px] leading-relaxed text-white/65">Nothing needs you right now — no open trade, no A+ setup, nothing late. Waiting for price to reach a level is the normal state.{nextCheck ? ` ${nextCheck}` : ""}</p>
+        <p className="text-[14px] leading-relaxed text-white/65">{total ? "Nothing else needs you — the A+ setups are above." : "Nothing needs you right now — no open trade, no A+ setup, nothing late."} Waiting for price to reach a level is the normal state.{nextCheck ? ` ${nextCheck}` : ""}</p>
       ) : (
         <div className="space-y-3">
           {trades.length > 0 && (
@@ -51,13 +55,16 @@ export function NeedsYou({ trades, live, storedFor, aplus, flags, nextCheck }: {
                       <strong className="text-[15px] text-white">{a.coin} <span className={a.side === "long" ? "text-accent-green" : "text-rose-300"}>{a.side === "long" ? "▲ LONG" : "▼ SHORT"}</span></strong>
                     </div>
                   </div>
-                  <div className="mt-2 grid grid-cols-4 gap-1 font-mono text-[13px] tabular-nums">
-                    <span><span className="block text-[10.5px] uppercase text-white/40">Limit</span><span className="text-white">{px2(a.entry)}</span></span>
-                    <span><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="text-rose-300">{px2(a.stop)}</span></span>
-                    <span><span className="block text-[10.5px] uppercase text-white/40">TP1</span><span className="text-accent-green">{px2(a.tp1)}</span></span>
-                    <span><span className="block text-[10.5px] uppercase text-white/40">R : R</span><span className="text-white">{a.rr == null ? "—" : `${a.rr.toFixed(1)}R`}</span></span>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 font-mono text-[13px] tabular-nums sm:grid-cols-4">
+                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">Limit</span><span className="break-words text-white">{px2(a.entry)}</span></span>
+                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="break-words text-rose-300">{px2(a.stop)}</span></span>
+                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">TP1{a.rr == null ? "" : ` · ${a.rr.toFixed(1)}R`}</span><span className="break-words text-accent-green">{px2(a.tp1)}</span></span>
+                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">TP2 · runner</span><span className="break-words text-accent-green/80">{a.tp2 == null ? "—" : px2(a.tp2)}</span></span>
                   </div>
-                  <div className="mt-2 text-[11.5px] leading-snug text-white/50">{a.strategy} · {a.record}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] leading-snug text-white/50">
+                    <span>{a.strategy} · {a.record}</span>
+                    {a.when && <Updated label="data" at={a.when} cadenceH={12} verb="" />}
+                  </div>
                 </div>
               ))}
             </div>
