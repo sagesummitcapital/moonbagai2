@@ -29,7 +29,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     ]);
   }
 
-  const [trades, limits, woods, uni, econ, plan, crs, calc] = await Promise.all([
+  const [trades, limits, woods, uni, econ, plan, crs, calc, lmap] = await Promise.all([
     db.from("trades").select("trade_id, symbol, direction, entry, stop, current_stop, tp1, current_tp1, tp2, current_tp2, qty_open, quantity, opened_at").eq("venue", "blofin").eq("status", "open"),
     db.from("limit_orders").select("*").in("status", ["working", "touched"]).order("created_at", { ascending: false }).limit(60),
     db.from("woods_machine").select("coin, side, as_of, grade, confidence, trigger, blocked, anchor"),
@@ -38,6 +38,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     db.from("lev_open_plan").select("plan_date, market_bias, confidence, headline, no_trade_if").eq("plan_date", today).maybeSingle(),
     db.from("strategy_changes").select("change_id, change").eq("status", "proposed").order("change_id"),
     calcEquity("blofin"),
+    db.rpc("mb_level_map", { p_asset: "BTC" }).then((r: { data: unknown }) => r.data as { levels?: { name: string; price: number }[] } | null, () => null),
   ]);
 
   type T = { trade_id: string; symbol: string; direction: "long" | "short"; entry: number; stop: number | null; current_stop: number | null; tp1: number | null; current_tp1: number | null; tp2: number | null; current_tp2: number | null; qty_open: number | null; quantity: number | null; opened_at: string | null };
@@ -69,6 +70,21 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   if (a?.line_low != null && a?.line_high != null && btc != null) {
     const st = btc > a.line_high ? "ABOVE" : btc < a.line_low ? "BELOW" : "INSIDE";
     L.push(`Frame: BTC ${st} Woods's line ${fp(a.line_low)}–${fp(a.line_high)} — ${st === "ABOVE" ? "longs favoured on 4H acceptance" : st === "BELOW" ? "below the line — alt longs are lower quality (a warning, not a block — CR-9); each setup still needs its own trigger" : "chop zone: trade the edges, not the middle"}${a.context?.state ? ` · market ${a.context.state}` : ""}`);
+  }
+  // HTF LEVEL MAP (CR-16, Stavros 2026-10-25: "look at Monday highs and lows as well as weekly and monthly time frames, 15m timeframe
+  // for entry. 4h and 1d for validation.") — the two nearest levels above and below the LIVE BTC price.
+  const lv = ((lmap as { levels?: { name: string; price: number }[] } | null)?.levels ?? []).filter((x) => x.price != null);
+  if (btc != null && lv.length) {
+    const up = lv.filter((x) => x.price > btc).sort((x, y) => x.price - y.price).slice(0, 2);
+    const dn = lv.filter((x) => x.price <= btc).sort((x, y) => y.price - x.price).slice(0, 2);
+    const f = (x: { name: string; price: number }) => `${fp(x.price)} ${x.name} (${pctAway(btc, x.price) >= 0 ? "+" : ""}${pctAway(btc, x.price).toFixed(1)}%)`;
+    L.push(`BTC levels: above ${up.length ? up.map(f).join(" · ") : "—"} | below ${dn.length ? dn.map(f).join(" · ") : "—"}`);
+  }
+  const dow = new Date(now).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
+  if (!["Sat", "Sun"].includes(dow)) {
+    const ny = new Date(new Date(now).toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const openUtc = now + (Date.UTC(ny.getFullYear(), ny.getMonth(), ny.getDate(), 9, 30) - Date.UTC(ny.getFullYear(), ny.getMonth(), ny.getDate(), ny.getHours(), ny.getMinutes(), ny.getSeconds()));
+    if (openUtc > now - 30 * 60000) L.push(`US open ${new Date(openUtc).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" })} Phoenix — your rule: wait for the first two 15m candles, then retest + 15m confirm at a level (paper-tested as CR-15, not a Moonbag signal yet).`);
   }
   const pl = plan.data as { market_bias: string | null; confidence: number | null; headline: string | null; no_trade_if: string | null } | null;
   if (pl) L.push(`Today's plan: ${(pl.market_bias ?? "neutral").toUpperCase()}${pl.confidence != null ? ` ${pl.confidence}%` : ""} — ${pl.headline ?? ""}`);
@@ -149,5 +165,5 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   else L.push(`DO NOW: nothing needs you. ${ranked.length ? `Closest setup: ${ranked[0].s.symbol} ${ranked[0].s.direction} ${fp(ranked[0].s.limit_price)} (${ranked[0].away.toFixed(2)}% away) — TradingView pings you as it gets near.` : "Let the alerts work; check back after the next 4H close."}`);
   L.push("Analysis only — you place every order.");
 
-  return { ok: true as const, text: L.join("\n"), generated_at: new Date(now).toISOString(), refresh, prices: Object.fromEntries([...px].map(([k, v]) => [k, v?.price ?? null])), actions: act };
+  return { ok: true as const, text: L.join("\n"), generated_at: new Date(now).toISOString(), refresh, prices: Object.fromEntries([...px].map(([k, v]) => [k, v?.price ?? null])), levels: lv, actions: act };
 }
