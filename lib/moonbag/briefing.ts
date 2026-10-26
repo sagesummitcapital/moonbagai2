@@ -4,7 +4,7 @@
 // Same layout every day, built to be skimmed in the morning (Stavros, 2026-10-08).
 
 import { getSystemState, getYesterdayReview } from "./db";
-import { fmtPct, fmtRR, getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert, tradeMetrics } from "./desk";
+import { fmtPct, fmtRR, getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert, isStaleSignal, tradeMetrics } from "./desk";
 import { livePrice, STALE_MIN } from "./livePrice";
 
 const n = (v: unknown, d = 2) =>
@@ -65,6 +65,7 @@ export async function buildBriefing() {
     getYesterdayReview(),
     getCoinbaseBook().catch(() => null), // Book 3 is optional — never let it blank the brief
   ]);
+  lev.signals = lev.signals.filter((s) => !isStaleSignal(s)); // CR-17: expired signals never print as plays
   const now = new Date().toISOString();
   const risk = riskNow(lev.equity, lev.strategy?.rules, Number(lev.risk?.risk_per_trade_pct ?? 2));
 

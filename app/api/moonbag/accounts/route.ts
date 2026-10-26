@@ -21,12 +21,25 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   if (body.venue !== "robinhood" && body.venue !== "blofin" && body.venue !== "coinbase") {
     throw new BadRequest('venue must be "robinhood", "blofin" or "coinbase"');
   }
+  // CR-19 (desk journal #126/#127, 2026-10-26): the 6:44 AM Robinhood post had market_value 0 on every position. A held position never
+  // has a $0 value: fill it from quantity × price when a price is posted, otherwise store null + a flag (never 0) and tell the caller.
+  const missing: string[] = [];
+  const fixedPositions = (Array.isArray(body.positions) ? body.positions : []).map((raw: unknown) => {
+    const p = (raw ?? {}) as Record<string, unknown>;
+    const q = Number(p.quantity ?? 0), mv = Number(p.market_value ?? 0), px = Number(p.price ?? 0);
+    if (q > 0 && !(mv > 0)) {
+      if (px > 0) return { ...p, market_value: Math.round(q * px * 100) / 100, market_value_filled: true };
+      missing.push(String(p.symbol ?? "?"));
+      return { ...p, market_value: null, market_value_missing: true };
+    }
+    return p;
+  });
   const snapshot = await createAccountSnapshot({
     venue: body.venue,
     equity: Number(body.equity),
     cash: body.cash == null ? null : Number(body.cash),
     buying_power: body.buying_power == null ? null : Number(body.buying_power),
-    positions: Array.isArray(body.positions) ? body.positions : [],
+    positions: fixedPositions,
     reported_by: agent,
   });
   // Deposits / withdrawals (Stavros, 2026-10-15: "im going to put another 1k into blofin") — so the goal bar and the
@@ -41,5 +54,5 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
     if (ins.error) throw new BadRequest(ins.error.message);
     flow = ins.data;
   }
-  return json({ ok: true, snapshot, flow }, 201);
+  return json({ ok: true, snapshot, flow, ...(missing.length ? { warning: `market_value missing for ${missing.join(", ")} — re-send with each position's market_value (or price) once the market has a price` } : {}) }, 201);
 });

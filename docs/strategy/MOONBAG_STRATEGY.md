@@ -193,8 +193,8 @@ Stavros: "i want a simple long term investment strategy as well - just like we s
 
 **The whole strategy in five rules**
 1. **Buy and hold for 10+ years.** Nothing in Robinhood or Coinbase is ever sold automatically. A sale happens only when Stavros says so in chat. SpaceX and Tesla are never sold.
-2. **Buy every week.** Each Monday, cash goes to the holdings furthest below their target weight (8-week ramp from 2026-10-19, then every new deposit).
-3. **Buy the dip on news.** When a space or government name drops 7%+ in a day, or 5%+ after its earnings or a big headline, Grok buys an extra week's slice that day (once per name per week, buys only). A name 15%+ below its 26-week high gets a double weekly buy.
+2. **Buy every week.** Each Monday, cash goes to the single holdings furthest below their target weight, ranked holding by holding by gap ÷ target weight (the same measure the CR-12 dip buys use) — not by bucket, so there is no forced catch-up buy for the SPCX/TSLA bucket as a whole (CR-19, Stavros 2026-10-26). 8-week ramp from 2026-10-19, then every new deposit.
+3. **Buy the dip on news.** When a space or government name drops 7%+ in a day, or 5%+ after its earnings or a big headline, Grok buys an extra week's slice that day (once per name per week, buys only). A name 15%+ below its 26-week high gets a double weekly buy — only SPCX, TSLA and NVDA (the FUD-boost names, §0.4); metals and ETFs (e.g. GLD) are never doubled, in the Monday buy or on a dip (CR-19).
 4. **Grow the list slowly.** New space / government-stake names start on the watchlist; the Saturday review proposes promotions; Stavros approves. The GraniteShares "American Stakes" ETF (government-owned stocks; filed, not yet listed) gets considered once it trades.
 5. **Balance with ETFs.** A quarter of Robinhood sits in ETFs so one bad headline can't sink the account.
 
@@ -842,6 +842,7 @@ The Strategy lab page (moonbag.ai/dashboard/lab) shows the ideas, every part's v
 
 ## 7. Change log
 
+- **2026-10-26 (v42):** CR-19 — Monday ramp ranks single holdings by gap ÷ target weight (not buckets; no forced SPCX/TSLA catch-up); the 15%-below-26-week-high double applies only to SPCX/TSLA/NVDA, never metals or ETFs.
 - **2026-10-24 (v41):** CR-12 standing market-dip buys for the long-term books (Robinhood $3 on SPY −1.5% / QQQ −2% / SPY 4% under its 20-day high, max 2 a week, from the ramp, $10 reserve; Coinbase $2–4 on BTC −4% / ETH −6% in 24h, max 2 a week); CR-9 BTC-line anchor is a warning on alt longs, not a block (hard stops unchanged).
 - **2026-10-19 (v40):** Liquidity bands — estimated liquidation heatmap (OKX OI model, hourly), four theses tested (magnet ✗, break ✗, sweep ≈0, biggest-band fade limit +0.08R → LIQ✓ paper flag, Weekly 4f), shown on /quick, /levels and the MOONBAG VIEW; Grok ↔ Claude daily journal loop (FOR CLAUDE / FOR GROK, Daily step 0); caller calls logged with their numbers and &risk=; Coinbase ramp counts ladder-held cash as allocated; live prices on /levels and the /quick anchor (stale > 45 min flagged).
 - **2026-10-18 (v39):** Secure 2R written into the playbook (TP1 = 2R when the level is 2R+ away, level = runner; A+ = 3R+ room; A+ NEAR alerts); fast inputs with no numbers = live BloFin card (GET /quick without entry/stop); the DESK JOURNAL — one shared journal for Stavros, Grok and Moonbag with an instant side-by-side MOONBAG VIEW and a 72h scorecard (§0.2c, Weekly 4e).

@@ -261,6 +261,9 @@ export function signalLabel(s: { confidence_grade: number | null; status_reason?
   if (Number(s.confidence_grade) >= 3 && !research) return "DESK ALERT" as const;
   return Number(s.confidence_grade) >= 2 || research ? ("RESEARCH ONLY" as const) : ("PASS" as const);
 }
+// CR-17 (2026-10-26, desk journal #135): an open-status signal (watching/armed) past its expires_at is dead — never show it as a play.
+export const isStaleSignal = (s: { status: string; expires_at: string | null }) =>
+  ["watching", "armed"].includes(s.status) && !!s.expires_at && Date.parse(s.expires_at) < Date.now();
 export const isDeskAlert = (s: Parameters<typeof signalLabel>[0]) => signalLabel(s) === "DESK ALERT";
 
 export const fmtRR = (rr: number | null | undefined) => (rr == null ? "—" : `1 : ${rr.toFixed(rr >= 10 ? 0 : 1)}`);
