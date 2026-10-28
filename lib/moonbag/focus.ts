@@ -12,8 +12,10 @@ import { calcEquity } from "./equity";
 type Px = { price: number; source: string; at: number } | null;
 const fp = (v: number | null | undefined) =>
   v == null || !Number.isFinite(Number(v)) ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: Number(v) >= 1000 ? 0 : Number(v) >= 1 ? 2 : 4 });
+const initial = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
 const pctAway = (from: number, to: number) => ((to - from) / from) * 100;
 const phx = (t: number | string) => new Date(t).toLocaleString("en-US", { timeZone: "America/Phoenix", weekday: "short", hour: "numeric", minute: "2-digit" });
+type CallerFilter = { filter_id: number; mentor: string; kind: string; rule: string; blocking: boolean; reason: string | null };
 const NEAR_PCT = (c: string) => (c === "BTC" || c === "ETH" ? 0.6 : 1.2); // same approach band as the A+ NEAR alert
 
 export async function buildFocus(opts: { refresh?: boolean } = {}) {
@@ -29,7 +31,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     ]);
   }
 
-  const [trades, limits, woods, uni, econ, plan, crs, calc, lmap] = await Promise.all([
+  const [trades, limits, woods, uni, econ, plan, crs, calc, lmap, cf] = await Promise.all([
     db.from("trades").select("trade_id, symbol, direction, entry, stop, current_stop, tp1, current_tp1, tp2, current_tp2, qty_open, quantity, opened_at").eq("venue", "blofin").eq("status", "open"),
     db.from("limit_orders").select("*").in("status", ["working", "touched"]).order("created_at", { ascending: false }).limit(60),
     db.from("woods_machine").select("coin, side, as_of, grade, confidence, trigger, blocked, anchor"),
@@ -39,7 +41,12 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     db.from("strategy_changes").select("change_id, change").eq("status", "proposed").order("change_id"),
     calcEquity("blofin"),
     db.rpc("mb_level_map", { p_asset: "BTC" }).then((r: { data: unknown }) => r.data as { levels?: { name: string; price: number }[] } | null, () => null),
+    db.rpc("caller_filters_now").then((r: { data: unknown }) => (Array.isArray(r.data) ? r.data : []) as CallerFilter[], () => [] as CallerFilter[]),
   ]);
+  // CR-21: Woods / Eliz regime filters, live and dated (caller_filters). A blocking filter downgrades a setup; it never places anything.
+  const blocking = (cf as CallerFilter[]).filter((f) => f.blocking);
+  const filterFor = (sym: string, side: string) =>
+    blocking.find((f) => (f.kind === "alt_long_below" && sym !== "BTC" && side === "long") || (f.kind === "btc_inside" && sym === "BTC") || f.kind === "monday_before_plan");
 
   type T = { trade_id: string; symbol: string; direction: "long" | "short"; entry: number; stop: number | null; current_stop: number | null; tp1: number | null; current_tp1: number | null; tp2: number | null; current_tp2: number | null; qty_open: number | null; quantity: number | null; opened_at: string | null };
   type L = { limit_id: string; symbol: string; direction: "long" | "short"; origin: string; status: string; grade: string | null; setup_id: string | null; limit_price: number; stop: number | null; current_stop: number | null; tp1: number | null; tp2: number | null; plan_r: number | null; expires_at: string | null; invalid_if?: string | null; invalid_price?: number | null; invalid_btc?: number | null; invalid_by?: string | null; created_at: string };
@@ -80,6 +87,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const f = (x: { name: string; price: number }) => `${fp(x.price)} ${x.name} (${pctAway(btc, x.price) >= 0 ? "+" : ""}${pctAway(btc, x.price).toFixed(1)}%)`;
     L.push(`BTC levels: above ${up.length ? up.map(f).join(" · ") : "—"} | below ${dn.length ? dn.map(f).join(" · ") : "—"}`);
   }
+  if (blocking.length) L.push(`Woods/Eliz filters: ${[...new Set(blocking.map((f) => f.reason ?? f.rule))].join(" · ")}`);
   const dow = new Date(now).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
   if (!["Sat", "Sun"].includes(dow)) {
     const ny = new Date(new Date(now).toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -141,8 +149,9 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const notes = liquidityNotes(liq, s.direction, s.limit_price, Number(s.current_stop ?? s.stop), s.tp1).filter((x) => x.startsWith("LIQ✓") || x.startsWith("Stop"));
     const near = away <= NEAR_PCT(s.symbol);
     const blocked = wm.find((w) => w.coin === s.symbol && w.side === s.direction)?.blocked;
-    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}`);
-    if (near && !(blocked && !/BTC anchor/.test(blocked))) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
+    const filt = filterFor(s.symbol, s.direction);
+    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}${filt ? ` · ⚠ ${initial(filt.mentor)} filter: ${filt.reason}` : ""}`);
+    if (near && !filt && !(blocked && !/BTC anchor/.test(blocked))) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
   }
 
   // 4) WHAT CHANGES THE PLAN
@@ -165,5 +174,5 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   else L.push(`DO NOW: nothing needs you. ${ranked.length ? `Closest setup: ${ranked[0].s.symbol} ${ranked[0].s.direction} ${fp(ranked[0].s.limit_price)} (${ranked[0].away.toFixed(2)}% away) — TradingView pings you as it gets near.` : "Let the alerts work; check back after the next 4H close."}`);
   L.push("Analysis only — you place every order.");
 
-  return { ok: true as const, text: L.join("\n"), generated_at: new Date(now).toISOString(), refresh, prices: Object.fromEntries([...px].map(([k, v]) => [k, v?.price ?? null])), levels: lv, actions: act };
+  return { ok: true as const, text: L.join("\n"), generated_at: new Date(now).toISOString(), refresh, prices: Object.fromEntries([...px].map(([k, v]) => [k, v?.price ?? null])), levels: lv, caller_filters: cf, actions: act };
 }

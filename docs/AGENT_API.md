@@ -22,6 +22,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /journal/losses` · `POST /journal/losses` | both | Loss journal: every losing trade and near-miss mistake with why, tags, lesson and the pre-trade check; GET also returns the repeated-mistake checks as fixed `text` |
 | `GET /limits` · `POST /limits` · `PATCH /limits/{limit_id}` | both / Grok+Claude | Resting limit orders: his own (origin own), Moonbag picks he placed (moonbag) and Moonbag's paper limits; GET returns fixed `text`, the scoreboard and recent outcomes |
 | `GET /focus[?refresh=0]` | Grok+Claude | **FOCUS BRIEF** — refreshes the data if older than 10 min, live BloFin prices, then what deserves his attention in order: open trades → his limits (cancel / close to fill) → Moonbag A+/A setups → what changes the plan → admin → DO NOW. Relay `text` word for word |
+| `GET /mistakes` | Grok+Claude | **MISTAKES SUMMARY** (CR-20) — his running trade-journal summary: top 3 rules to work on, what keeps repeating (count, R cost, this week vs before → improving/repeating), Woods/Eliz filters followed vs ignored, then the loss-journal detail. The daily trade-journal card reads this; relay `text` |
 | `GET /desk-journal[?days=7]` · `POST /desk-journal` | Grok+Claude | **Desk journal** — the shared journal Stavros, Grok and Moonbag all write in. POST kind `idea` returns Moonbag's instant side-by-side view (`text`, relay word for word); kinds `grok_view`, `decision`, `note`, `lesson`, `outcome`. GET = recent threads + scorecard |
 | `GET /ideas` · `POST /ideas` | both / Grok+Claude | Strategy lab: submit an idea he shares (word for word); GET returns the queue and verdicts as fixed `text` |
 | `GET /today` | both | System state, active theses, pending handoffs, live alerts, open trades, latest report |
@@ -596,3 +597,10 @@ wanting to buy and hold for coinbase and robinhood. the stops are different than
 H. After anything you do on Coinbase, send Stavros one line: what, size, price, stop, TP1, risk $ (for holds: what, size, price, "hold").
 I. No X posts for Coinbase trades unless Moonbag queues one.
 ```
+
+CALLER FILTERS + SETUP-FORMING ALERTS (CR-21 / CR-22, Stavros approved 2026-10-28):
+  Woods/Eliz regime rules are live, dated filters in the database (caller_filters; they move when the mentor moves the level).
+  GET /focus and GET /levels show which are blocking right now (e.g. "alt LONGS off: BTC 80,710 is below Woods's 82,400–82,800 line").
+  A blocked setup is never pushed as SET IT NOW. Every closed trade is scored followed vs ignored (in GET /mistakes).
+  The trade-alert sync keeps up to 3 "MB NEAR <COIN> <SIDE>" TradingView alerts (push ON) at the approach to live A/A+ setups,
+  moved/removed as setups change. RockBot keeps its own silent RS- tripwires only for tickets Moonbag doesn't cover.
