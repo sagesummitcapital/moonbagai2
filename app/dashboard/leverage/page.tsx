@@ -378,6 +378,41 @@ export default async function LeveragePage() {
                 )}
               </Section>
             )}
+            {journal.leaks.length > 0 && (
+              <Section title="Where you lose money" right={<span>all closed BloFin trades · buckets of 3+</span>}>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {journal.leaks.filter((k) => k.flag).sort((a, b) => Number(a.usd_total) - Number(b.usd_total)).map((k) => (
+                    <div key={`${k.dim}-${k.bucket}`} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={k.flag === "worst" ? "red" : "green"}>{k.flag === "worst" ? "leak" : "edge"}</Badge>
+                        <strong className="text-[13px] text-white">{k.dim}: {k.bucket}</strong>
+                      </div>
+                      <p className="mt-1.5 text-[12px] text-white/60">{k.n} trades · {k.wins} wins · {num(k.r_total)}R · {money(k.usd_total)}</p>
+                      {k.lesson && <p className="mt-1 text-[12px] text-white/70">lesson: {k.lesson}</p>}
+                    </div>
+                  ))}
+                </div>
+                {journal.early && journal.early.n > 0 && (
+                  <p className="mt-3 text-[12px] leading-relaxed text-white/60">
+                    Hand exits vs holding to the original TP1 (24h later): took {num(journal.early.r_taken ?? 0)}R · holding would have made {num(journal.early.r_if_held_to_tp1 ?? 0)}R · {journal.early.early_was_right} early exits were right, {journal.early.held_would_pay} would have paid to hold.
+                  </p>
+                )}
+                <Table
+                  head={["Group", "Bucket", "Trades", "Wins", "R", "$"]}
+                  align={["l", "l", "r", "r", "r", "r"]}
+                  minWidth={560}
+                  rows={journal.leaks.map((k) => [
+                    <span key="g" className="text-white/60">{k.dim}</span>,
+                    <span key="b" className="text-white">{k.bucket}</span>,
+                    <span key="n">{k.n}</span>,
+                    <span key="w">{k.wins}</span>,
+                    <span key="r" className={Number(k.r_total) < 0 ? "text-rose-300" : "text-accent-green"}>{num(k.r_total)}</span>,
+                    <span key="u" className={Number(k.usd_total) < 0 ? "text-rose-300" : "text-accent-green"}>{money(k.usd_total)}</span>,
+                  ])}
+                  empty="No closed trades yet."
+                />
+              </Section>
+            )}
             {journal.patterns.length > 0 && (
               <Section title="Pre-trade checks" right={<span>most repeated first</span>}>
                 <div className="grid gap-2 md:grid-cols-2">

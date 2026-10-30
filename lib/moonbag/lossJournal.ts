@@ -23,6 +23,8 @@ export type LossEntry = {
 };
 export type MistakeRow = { pattern: string; label: string; rule: string; times: number; losses: number; r_total: number; r_cost: number; last_7d: number; before_7d: number; trend: string; last_seen: string | null; cost_rank: number };
 export type FilterScore = { filter_id: number; mentor: string; kind: string; rule: string; level_lo: number | null; level_hi: number | null; active_from: string; active_to: string | null; n_followed: number; r_followed: number | null; n_ignored: number; r_ignored: number | null };
+export type LeakRow = { dim: string; bucket: string; n: number; wins: number; r_total: number; r_avg: number; usd_total: number; lesson: string | null; flag: string | null };
+export type EarlyExits = { n: number; r_taken: number | null; r_if_held_to_tp1: number | null; held_would_pay: number; early_was_right: number };
 export type LossPattern = { tag: string; times: number; losses: number; cost_usd: number; last_seen: string; latest_check: string | null };
 
 export const LOSS_FIELDS = [
@@ -34,11 +36,13 @@ const money = (v: unknown) => (v == null ? "—" : `${Number(v) < 0 ? "−" : ""
 
 export async function getLossJournal(limit = 30) {
   const db = supabaseAdmin();
-  const [entries, patterns, mistakes, filters] = await Promise.all([
+  const [entries, patterns, mistakes, filters, leaks, early] = await Promise.all([
     db.from("loss_journal").select("*").order("created_at", { ascending: false }).limit(limit),
     db.from("v_loss_patterns").select("*"),
     db.from("v_mistake_summary").select("*").order("cost_rank"),
     db.from("v_filter_score").select("*").neq("kind", "manual").is("active_to", null),
+    db.from("v_lev_leaks").select("*").order("dim").order("usd_total"),
+    db.from("v_lev_early_exits").select("*").maybeSingle(),
   ]);
   if (entries.error) throw new Error(entries.error.message);
   if (patterns.error) throw new Error(patterns.error.message);
@@ -62,6 +66,19 @@ export async function getLossJournal(limit = 30) {
     L.push("CALLER FILTERS — followed vs ignored:");
     for (const f of F) L.push(`  • ${f.mentor}: ${f.rule} — followed ${f.n_followed} (${Number(f.r_followed ?? 0).toFixed(2)}R) · ignored ${f.n_ignored} (${Number(f.r_ignored ?? 0).toFixed(2)}R)`);
   }
+  // CR-30 (Stavros 10/30: "it should be along side the consolidated summary that shows what I can improve on"): WHERE I LOSE MONEY.
+  const K = (leaks.error ? [] : leaks.data ?? []) as LeakRow[];
+  const X = (early.error ? null : early.data) as EarlyExits | null;
+  if (K.length) {
+    const money2 = (v: number) => `${v < 0 ? "−" : "+"}$${Math.abs(v).toFixed(2)}`;
+    const worst = K.filter((k) => k.flag === "worst");
+    const best = K.filter((k) => k.flag === "best");
+    L.push("WHERE YOU LOSE MONEY (all closed BloFin trades, buckets with 3+ trades):");
+    for (const k of worst) L.push(`  ✗ ${k.dim}: ${k.bucket} — ${k.n} trades, ${k.wins} wins, ${Number(k.r_total).toFixed(2)}R, ${money2(Number(k.usd_total))}${k.lesson ? ` · lesson: ${k.lesson}` : ""}`);
+    L.push("WHERE YOU MAKE IT:");
+    for (const k of best) L.push(`  ✓ ${k.dim}: ${k.bucket} — ${k.n} trades, ${k.wins} wins, ${Number(k.r_total).toFixed(2)}R, ${money2(Number(k.usd_total))}`);
+    if (X && X.n) L.push(`  Hand exits vs holding to the original TP1 (24h later): took ${Number(X.r_taken ?? 0).toFixed(2)}R, holding would have made ${Number(X.r_if_held_to_tp1 ?? 0).toFixed(2)}R (${X.early_was_right} early exits were right, ${X.held_would_pay} would have paid to hold).`);
+  }
   L.push("");
   L.push("MOONBAG LOSS JOURNAL — check every new trade against these before placing it");
   L.push("");
@@ -77,5 +94,5 @@ export async function getLossJournal(limit = 30) {
     if (e.why_lost) L.push(`    why: ${e.why_lost}`);
     if (e.lesson) L.push(`    lesson: ${e.lesson}`);
   }
-  return { text: L.join("\n"), entries: E, patterns: P, mistakes: M, filters: F };
+  return { text: L.join("\n"), entries: E, patterns: P, mistakes: M, filters: F, leaks: K, early: X };
 }

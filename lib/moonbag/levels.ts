@@ -36,6 +36,8 @@ export type LevelCoin = {
   rangeHigh: number | null;
   support: number[];
   resistance: number[];
+  liq_above?: { price: number; usd_m: number; star: boolean }[];
+  liq_below?: { price: number; usd_m: number; star: boolean }[];
 };
 
 // Red-folder day (CPI / FOMC / NFP), Phoenix date — written by the daily task into econ_days (Stavros, 2026-10-14).
@@ -69,6 +71,7 @@ export async function buildLevels() {
 
   // Coins shown: core BTC/ETH, the Scout's in-play coins, and any coin with an open trade or a live alert.
   const coins = new Set<string>(["BTC", "ETH"]);
+  coins.add("HYPE"); // CR-28 (Stavros 10/29: "I want to be watching hype")
   lev.universe.filter((u) => u.in_play).forEach((u) => coins.add(u.asset));
   lev.openTrades.forEach((t) => coins.add(t.symbol));
   mineLimits.forEach((o) => coins.add(o.symbol));
@@ -149,6 +152,9 @@ export async function buildLevels() {
       rangeHigh: lv.range_high == null ? null : Number(lv.range_high),
       support: (lv.support ?? []).map(Number).filter((x) => price == null || x < price).sort((a, b) => b - a).slice(0, 3),
       resistance: (lv.resistance ?? []).map(Number).filter((x) => price == null || x > price).sort((a, b) => a - b).slice(0, 3),
+      // CR-26: structured liquidation bands (est., liq_snap) — data only, never a size/stop/grade input
+      liq_above: (liqs.get(asset)?.above ?? []).map((b) => ({ price: b.level, usd_m: Math.round(b.usd / 1e6), star: b.rnk === 1 })),
+      liq_below: (liqs.get(asset)?.below ?? []).map((b) => ({ price: b.level, usd_m: Math.round(b.usd / 1e6), star: b.rnk === 1 })),
     };
   });
 

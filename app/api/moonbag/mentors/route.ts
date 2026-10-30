@@ -12,8 +12,20 @@ export const dynamic = "force-dynamic";
  *      Saves it verbatim. Claude distils it (levels, principles, calls) within a day and logs any strategy change.
  */
 export const GET = withAgent(["claude", "grok"], async (req) => {
-  const m = new URL(req.url).searchParams.get("mentor");
+  const q = new URL(req.url).searchParams;
+  const m = q.get("mentor");
   const only = m === "eliz" || m === "woods" ? (m as Mentor) : undefined;
+  // CR-24: ?status=open|filled|closed|no_fill|invalidated → their calls graded as trades, plus the scoreboard
+  const st = q.get("status");
+  if (st) {
+    const db = supabaseAdmin();
+    let s = db.from("mentor_calls").select("call_id, mentor, made_at, asset, call, side, entry, stop, targets, trade_status, result_r, exit_price, closed_at, caught, caught_ref").order("made_at", { ascending: false }).limit(200);
+    if (only) s = s.eq("mentor", only);
+    if (st !== "all") s = s.eq("trade_status", st);
+    const [calls, score] = await Promise.all([s, db.from("v_caller_call_scores").select("*")]);
+    if (calls.error) throw new BadRequest(calls.error.message);
+    return json({ ok: true, calls: calls.data ?? [], scoreboard: score.data ?? [] });
+  }
   const lib = await getMentorLibrary();
   return json({ ok: true, text: playbookText(lib, only), ...lib });
 });

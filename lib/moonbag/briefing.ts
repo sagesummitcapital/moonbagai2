@@ -6,6 +6,7 @@
 import { getSystemState, getYesterdayReview } from "./db";
 import { fmtPct, fmtRR, getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert, isStaleSignal, tradeMetrics } from "./desk";
 import { livePrice, STALE_MIN } from "./livePrice";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const n = (v: unknown, d = 2) =>
   v === null || v === undefined || v === "" || Number.isNaN(Number(v))
@@ -66,6 +67,10 @@ export async function buildBriefing() {
     getCoinbaseBook().catch(() => null), // Book 3 is optional — never let it blank the brief
   ]);
   lev.signals = lev.signals.filter((s) => !isStaleSignal(s)); // CR-17: expired signals never print as plays
+  // CR-25: one ROI line — this week's realized P&L vs the AI tool cost (v_roi_weekly). Never blocks the brief.
+  const roiRow = await supabaseAdmin().from("v_roi_weekly").select("week_start, realized_usd, cost_usd, net_usd, cumulative_net_usd, breakeven_r_per_month")
+    .order("week_start", { ascending: false }).limit(1).maybeSingle()
+    .then((r: { data: unknown }) => r.data as { week_start: string; realized_usd: number; cost_usd: number; net_usd: number; cumulative_net_usd: number; breakeven_r_per_month: number | null } | null, () => null);
   const now = new Date().toISOString();
   const risk = riskNow(lev.equity, lev.strategy?.rules, Number(lev.risk?.risk_per_trade_pct ?? 2));
 
@@ -235,6 +240,7 @@ export async function buildBriefing() {
     const held = ["BTC", "ETH"].filter((s) => cb.open.some((t) => t.symbol === s));
     L.push(`  Coinbase   ${usd(cb.equity)} · BTC/ETH long-term holds (70/30) · ${held.length ? `held: ${held.join(", ")}` : "building"} · weekly Monday buy = (free cash − $5) ÷ weeks left`);
   }
+  if (roiRow) L.push(`  ROI        week of ${roiRow.week_start}: realized ${usd(roiRow.realized_usd)} vs tools ${usd(roiRow.cost_usd)} → net ${usd(roiRow.net_usd)} · cumulative ${usd(roiRow.cumulative_net_usd)} · ~${roiRow.breakeven_r_per_month ?? "—"}R/month needed to cover the tools at this size`);
   L.push("");
   L.push(`YESTERDAY  ${brief.yesterday.avg != null ? `forecasts graded ${brief.yesterday.avg}/100 avg (${brief.yesterday.graded})` : "not graded yet"}`);
   if (lesson) L.push(`  Lesson: ${firstSentence(lesson, 200)}`);

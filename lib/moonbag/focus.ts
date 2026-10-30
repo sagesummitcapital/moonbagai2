@@ -55,14 +55,14 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   const lims = (limits.data ?? []) as L[];
   const mine = lims.filter((l) => l.origin !== "paper");
   const rotation = ((uni.data ?? []) as { asset: string }[]).map((u) => u.asset);
-  const watchCoins = new Set(["BTC", "ETH", "SOL", ...rotation]);
+  const watchCoins = new Set(["BTC", "ETH", "SOL", "HYPE", ...rotation]); // HYPE: CR-28
   const setups = lims.filter((l) => l.origin === "paper" && (l.grade === "A+" || l.grade === "A") && watchCoins.has(l.symbol));
   const wm = (woods.data ?? []) as W[];
   const btcRow = wm.find((w) => w.coin === "BTC");
   const woodsAt = wm.map((w) => w.as_of).sort().reverse()[0] ?? null;
 
   // LIVE prices for every coin in the brief
-  const coins = [...new Set(["BTC", "ETH", "SOL", ...open.map((t) => t.symbol), ...mine.map((l) => l.symbol), ...setups.map((s) => s.symbol)])];
+  const coins = [...new Set(["BTC", "ETH", "SOL", "HYPE", ...open.map((t) => t.symbol), ...mine.map((l) => l.symbol), ...setups.map((s) => s.symbol)])];
   const px = new Map<string, Px>(await Promise.all(coins.map(async (c) => [c, await livePrice(c).catch(() => null)] as const)));
   const p = (c: string) => px.get(c)?.price ?? null;
   const btc = p("BTC");
@@ -70,7 +70,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   const L: string[] = [];
   const now = Date.now();
   L.push(`MOONBAG FOCUS · ${phx(now)} Phoenix · live BloFin`);
-  L.push(`BTC ${fp(btc)} · ETH ${fp(p("ETH"))} · SOL ${fp(p("SOL"))}${woodsAt ? ` · Woods map ${Math.round((now - Date.parse(woodsAt)) / 60000)} min old${refresh && (refresh as { refreshed?: boolean }).refreshed ? " (just refreshed)" : ""}` : ""}`);
+  L.push(`BTC ${fp(btc)} · ETH ${fp(p("ETH"))} · SOL ${fp(p("SOL"))} · HYPE ${fp(p("HYPE"))}${woodsAt ? ` · Woods map ${Math.round((now - Date.parse(woodsAt)) / 60000)} min old${refresh && (refresh as { refreshed?: boolean }).refreshed ? " (just refreshed)" : ""}` : ""}`);
 
   // Market frame: Woods anchor on the LIVE BTC price + context + today's plan
   const a = btcRow?.anchor ?? null;

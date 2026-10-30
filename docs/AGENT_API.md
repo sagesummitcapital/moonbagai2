@@ -46,6 +46,12 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `POST /size` | Claude | Position sizing (leverage last) → `TRADE_PLAN` or `NO_TRADE` |
 | `POST /accounts` · `GET /accounts` | Grok (+Claude) / both | Account snapshot (`venue` robinhood, coinbase or blofin): equity, cash, buying_power, positions |
 | `GET /risk?venue=robinhood` | both | Risk limits + current open risk / exposure |
+| `GET /mentors?status=open\|filled\|closed\|no_fill\|invalidated\|all[&mentor=]` · `PATCH /mentors/{call_id}` | Grok+Claude | **Caller calls graded as trades** (CR-24). PATCH fills in a call's `side`, `entry`, `stop`, `targets`, `zone_lo`/`zone_hi`, `trigger`, `timeframe`, `risk_pct`, `management`, `origin_lane`, or `status` (`open`/`invalidated`). The 15-min job fills/grades it (48h fill window, stop or first target, default 2R) and marks `caught` if Moonbag had a paper limit or signal there first. GET returns `calls` + `scoreboard` |
+| `GET /roi[?weeks=12]` · `POST /roi` | Grok+Claude | **ROI ledger** (CR-25): realized P&L by source (moonbag / caller:woods / caller:eliz / caller:johnny / own) vs tool costs, weekly net and cumulative. POST `{monthly_cost_usd?, tool_costs?, week_start?, notes?}` — costs are Stavros's numbers only |
+| `POST /market-flows` · `GET /market-flows?coin=&from=&to=` | Grok+Claude | **Market flows table** (CR-26): POST `{rows:[{date, timeframe, coin, …}]}` (≤500, upserts on date+timeframe+coin) |
+| `POST /backtest-results` · `GET /backtest-results?family=&pass=` | Grok+Claude | **Backtest results store** (CR-27): POST needs `strategy_id`, `family`, `n_trades`, `expectancy_r`, `pass`; optional `variant_id`, `is_stats`, `oos_stats`, `fail_reasons`, `kill_date`, `decision_informed`, `code_ref` |
+
+**Also new (10/30):** `GET /levels` now includes HYPE and, per coin, `liq_above` / `liq_below` (liquidation clusters: price, $M, star). HYPE is a core graded coin alongside BTC/ETH/SOL (CR-28). New A/A+ setups on BTC/ETH/SOL/HYPE + the rotation top 5 fire a TradingView alert named `MB SETUP <COIN> <SIDE> <GRADE> #xxxxxx` within ~15 min (CR-29) — it is a heads-up only; it is auto-removed after 20 min. `GET /mistakes` and the leverage page now show **Where you lose money** (CR-30: by coin, side, session, entry hour, origin, leverage, hold time, exit type).
 
 Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations are `400` with a clear message.
 
