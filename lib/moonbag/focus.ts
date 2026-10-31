@@ -43,7 +43,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     db.rpc("mb_level_map", { p_asset: "BTC" }).then((r: { data: unknown }) => r.data as { levels?: { name: string; price: number }[] } | null, () => null),
     db.rpc("caller_filters_now").then((r: { data: unknown }) => (Array.isArray(r.data) ? r.data : []) as CallerFilter[], () => [] as CallerFilter[]),
   ]);
-  // CR-21: Woods / Eliz regime filters, live and dated (caller_filters). A blocking filter downgrades a setup; it never places anything.
+  // CR-21 → CR-32 (10/31): Woods / Eliz regime filters are context only. They show as warnings and never hold back a Moonbag setup.
   const blocking = (cf as CallerFilter[]).filter((f) => f.blocking);
   const filterFor = (sym: string, side: string) =>
     blocking.find((f) => (f.kind === "alt_long_below" && sym !== "BTC" && side === "long") || (f.kind === "btc_inside" && sym === "BTC") || f.kind === "monday_before_plan");
@@ -56,7 +56,8 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   const mine = lims.filter((l) => l.origin !== "paper");
   const rotation = ((uni.data ?? []) as { asset: string }[]).map((u) => u.asset);
   const watchCoins = new Set(["BTC", "ETH", "SOL", "HYPE", ...rotation]); // HYPE: CR-28
-  const setups = lims.filter((l) => l.origin === "paper" && (l.grade === "A+" || l.grade === "A") && watchCoins.has(l.symbol));
+  // CR-32: only Moonbag's own setups — nothing sourced from Woods/Eliz becomes a setup
+  const setups = lims.filter((l) => l.origin === "paper" && (l.grade === "A+" || l.grade === "A") && watchCoins.has(l.symbol) && !/^(woods|eliz)/i.test(l.setup_id ?? ""));
   const wm = (woods.data ?? []) as W[];
   const btcRow = wm.find((w) => w.coin === "BTC");
   const woodsAt = wm.map((w) => w.as_of).sort().reverse()[0] ?? null;
@@ -87,7 +88,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const f = (x: { name: string; price: number }) => `${fp(x.price)} ${x.name} (${pctAway(btc, x.price) >= 0 ? "+" : ""}${pctAway(btc, x.price).toFixed(1)}%)`;
     L.push(`BTC levels: above ${up.length ? up.map(f).join(" · ") : "—"} | below ${dn.length ? dn.map(f).join(" · ") : "—"}`);
   }
-  if (blocking.length) L.push(`Woods/Eliz filters: ${[...new Set(blocking.map((f) => f.reason ?? f.rule))].join(" · ")}`);
+  if (blocking.length) L.push(`Woods/Eliz warnings (context only): ${[...new Set(blocking.map((f) => f.reason ?? f.rule))].join(" · ")}`);
   const dow = new Date(now).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
   if (!["Sat", "Sun"].includes(dow)) {
     const ny = new Date(new Date(now).toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -150,8 +151,8 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const near = away <= NEAR_PCT(s.symbol);
     const blocked = wm.find((w) => w.coin === s.symbol && w.side === s.direction)?.blocked;
     const filt = filterFor(s.symbol, s.direction);
-    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}${filt ? ` · ⚠ ${initial(filt.mentor)} filter: ${filt.reason}` : ""}`);
-    if (near && !filt && !(blocked && !/BTC anchor/.test(blocked))) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
+    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}${filt ? ` · ⚠ ${initial(filt.mentor)} warning: ${filt.reason}` : ""}`);
+    if (near) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
   }
 
   // 4) WHAT CHANGES THE PLAN

@@ -211,12 +211,12 @@ export async function buildLevels() {
       `  RANGE  ${n(c.rangeLow)} – ${n(c.rangeHigh)} · resistance ${c.resistance.length ? c.resistance.map((x) => n(x)).join(", ") : "—"} · support ${c.support.length ? c.support.map((x) => n(x)).join(", ") : "—"}`,
     );
   }
-  // CR-21: live Woods / Eliz regime filters (caller_filters), dated; a blocking filter downgrades setups, never places anything.
+  // CR-21 → CR-32: live Woods / Eliz regime filters (caller_filters), shown as warnings only; they never block a setup.
   type CF = { mentor: string; rule: string; blocking: boolean; reason: string | null };
   const cf: CF[] = await supabaseAdmin().rpc("caller_filters_now").then((r: { data: unknown }) => (Array.isArray(r.data) ? r.data : []) as CF[], () => [] as CF[]);
   const blockingNow = cf.filter((f) => f.blocking);
   L.push("");
-  L.push(`WOODS / ELIZ FILTERS: ${blockingNow.length ? blockingNow.map((f) => `${f.mentor} — ${f.reason}`).join(" · ") : "none blocking right now"}`);
+  L.push(`WOODS / ELIZ WARNINGS (context only, CR-32): ${blockingNow.length ? blockingNow.map((f) => `${f.mentor} — ${f.reason}`).join(" · ") : "none right now"}`);
   L.push("");
   L.push("Source: Moonbag database. Not financial advice. Stavros places every BloFin order.");
 
