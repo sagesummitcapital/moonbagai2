@@ -239,6 +239,11 @@ export interface Trade {
   /** What Moonbag's confidence rubric gives the setup at entry (own trades: scored after the fact). */
   moonbag_score?: number | null;
   origin_notes?: string | null;
+  // CR-43 edge tags
+  setup_tag?: string | null;
+  trigger_tag?: string | null;
+  planned_level?: number | null;
+  planned_level_kind?: string | null;
   // Partial exits (trade_exits) — maintained by the database, never written directly.
   qty_open?: number | null;
   // Partial take-profit orders: size (coin units) on each working target; null = the whole remaining position.

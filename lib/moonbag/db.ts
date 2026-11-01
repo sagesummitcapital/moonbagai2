@@ -241,6 +241,8 @@ export const TRADE_WRITABLE_FIELDS = [
   "margin", "leverage", "estimated_costs", "setup_score", "system_confidence", "opened_at",
   "exit_price", "closed_at", "realized_pnl", "fees", "return_percent", "holding_period",
   "execution_score", "execution_notes", "status", "exit_reason", "origin", "origin_notes",
+  // CR-43 (2026-11-01): edge tags — what setup, which trigger, at which pre-mapped level
+  "setup_tag", "trigger_tag", "planned_level", "planned_level_kind",
 ] as const;
 
 export async function listTrades(

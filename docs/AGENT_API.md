@@ -40,6 +40,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /candles/sync[?full=1]` | Claude | Pull closed daily candles for the Coinbase book's coins from Coinbase into `candles` (backtest history; no cron — the Coinbase desk stores each new daily bar itself) |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
 | `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
+| `POST /trades` · `PATCH /trades/{trade_id}` — **edge tags (CR-43)** | Grok | When logging a BloFin trade, also send `setup_tag` (e.g. `range_top_fade`, `range_low_sfp`, `breakout_retest`, `moonbag_limit_sweep`, `caller_copy`), `trigger_tag` (e.g. `sfp_close_inside`, `retest_hold`, `15m_close`, `none`), `planned_level` (the pre-mapped price it was taken at, or null) and `planned_level_kind` (e.g. `range_top`, `monday_low`, `4h_swing`). Rule-following yes/no is worked out by the database (`v_trade_adherence`); the scorecard is `v_edge_scorecard` |
 | `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
