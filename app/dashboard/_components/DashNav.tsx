@@ -4,14 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Four destinations instead of fourteen tabs (Stavros, 2026-10-15: "my attention is my most valuable asset").
+ * Layered flow (Stavros, 2026-11-01: "make the Moonbag tool itself visually have a flow ... a hedge fund platform ... layer it so it's a
+ * simpler tool but still highlights all the main things"). Command → Trade → Holdings → Review → Research → System.
  * Every old route still exists — it lives in one group's sub-row, which shows only while you are in that group.
+ * (Earlier: four destinations instead of fourteen tabs, 2026-10-15: "my attention is my most valuable asset".)
  */
 type Item = { href: string; label: string; short?: string };
 type Group = { label: string; href: string; items: Item[] };
 
 export const NAV: Group[] = [
-  { label: "Today", href: "/dashboard", items: [] },
+  { label: "Command", href: "/dashboard", items: [] },
   {
     label: "Trade",
     href: "/dashboard/leverage",
@@ -19,10 +21,7 @@ export const NAV: Group[] = [
       { href: "/dashboard/leverage", label: "Leverage desk" },
       { href: "/dashboard/positions", label: "Positions" },
       { href: "/dashboard/opportunities", label: "Opportunities" },
-      { href: "/dashboard/tracker", label: "Trade tracker" },
-      { href: "/dashboard/journal", label: "Desk journal" },
-      { href: "/dashboard/lab", label: "Strategy lab" },
-      { href: "/dashboard/mentors", label: "Mentors" },
+      { href: "/dashboard/journal", label: "Journal" },
     ],
   },
   {
@@ -34,16 +33,27 @@ export const NAV: Group[] = [
     ],
   },
   {
-    label: "Insights",
+    label: "Review",
     href: "/dashboard/performance",
     items: [
       { href: "/dashboard/performance", label: "Performance" },
-      { href: "/dashboard/intelligence", label: "Intelligence" },
-      { href: "/dashboard/entropy", label: "Entropy Trap" },
-      { href: "/dashboard/agents", label: "Agents" },
+      { href: "/dashboard/audit", label: "Monthly audit" },
+      { href: "/dashboard/lab", label: "Strategy lab" },
+      { href: "/dashboard/tracker", label: "Trade tracker" },
       { href: "/dashboard/history", label: "History" },
     ],
   },
+  {
+    label: "Research",
+    href: "/dashboard/mentors",
+    items: [
+      { href: "/dashboard/mentors", label: "Mentors" },
+      { href: "/dashboard/gauge", label: "Retail gauge" },
+      { href: "/dashboard/intelligence", label: "Intelligence" },
+      { href: "/dashboard/entropy", label: "Entropy Trap" },
+    ],
+  },
+  { label: "System", href: "/dashboard/agents", items: [] },
 ];
 
 const inGroup = (g: Group, path: string | null) =>
@@ -54,7 +64,7 @@ export function DashNav() {
   const active = NAV.find((g) => inGroup(g, path)) ?? NAV[0];
   return (
     <div className="flex flex-col gap-2">
-      <nav aria-label="Desk sections" className="grid grid-cols-4 gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 sm:inline-grid sm:w-auto sm:self-start">
+      <nav aria-label="Desk sections" className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 sm:inline-grid sm:grid-cols-6 sm:w-auto sm:self-start">
         {NAV.map((g) => {
           const on = g === active;
           return (

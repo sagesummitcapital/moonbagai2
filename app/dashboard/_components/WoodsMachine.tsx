@@ -139,31 +139,11 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
   const parked = m.rows.filter((r) => r.blocked);
   const dot = health.tone === "green" ? "bg-accent-green" : health.tone === "amber" ? "bg-amber-300" : "bg-rose-400";
   const recentTriggers = m.events.filter((e) => e.kind === "trigger");
-  return (
-    <Card
-      title="Woods machine"
-      tone={health.tone === "red" ? "warn" : recentTriggers.length ? "accent" : undefined}
-      right={
-        <span className="inline-flex flex-wrap items-center gap-1.5 font-mono text-[11.5px] tabular-nums">
-          <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
-          <span className={health.tone === "red" ? "text-rose-300" : health.tone === "amber" ? "text-amber-200" : "text-white/60"}>
-            BloFin bars to {whenShort(health.lastBar)}{health.ageMin != null ? ` (${health.ageMin <= 0 ? "just closed" : `${health.ageMin}m ago`})` : ""} · {health.label}
-          </span>
-          <span className="text-white/35">· scanned {scanned ? `${whenShort(scanned)} (${ago(scanned)})` : "never"}</span>
-        </span>
-      }
-      sub="Sweep → close back → 4H RSI divergence → 1H trigger, checked every 15 minutes on closed BloFin bars. Limits sit at the nearest pool outside no-man's land; the confidence score shows how it was built."
-    >
-      {health.tone === "red" && (
-        <div className="mb-3 rounded-lg border border-rose-400/30 bg-rose-400/[0.07] px-3 py-2 text-[13px] text-rose-200">
-          The data feed is stale — these numbers may be wrong. Don&apos;t place anything from this card until the stamp turns green.
-        </div>
-      )}
-      {anchor && (
-        <div className={`mb-3 rounded-lg px-3 py-2 text-[13.5px] ${anchor.state === "above" ? "bg-accent-green/[0.07] text-accent-green" : anchor.state === "below" ? "bg-rose-400/[0.06] text-rose-200" : "bg-amber-300/[0.07] text-amber-200"}`}>
-          <strong>Anchor:</strong> {anchor.text}
-        </div>
-      )}
+  // Quiet day (every side blocked, no trigger): the macro / combo / market banners fold behind one tap so the
+  // "nothing to place" line and the parked sides are on the first screen. The anchor and your weekly bias stay visible.
+  const quietDay = !live.length && !recentTriggers.length;
+  const context = (
+    <>
       {anchor?.macro?.text && (
         <div className="-mt-1.5 mb-3 rounded-lg bg-accent-cyan/[0.05] px-3 py-2 text-[13px] text-accent-cyan/90">
           <strong>Macro:</strong> {anchor.macro.text.replace(/^Eliz: /, "Eliz — ")} <a href="/dashboard/mentors" className="ml-1 text-white/45 hover:text-white/70">playbook →</a>
@@ -195,6 +175,35 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           </div>
         );
       })()}
+    </>
+  );
+  const hasContext = !!(anchor?.macro?.text || (anchor?.combo && (anchor.combo.state || anchor.combo.woodsbot)) || anchor?.context);
+  return (
+    <Card
+      title="Woods machine"
+      tone={health.tone === "red" ? "warn" : recentTriggers.length ? "accent" : undefined}
+      right={
+        <span className="inline-flex flex-wrap items-center gap-1.5 font-mono text-[11.5px] tabular-nums">
+          <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
+          <span className={health.tone === "red" ? "text-rose-300" : health.tone === "amber" ? "text-amber-200" : "text-white/60"}>
+            BloFin bars to {whenShort(health.lastBar)}{health.ageMin != null ? ` (${health.ageMin <= 0 ? "just closed" : `${health.ageMin}m ago`})` : ""} · {health.label}
+          </span>
+          <span className="text-white/35">· scanned {scanned ? `${whenShort(scanned)} (${ago(scanned)})` : "never"}</span>
+        </span>
+      }
+      sub="Sweep → close back → 4H RSI divergence → 1H trigger, checked every 15 minutes on closed BloFin bars. Limits sit at the nearest pool outside no-man's land; the confidence score shows how it was built."
+    >
+      {health.tone === "red" && (
+        <div className="mb-3 rounded-lg border border-rose-400/30 bg-rose-400/[0.07] px-3 py-2 text-[13px] text-rose-200">
+          The data feed is stale — these numbers may be wrong. Don&apos;t place anything from this card until the stamp turns green.
+        </div>
+      )}
+      {anchor && (
+        <div className={`mb-3 rounded-lg px-3 py-2 text-[13.5px] ${anchor.state === "above" ? "bg-accent-green/[0.07] text-accent-green" : anchor.state === "below" ? "bg-rose-400/[0.06] text-rose-200" : "bg-amber-300/[0.07] text-amber-200"}`}>
+          <strong>Anchor:</strong> {anchor.text}
+        </div>
+      )}
+      {!quietDay && context}
       <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${anchor?.bias?.confirmed ? "bg-violet-400/[0.07] text-violet-200" : "bg-white/[0.03] text-white/60"}`}>
         <strong>Your week:</strong>{" "}
         {!anchor?.bias?.bias
@@ -217,10 +226,18 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
       ) : (
         <p className="text-[13.5px] text-white/60">No limit worth placing right now — every side is blocked below. That is a normal state.</p>
       )}
+      {quietDay && hasContext && (
+        <details className="group mt-3">
+          <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12.5px] text-white/45 hover:text-white/70 [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>&nbsp;Macro · divergence combo · market context — tap to see
+          </summary>
+          <div className="mt-3">{context}</div>
+        </details>
+      )}
       {parked.length > 0 && (
         <details className="group mt-3">
-          <summary className="cursor-pointer list-none text-[12.5px] text-white/45 hover:text-white/70">
-            <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span> {parked.length} side{parked.length === 1 ? "" : "s"} not now (anchor, no-man&apos;s land, R:R) — tap to see
+          <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12.5px] text-white/45 hover:text-white/70 [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>&nbsp;{parked.length} side{parked.length === 1 ? "" : "s"} not now (anchor, no-man&apos;s land, R:R) — tap to see
           </summary>
           <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} />)}</div>
         </details>

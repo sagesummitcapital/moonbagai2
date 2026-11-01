@@ -2,6 +2,8 @@ import { getSystemState, listTrades } from "@/lib/moonbag/db";
 import { load } from "../_components/data";
 import { DivergingBars, LineChart, Meter } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
+import { PnlCalendar } from "../_components/PnlCalendar";
+import { getPnlDays } from "@/lib/moonbag/pnlCalendar";
 import { Badge, Card, Delta, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, RMult, Stat, Table, Unit, Updated, biasGlyph, biasTone, money, num, when } from "../_components/ui";
 
 const VENUE_LABEL: Record<string, string> = { robinhood: "Robinhood", blofin: "BloFin", coinbase: "Coinbase", other: "Other" };
@@ -12,6 +14,7 @@ export default async function PerformancePage() {
     return { closed, state };
   });
   const closed = data?.closed ?? [];
+  const pnlDays = await getPnlDays().catch(() => []); // P&L calendar (Stavros 2026-11-01)
   const pnl = closed.reduce((a, t) => a + Number(t.realized_pnl ?? 0), 0);
   const wins = closed.filter((t) => Number(t.realized_pnl ?? 0) > 0).length;
   const rs = closed.map((t) => t.r_multiple).filter((r): r is number => r != null).map(Number);
@@ -67,6 +70,10 @@ export default async function PerformancePage() {
           />
         </Card>
       </div>
+
+      <Card title="P&L calendar" right={<span>realized $ per day · Phoenix</span>}>
+        <PnlCalendar days={pnlDays} />
+      </Card>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card title="Cumulative R" right={<Mono>{chrono.length} closed trades with an R</Mono>}>

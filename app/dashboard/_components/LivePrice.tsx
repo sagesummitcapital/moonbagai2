@@ -256,10 +256,12 @@ export function LiveMetric({ symbol, kind = "crypto", initial, stored, metric, l
  * Stop → entry → target as a price rail with the live price marked. Long or short, low prices are
  * always on the left; the stop is rose, the target green, the entry white. R now rides at the end.
  */
-export function TradeRail({ symbol, kind = "crypto", initial, stored, direction, entry, stop, target, origStop, qty, equity, compact = false, className = "" }: {
+export function TradeRail({ symbol, kind = "crypto", initial, stored, direction, entry, stop, target, origStop, qty, equity, compact = false, className = "", plusR = false }: {
   symbol: string; kind?: PriceKind; initial: LP | null | undefined; stored?: Stored;
   direction: string; entry: number | null | undefined; stop: number | null | undefined; target?: number | null; origStop?: number | null;
   qty?: number | null; equity?: number | null; compact?: boolean; className?: string;
+  /** Mark "+1R" (one original risk past entry) on the rail — where the stop goes to entry on an open trade. */
+  plusR?: boolean;
 }) {
   const live = useLive(symbol, kind, initial);
   const now = useNow();
@@ -267,7 +269,9 @@ export function TradeRail({ symbol, kind = "crypto", initial, stored, direction,
   const p = r.price;
   const e = entry == null ? null : Number(entry), s = stop == null ? null : Number(stop), t = target == null ? null : Number(target);
   const risk0 = origStop ?? s;
-  const pts = [e, s, t, p].filter((x): x is number => x != null && Number.isFinite(x));
+  const sign = direction === "short" ? -1 : 1;
+  const r1 = plusR && e != null && risk0 != null && Number(risk0) !== e ? e + sign * Math.abs(e - Number(risk0)) : null;
+  const pts = [e, s, t, p, r1].filter((x): x is number => x != null && Number.isFinite(x));
   const geo = useMemo(() => {
     if (pts.length < 2) return null;
     const lo = Math.min(...pts), hi = Math.max(...pts);
@@ -277,7 +281,6 @@ export function TradeRail({ symbol, kind = "crypto", initial, stored, direction,
     return { pos: (x: number) => ((x - L) / (H - L)) * 100 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pts.join(",")]);
-  const sign = direction === "short" ? -1 : 1;
   const rNow = p != null && e != null && risk0 != null && Number(risk0) !== e ? (sign * (p - e)) / Math.abs(e - Number(risk0)) : null;
   const pnl = p != null && e != null && qty != null ? sign * (p - e) * Number(qty) : null;
   const pctAcct = pnl != null && equity != null && Number(equity) > 0 ? (pnl * 100) / Number(equity) : null;
@@ -317,6 +320,7 @@ export function TradeRail({ symbol, kind = "crypto", initial, stored, direction,
         )}
         {s != null && <Tick x={s} label={`stop ${px(s)}`} cls="text-rose-300" />}
         {t != null && <Tick x={t} label={`TP ${px(t)}`} cls="text-accent-green" />}
+        {r1 != null && <Tick x={r1} label="+1R" cls="text-white/45" />}
         {e != null && <Tick x={e} label={`entry ${px(e)}`} cls="text-white/70" below />}
         {p != null && (
           <div className="absolute top-[11px] -translate-x-1/2" style={{ left: `${geo.pos(p)}%` }}>

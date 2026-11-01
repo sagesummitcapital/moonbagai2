@@ -7,6 +7,8 @@ import { LiveMetric, LivePrice } from "./_components/LivePrice";
 import { NON_TRADABLE, cryptoSetFrom, kindFor, loadLive, storedOf } from "./_components/live";
 import { MorningBrief } from "./_components/MorningBrief";
 import { DataNotice } from "./_components/Notice";
+import { CommandStrip } from "./_components/Command";
+import { getCommandData } from "@/lib/moonbag/command";
 import { RightNow, type Freshness } from "./_components/RightNow";
 import { ThesisCard } from "./_components/ThesisCard";
 import { Badge, Card, Chip, Chips, DocText, Empty, Fold, GoLink, LongText, Id, Mono, Quiet, Stat, TextValue, Unit, Updated, biasGlyph, biasTone, gradeTone, money, money0, num, px, whenShort } from "./_components/ui";
@@ -29,6 +31,7 @@ export default async function TodayPage() {
   });
   // The two books load separately so one failing never blanks the page.
   const [{ data: lev }, { data: rh }, { data: cb }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(getCoinbaseBook), load(buildBriefing)]);
+  const { data: command } = await load(getCommandData); // Command strip (layered flow, 2026-11-01)
   const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && isDeskAlert(s));
 
   const state = data?.state;
@@ -86,6 +89,9 @@ export default async function TodayPage() {
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
+
+      {/* ------------------------------------------------ 0. command: environment, today, discipline */}
+      {command && <CommandStrip c={command} />}
 
       {/* ------------------------------------------------ 1. what needs attention now */}
       {(lev || rh || cb) && (

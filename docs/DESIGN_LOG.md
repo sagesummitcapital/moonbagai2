@@ -30,3 +30,17 @@ The weekly design pass reads this file first. It lists each pass, Stavros's reac
 - Not shown on purpose: per-target quantities on the strip — limitInputs splits 50/50 while the 2026-10-18 rule is 70/30; the "Trade inputs" expander still shows them. Worth aligning limitInputs to 70/30 (lib change, outside design pass).
 - Live site asked for a sign-in in the Claude browser, so this pass was reviewed from code only. npm registry was blocked in the sandbox, so the typecheck used shim types (no new errors vs baseline), not a full next build.
 - Stavros's reaction: (pending)
+
+## 2026-11-01 — Open trades first (leverage desk)
+- Stale-market-data warning (red flag) now sits at the very top of "Needs you now", above the open-trade tiles, so it can't fall below the fold on a phone.
+- Open-trade tile header reads like the A+/Woods tickets: big coin, ▲ LONG / ▼ SHORT in green/rose, leverage, risk-free / pending badges, plan R:R.
+- Price rail gained a "+1R" mark (one original risk past entry — where the stop goes to entry), beside stop / entry / TP / live price.
+- Live "how far" line under the rail: % from the live price to the stop and to TP1.
+- Trade facts split into two labelled rows: LEVELS (Stop — "moved, was X" when moved — Entry, +1R, TP1, TP2, TP3 if any, each with its R) and POSITION (Size, Lev · margin, Liq ≈ with "beyond 1.25× stop / too close", Open for). Nothing removed.
+- Trade tile footer adds "record <time>" (when the trade row was last updated).
+- Your own resting BloFin limits show as BloFin-style tickets at the top of "Open limits" (limit, stop, TP1 · R:R, TP2 runner, size·lev, margin, risk, cancel-by, live price + distance to limit, invalid-if, touched time, order-updated stamp, id). Full table with paper rows unchanged below.
+- Woods machine on a quiet day (all sides blocked, no trigger): Macro / divergence-combo / market-context banners fold behind one tap; anchor, weekly bias, feed stamps and stale warning stay visible. Fold toggles are 40px tap targets.
+- Files: app/dashboard/_components/Attention.tsx, app/dashboard/_components/LivePrice.tsx, app/dashboard/_components/WoodsMachine.tsx, app/dashboard/leverage/page.tsx
+- Note: since the 2026-10-30 edit, leverage/page.tsx no longer mounts APlusStrip.tsx — A+ cards show only inside "Needs you now". Left as is (not re-wired). If you want the strip back on top, say so.
+- Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used shim types: no new errors vs baseline. 233 changed lines.
+- Stavros's reaction: (pending)
