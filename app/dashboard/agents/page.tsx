@@ -1,4 +1,5 @@
 import { getAgentsBoard } from "@/lib/moonbag/agents";
+import { getAgentUsage } from "@/lib/moonbag/usage";
 import { load } from "../_components/data";
 import { DivergingBars, Legend } from "../_components/charts";
 import { DataNotice } from "../_components/Notice";
@@ -33,6 +34,14 @@ export default async function AgentsPage() {
   const counts = { live: 0, late: 0, idle: 0 };
   for (const a of data.agents) counts[a.health]++;
   const rotation = data.universe.filter((u) => u.tier !== "core" && u.rs_1m_vs_btc != null);
+  // CR-51 (2026-11-01): weekly usage across agents — Grok as % of his limit, Claude as runs. Two measures, two tables.
+  const usage = await getAgentUsage(8).catch(() => ({ usage: [], claude: [] }));
+  const grokWeeks = [...new Set(usage.usage.filter((u) => u.source === "grok").map((u) => u.week_start))].sort().reverse();
+  const grokLatest = usage.usage.filter((u) => u.source === "grok" && u.week_start === grokWeeks[0] && u.agent !== "ALL").sort((x, y) => Number(y.share_pct ?? 0) - Number(x.share_pct ?? 0));
+  const grokTrend = grokWeeks.map((w) => ({ w, pct: usage.usage.find((u) => u.source === "grok" && u.week_start === w && u.agent === "ALL")?.limit_used_pct ?? null }));
+  const claudeWeeks = [...new Set(usage.claude.map((c) => c.week_start))].sort().reverse().slice(0, 4);
+  const claudeAgents = [...new Set(usage.claude.filter((c) => c.week_start === claudeWeeks[0]).sort((x, y) => y.runs - x.runs).map((c) => c.agent))];
+  const runsOf = (agent: string, w: string) => usage.claude.find((c) => c.agent === agent && c.week_start === w)?.runs ?? 0;
 
   return (
     <div className="space-y-5">
@@ -80,6 +89,29 @@ export default async function AgentsPage() {
           <LastSeen a={you} />
         </section>
       )}
+
+      {/* ------------------------------------------------ weekly usage (CR-51) */}
+      <Card title="Weekly usage" right={<Mono>Grok = % of his weekly limit · Claude = runs (different measures)</Mono>}>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="min-w-0">
+            <div className="mb-2 text-[12px] uppercase tracking-[0.12em] text-white/45">Grok bots · week of {grokWeeks[0] ?? "—"}</div>
+            {grokLatest.length ? (
+              <Table head={["Agent", "Share of week"]} align={["l", "r"]} rows={grokLatest.map((u) => [u.agent, u.share_pct == null ? "—" : `${num(u.share_pct, u.share_pct < 1 ? 1 : 0)}%`])} />
+            ) : <Empty>No Grok usage posted yet. Grok posts weekly (POST /agent-usage).</Empty>}
+            {grokTrend.length > 0 && (
+              <div className="mt-2 text-[12.5px] text-white/55">Limit used: {grokTrend.map((t) => `${t.w} ${t.pct == null ? "—" : `${num(t.pct, 1)}%`}`).join(" · ")}</div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="mb-2 text-[12px] uppercase tracking-[0.12em] text-white/45">Claude runs per agent · last {claudeWeeks.length} weeks</div>
+            {claudeAgents.length ? (
+              <Table head={["Agent", ...claudeWeeks.map((w) => w.slice(5))]} align={["l", ...claudeWeeks.map(() => "r" as const)]}
+                rows={claudeAgents.map((a) => [nameOf(a), ...claudeWeeks.map((w) => String(runsOf(a, w)))])} />
+            ) : <Empty>No runs logged yet.</Empty>}
+            <div className="mt-2 text-[12px] text-white/40">Scheduled runs don&apos;t report tokens or cost, so Claude shows runs, not usage.</div>
+          </div>
+        </div>
+      </Card>
 
       <Quiet title="Logs & detail" sub="tap any row to open it">
       <Fold title="How the work flows" right={<Legend items={[{ tone: "green", label: "active" }, { tone: "amber", label: "late" }, { tone: "gray", label: "idle" }]} />}>

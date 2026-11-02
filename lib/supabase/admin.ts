@@ -28,6 +28,9 @@ export function supabaseAdmin(): SupabaseClient {
   if (!client) {
     client = createClient(supabaseUrl(), serviceKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
+      // 2026-11-01: never let Next.js's data cache serve an old database read (Grok saw /strategy v42 and Coinbase
+      // max positions 3 hours after the database changed). Every query goes to the database.
+      global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, cache: "no-store" }) },
     });
   }
   return client;

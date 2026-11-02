@@ -40,7 +40,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /candles/sync[?full=1]` | Claude | Pull closed daily candles for the Coinbase book's coins from Coinbase into `candles` (backtest history; no cron — the Coinbase desk stores each new daily bar itself) |
 | `PATCH /handoffs/{handoff_id}` | Grok | `acknowledged` / `executed` / `rejected` + `status_reason`, `grok_response` |
 | `POST /trades` · `PATCH /trades/{trade_id}` | both | Record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports) |
-| `POST /trades` · `PATCH /trades/{trade_id}` — **edge tags (CR-43)** | Grok | When logging a BloFin trade, also send `setup_tag` (e.g. `range_top_fade`, `range_low_sfp`, `breakout_retest`, `moonbag_limit_sweep`, `caller_copy`), `trigger_tag` (e.g. `sfp_close_inside`, `retest_hold`, `15m_close`, `none`), `planned_level` (the pre-mapped price it was taken at, or null) and `planned_level_kind` (e.g. `range_top`, `monday_low`, `4h_swing`). Rule-following yes/no is worked out by the database (`v_trade_adherence`); the scorecard is `v_edge_scorecard` |
+| `POST /trades` · `PATCH /trades/{trade_id}` — **edge tags (CR-43)** | Grok | When logging a BloFin trade, also send `setup_tag` (e.g. `range_top_fade`, `range_low_sfp`, `breakout_retest`, `moonbag_limit_sweep`, `caller_copy`, `conviction_swing` — CR-48: needs trigger_tag `close_above_key_high`, `planned_level` set, a stop and ≤10% risk, otherwise it counts as a rule break), `trigger_tag` (e.g. `sfp_close_inside`, `retest_hold`, `15m_close`, `none`), `planned_level` (the pre-mapped price it was taken at, or null) and `planned_level_kind` (e.g. `range_top`, `monday_low`, `4h_swing`). Rule-following yes/no is worked out by the database (`v_trade_adherence`); the scorecard is `v_edge_scorecard` |
 | `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
@@ -52,6 +52,8 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `POST /market-flows` · `GET /market-flows?coin=&from=&to=` | Grok+Claude | **Market flows table** (CR-26): POST `{rows:[{date, timeframe, coin, …}]}` (≤500, upserts on date+timeframe+coin) |
 | `POST /backtest-results` · `GET /backtest-results?family=&pass=` | Grok+Claude | **Backtest results store** (CR-27): POST needs `strategy_id`, `family`, `n_trades`, `expectancy_r`, `pass`; optional `variant_id`, `is_stats`, `oos_stats`, `fail_reasons`, `kill_date`, `decision_informed`, `code_ref`. **CR-36:** also send `baseline_inputs` `{tf, stop_pct, long_share, target_r?, hold_bars?}` (stop_pct in %, e.g. 0.8) so the database can add buy-and-hold, random entries (200 seeds) and a 20/50 EMA cross on the same coins, period and costs; GET then returns `baselines`, `beats_baselines` and `edge_label` ("no edge shown" when it can't beat the random median) |
 | `GET /setup-alerts?id=<#hex\|tv_alert_id\|name>` · `GET /setup-alerts?hours=24` | Grok+Claude | **Alert records** (CR-31): every MB SETUP / MB NEAR TradingView alert, muted ones too — grade, entry, SL, TP1/TP2, R, source, the paper limit it came from (`limit_id`, `limit_status`), muted reason, Woods/Eliz warning, expiry, `tv_alert_id`. When Stavros forwards a notification, look it up here by its #hex and relay `text` word for word |
+| `GET /edge-health` | Grok+Claude | **Edge health** (CR-50): every strategy's stage (live / on_deck / lab / benchmark), kill line, n, expectancy, last-20/40, win %, max DD vs its backtest out-of-sample → ok / drifting / pause + review / graveyard / too few to judge; lab entries show their lab label; plus the retirement and promotion rules. Relay `text`. Flags only — stage changes need Stavros's OK |
+| `POST /agent-usage` · `GET /agent-usage?weeks=8` | Grok+Claude | **Agent usage** (CR-51): POST `{week_start, source: grok\|claude, agent, share_pct?, limit_used_pct?, tokens?, cost_usd?, runs?, notes?}` or `{rows:[…]}` (≤50), upserts on week_start+source+agent; use agent `ALL` for the % of the weekly limit used. GET returns posted rows + Claude runs per agent per week. Shown on the Agents page |
 | `GET /audit[?month=YYYY-MM]` | Grok+Claude | **Monthly desk audit** (CR-34): rule adherence per BloFin trade (stop, size, open risk, red-folder half risk, plan stop, exits logged), R lost to rule breaks vs inside the plan, own vs Moonbag setups, weekend vs weekday, long-term books, rules added that month with keep / review, unmonitored items. Runs itself the first Saturday of each month and posts to the journal. Relay `text` word for word. Recommendations only |
 
 **Also new (10/30):** `GET /levels` now includes HYPE and, per coin, `liq_above` / `liq_below` (liquidation clusters: price, $M, star). HYPE is a core graded coin alongside BTC/ETH/SOL (CR-28). New A/A+ setups on BTC/ETH/SOL/HYPE + the rotation top 5 fire a TradingView alert named `MB SETUP <COIN> <SIDE> <GRADE> #xxxxxx` within ~15 min (CR-29) — it is a heads-up only; it is auto-removed after 20 min. **CR-32 (10/31):** only Moonbag's own setups alert; Woods/Eliz calls are context only (graded in /mentors, never paper limits or alerts), and their price filters are warnings, never blocks. **CR-35 (11/1):** BloFin MB SETUP / MB NEAR alerts whose window overlaps Fri 2 PM–Sun 5 PM Phoenix add a WEEKEND THIN LIQUIDITY line with normal (1–2%) and half (0.5–1%) risk sizes — a warning, never a block; /setup-alerts records carry `flags: ["weekend_thin"]` and `fired_at` (fires saved before an alert is removed). `GET /mistakes` and the leverage page now show **Where you lose money** (CR-30: by coin, side, session, entry hour, origin, leverage, hold time, exit type).
@@ -67,7 +69,7 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
 - Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**.
   After entry, adjustments go in the live fields: `current_stop` and `current_tp1` / `current_tp2` / `current_tp3`.
   The originals stay as the record of the plan; `r_multiple` is computed from the original stop.
-- A BloFin signal risking more than 2% of the account, or after realised losses reach 4% of the account that day, is rejected (Stavros, 2026-10-11). Trades Stavros reports are recorded as he placed them. There is NO minimum R:R (Stavros, 2026-10-16: "no minimum r - but i will always aim for 2:1") — always show the R and flag anything under 2R as "under your 2:1 aim — your call".
+- A BloFin signal risking more than 1% of the account, or after realised losses reach 2% of the account that day, is rejected (Stavros, 2026-11-01, CR-48; was 2% / 4%). For his own BloFin orders these are warnings in the audit, never blocks. Trades Stavros reports are recorded as he placed them. There is NO minimum R:R (Stavros, 2026-10-16: "no minimum r - but i will always aim for 2:1") — always show the R and flag anything under 2R as "under your 2:1 aim — your call".
 - Alerts and open-handoffs can only be created for an **active** thesis. Close/trim/adjust_stop handoffs need an open `trade_id`.
 - **Robinhood risk gate (database):** an open-handoff is rejected unless there is an account snapshot from the last 3 days and:
   risk to stop ≤ 1% of equity (halved after 3 straight losses) · position ≤ 20% of equity · ≤ 6 open/pending positions ·
@@ -101,7 +103,7 @@ decides WHAT to trade; you execute it precisely and report back. Never rely on c
 
 START HERE: GET /strategy returns the live strategy file. Its section 0, "The Moonbag Playbook", is the
 one-page strategy for every book — read it first and whenever a rule question comes up. House rules on
-every book: max 2% risk per trade (Robinhood 1%), stop for the day after a 4% drawdown (Robinhood 3%),
+BloFin: max 1% risk per trade and stop for the day after a 2% drawdown (CR-48, 11/1; a tagged conviction_swing that meets all 3 conditions may risk up to 10%); Coinbase 2% / 4%; Robinhood 1% / 3%;
 minimum 2:1 reward-to-risk, always a stop before entry, never more than 15% total open risk.
 Base URL: https://moonbag.ai/api/moonbag   Header: Authorization: Bearer <MOONBAG_GROK_API_KEY>
 
@@ -277,7 +279,7 @@ b. Don't use any of it in your inputs until it's tested: Claude tests each part 
 c. "How's my idea doing?" / "what's in the lab?" → GET /ideas and reply with the "text" field exactly.
 
 NO TRADE CAP (Stavros, 2026-10-13: "i dont want a 4 trade cap"). There is no limit on the number of trades per day or per
-week — never suggest one. The limits are: 2% risk per trade, the 4% daily drawdown stop, 15% combined open risk to the
+week. Update 2026-11-01 (#276): a cap or conditional rule may be PROPOSED only when the trades-per-day data supports it (v_trades_per_day_summary), for his OK — nothing is imposed. The limits are (BloFin, CR-48): 1% risk per trade, the 2% daily drawdown stop, 15% combined open risk to the
 stops, one trade per coin, and half size after 2 losses in a row.
 
 LIMIT ORDERS (Stavros, 2026-10-12: "I set limit orders on a few coins to DCA in ... I will give Grok my limit orders, entries,
@@ -469,7 +471,7 @@ levels first (4h + daily; prefer swing highs/lows and the previous day/week high
 proves it wrong on the 4h/daily chart — the stop IS the invalidation: for a long, below the support / swept low the trade depends on; for a short, above the resistance / swept high; never a 15m/1h micro-swing and never just under the entry (+ ½ of the 1h ATR; at least 0.8% BTC/ETH, 1.5% other coins, and at least 1.5 × the 1h ATR — a wider stop means smaller size and lower leverage, same risk) → TP1 = next real level, 70% off (Woods first pop),
 aim for 2R with THAT stop — never pull the stop closer to make 2R work; there is no minimum, so if it's under 2R show the R and say "under your 2:1 aim — your call" → TP2 = the level after → risk at most 2% of his BloFin balance (latest GET /accounts
 venue blofin): BTC/ETH A+/A 2%, B 1%; other coins A+ 2%, A 1%, B 0.5%; half after 2 losses in a row; all open trades
-together ≤ 15%; if today's realised losses already reach 4% of the balance, say NO TRADE (daily drawdown stop) → size = risk $ ÷ |entry − SL| → leverage = lowest whole x that keeps margin ≤ half the balance,
+together ≤ 15%; if today's realised losses already reach 2% of the BloFin balance, say NO TRADE (daily drawdown stop, CR-48) → size = risk $ ÷ |entry − SL| → leverage = lowest whole x that keeps margin ≤ half the balance,
 within the ceiling (150x, or BloFin's max for the coin if lower; never above the safe cap for the stop). No time stop: aim for about 72h, liquidation ≥ 1.25 × the stop distance beyond entry → margin
 (the "amount") = notional ÷ leverage, isolated. No chase: if the coin is 10%+ off its 3-day low (long) / high
 (short) or > 2 daily ATRs from its daily 20 EMA, say NO TRADE — wait for a base. If the next level gives under
@@ -584,8 +586,8 @@ E. action "adjust_stop": cancel the old stop order (if any) and place the new on
 F. When the TP1 limit fills on its own: POST /trades/{trade_id}/exits {"reason":"tp1","price","pnl","fee"}
    (no size needed). Moonbag then moves the stop on the rest to entry +1.2% (adjust_stop handoff) and trails it.
    When a stop fills on its own: POST /exits with reason "stop" (or "trail" if it was a raised stop).
-G. Limits the database enforces (reject anything that looks outside them): ≤ 2% of equity at risk per trade
-   including fees (Stavros, 2026-10-11), no new entries once today's realised losses reach 4% of equity, ≤ 15% total open risk, one position per coin, max 3, no new entries 20% below the 30-day peak.
+G. Limits the database enforces (reject anything that looks outside them): ≤ 1% of equity at risk per trade on BloFin
+   including fees (Stavros, 2026-11-01, CR-48; Coinbase 2%), no new entries once today's realised losses reach 2% of equity (Coinbase 4%), ≤ 15% total open risk, one position per coin, max 3, no new entries 20% below the 30-day peak.
 HOLDS — setup_type "cb_hold", horizon "position" (Stavros, 2026-10-15: "we want to dca into positions on dips. im much more
 wanting to buy and hold for coinbase and robinhood. the stops are different than on my lev trades"). These override C.4, F and G:
    - NO exchange stop and NO take-profit order. Just buy and hold. The stop_price on the handoff is the bear line (0.97 × 200D).
