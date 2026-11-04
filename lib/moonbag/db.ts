@@ -245,6 +245,8 @@ export const TRADE_WRITABLE_FIELDS = [
   "setup_tag", "trigger_tag", "planned_level", "planned_level_kind",
   // CR-55 (2026-11-04): bull and bear case, written BEFORE the fill (bull_bear_at) or they are not scored
   "bull_case", "bear_case", "bull_bear_at",
+  // CR-56 (2026-11-04): prop firm account (venue "breakout")
+  "prop_account_id",
 ] as const;
 
 export async function listTrades(

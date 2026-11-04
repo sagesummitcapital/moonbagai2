@@ -188,7 +188,7 @@ export interface Handoff {
 }
 
 export type TradeStatus = "pending" | "open" | "closed" | "cancelled";
-export type Venue = "robinhood" | "blofin" | "coinbase" | "other";
+export type Venue = "robinhood" | "blofin" | "coinbase" | "breakout" | "other";
 
 export interface Trade {
   trade_id: string; // MBT-…
@@ -248,6 +248,7 @@ export interface Trade {
   bull_case?: string | null;
   bear_case?: string | null;
   bull_bear_at?: string | null;
+  prop_account_id?: string | null;
   // Partial exits (trade_exits) — maintained by the database, never written directly.
   qty_open?: number | null;
   // Partial take-profit orders: size (coin units) on each working target; null = the whole remaining position.

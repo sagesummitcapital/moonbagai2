@@ -17,17 +17,21 @@ export const GET = withAgent(["claude", "grok"], async (req) => {
 /**
  * Record an execution.
  * Grok: Robinhood and Coinbase fills it executes (execution "grokbot") AND BloFin leveraged
- * trades Stavros tells it he took manually (execution "manual").
+ * trades Stavros tells it he took manually (execution "manual"). Breakout prop trades: venue "breakout" + prop_account_id, also "manual".
  */
 export const POST = withAgent(["claude", "grok"], async (req, agent) => {
   const body = await readJson(req);
   // Coinbase trades come from the rule-based system and may omit thesis_id (send handoff_id instead).
-  requireFields(body, body.venue === "coinbase" ? ["venue", "symbol", "direction"] : ["thesis_id", "venue", "symbol", "direction"]);
-  if (agent === "grok" && !["robinhood", "blofin", "coinbase"].includes(String(body.venue))) {
-    throw new BadRequest("Grok can record Robinhood, Coinbase or BloFin trades.");
+  // CR-56: prop firm (Breakout) trades are a separate book — no thesis_id; prop_account_id required.
+  const noThesis = body.venue === "coinbase" || body.venue === "breakout";
+  requireFields(body, noThesis ? ["venue", "symbol", "direction"] : ["thesis_id", "venue", "symbol", "direction"]);
+  if (agent === "grok" && !["robinhood", "blofin", "coinbase", "breakout"].includes(String(body.venue))) {
+    throw new BadRequest("Grok can record Robinhood, Coinbase, BloFin or Breakout trades.");
   }
+  if (body.venue === "breakout") requireFields(body, ["prop_account_id"]);
+  else if (body.prop_account_id) throw new BadRequest("prop_account_id is only for venue \"breakout\".");
   const execution =
-    agent === "grok" ? (body.venue === "blofin" ? "manual" : "grokbot") : body.execution;
+    agent === "grok" ? (body.venue === "blofin" || body.venue === "breakout" ? "manual" : "grokbot") : body.execution;
   const trade = await createTrade({
     ...pick(body, ["thesis_id", "handoff_id", "venue", "symbol", "direction", "setup_type", "horizon", "sleeve", "theme"]),
     ...pick(body, TRADE_WRITABLE_FIELDS),
