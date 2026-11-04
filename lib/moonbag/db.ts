@@ -243,6 +243,8 @@ export const TRADE_WRITABLE_FIELDS = [
   "execution_score", "execution_notes", "status", "exit_reason", "origin", "origin_notes",
   // CR-43 (2026-11-01): edge tags — what setup, which trigger, at which pre-mapped level
   "setup_tag", "trigger_tag", "planned_level", "planned_level_kind",
+  // CR-55 (2026-11-04): bull and bear case, written BEFORE the fill (bull_bear_at) or they are not scored
+  "bull_case", "bear_case", "bull_bear_at",
 ] as const;
 
 export async function listTrades(

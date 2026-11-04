@@ -244,6 +244,10 @@ export interface Trade {
   trigger_tag?: string | null;
   planned_level?: number | null;
   planned_level_kind?: string | null;
+  // CR-55 bull / bear case (before the fill)
+  bull_case?: string | null;
+  bear_case?: string | null;
+  bull_bear_at?: string | null;
   // Partial exits (trade_exits) — maintained by the database, never written directly.
   qty_open?: number | null;
   // Partial take-profit orders: size (coin units) on each working target; null = the whole remaining position.
