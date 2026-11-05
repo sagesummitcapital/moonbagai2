@@ -11,7 +11,8 @@ export type PropStatus = {
   target_balance: number; to_target: number; target_progress_pct: number;
   dd_floor: number; room_to_floor: number;
   day_start: string; day_resets_at: string; day_start_balance: number; daily_floor: number; day_pnl: number; room_today: number; daily_limit_usd: number;
-  risk_low_usd: number; risk_high_usd: number; max_leverage: number; profit_split_pct: number; fee_paid: number | null;
+  risk_low_usd: number; risk_high_usd: number; max_leverage: number; // max_leverage = the account's top cap (BTC); per-coin caps in prop_leverage_caps (CR-57)
+  profit_split_pct: number; fee_paid: number | null;
   trades: number; open_trades: number; open_risk_usd: number | null; days_traded: number; win_pct: number | null; total_r: number | null; avg_r: number | null;
   notes: string | null;
 };
@@ -73,8 +74,10 @@ export const GROK_PROP_PLAYBOOK = [
   "1. Separate book. Breakout trades never go in BloFin P&L, ROI, risk, X posts or the BloFin daily-loss count.",
   "2. Each fill he reports: POST /trades {venue:\"breakout\", prop_account_id:\"BRK-PRO-10K-1\", symbol, direction, entry, stop, leverage, risk_dollars, opened_at, setup_tag, trigger_tag, status:\"open\"} — no thesis_id. Close with POST /trades/{id}/exits.",
   "3. After each session or any screenshot of the Breakout dashboard: POST /prop {action:\"snapshot\", account_id, balance, equity}. Use his numbers only.",
-  "4. Before he trades, relay GET /prop text: room today, room to the $9,500 floor, reset time (5 PM Phoenix).",
-  "5. Firm limits are HARD: 3% daily of prior-day balance, $9,500 static floor, 10x max leverage, a stop on every trade. Warn him clearly if a planned trade's risk is bigger than today's room.",
+  "4. Before he trades: GET /prop?coin=<COIN>&side=<long|short> and relay `text` word for word — room today, room to the $9,500 floor, reset time (5:30 PM Phoenix), that coin's firm leverage cap, the 1h stop check, and any BloFin position the other way.",
+  "5. Firm limits are HARD: daily loss 3% of the balance at 00:30 UTC (5:30 PM Phoenix), checked on EQUITY; $9,500 static floor; per-coin leverage cap (BTC 10x, ETH/SOL/XRP/DOGE/ADA/AVAX/LINK/SUI 5x, HYPE/ENA/PEPE/WLD 3x, every other coin 2x); a stop on every trade. Fees (0.04%/order) and swap (~0.033%/day) count toward the limits. Warn him clearly if a planned trade's risk is bigger than today's room.",
+  "5b. Our room number is only as fresh as his last snapshot. With a trade open, ask for current equity before he adds another.",
+  "5c. Firm-prohibited (HARD flag, in plain words, his decision): executing a trade idea from someone else (Woods, Eliz, Johnny, any caller, signal group or social post); a prop trade opposite or hedging a position on another account (BloFin included); more than one account per household/device/IP; changing trading style after passing.",
   "6. His 0.5%–1% sizing is GUIDANCE ONLY. Never call it a rule break and never refuse to log a trade over size.",
   "7. Pass / funded / breached: tell Claude in the journal (FOR CLAUDE). Only Claude changes the stage, after Stavros confirms.",
   "8. He places every order himself. You log, warn and relay — you never place prop trades.",
@@ -125,6 +128,56 @@ export async function getPropToday(a: PropStatus): Promise<PropToday> {
 /** 1h ATR(14) from the hourly candles table (same source as /quick). min_stop = 1.5 × ATR, the stop-distance check. */
 export type HourlySwing = { coin: string; last_close: number; atr_1h: number; atr_1h_pct: number; min_stop_distance: number; bar_at: string };
 
+/** Same normalisation as mb_base_symbol() in the database. */
+export const baseSymbol = (s: string) => s.toUpperCase().replace(/[-/_ ]?(USDT|USDC|USD|PERP|PF).*$/, "").trim();
+
+/** CR-57: per-coin firm leverage caps + BloFin positions that would make a prop trade a cross-account hedge. */
+export type PropCaps = { firm_key: string | null; unlisted: number | null; caps: { symbol: string; max_leverage: number }[] };
+export type PreTrade = { coin: string; side: string | null; max_leverage: number | null; blofin_open: { trade_id: string; direction: string }[]; hedge: boolean };
+
+export async function getPropCaps(accountId: string): Promise<PropCaps> {
+  const db = supabaseAdmin();
+  const a = await db.from("prop_accounts").select("firm_key, unlisted_max_leverage, max_leverage").eq("account_id", accountId).maybeSingle();
+  const acct = a.data as { firm_key: string | null; unlisted_max_leverage: number | null; max_leverage: number | null } | null;
+  if (!acct) return { firm_key: null, unlisted: null, caps: [] };
+  const c = acct.firm_key ? await db.from("prop_leverage_caps").select("symbol, max_leverage").eq("firm_key", acct.firm_key) : { data: [] };
+  return { firm_key: acct.firm_key, unlisted: acct.unlisted_max_leverage ?? acct.max_leverage, caps: ((c.data ?? []) as PropCaps["caps"]) };
+}
+
+export const capFor = (c: PropCaps, coin: string) => {
+  const hit = c.caps.find((x) => x.symbol === baseSymbol(coin));
+  return hit ? n(hit.max_leverage) : c.unlisted != null ? n(c.unlisted) : null;
+};
+
+export function capsLine(c: PropCaps) {
+  if (!c.caps.length) return null;
+  const by = new Map<number, string[]>();
+  for (const x of c.caps) { if (x.symbol === "1000PEPE") continue; const k = n(x.max_leverage); by.set(k, [...(by.get(k) ?? []), x.symbol]); }
+  const parts = [...by.entries()].sort((a, b) => b[0] - a[0]).map(([lev, syms]) => `${syms.join("/")} ${lev}x`);
+  return `Max leverage per coin (firm): ${parts.join("; ")}${c.unlisted != null ? `; every other coin ${n(c.unlisted)}x` : ""}.`;
+}
+
+export async function getPreTrade(accountId: string, coins: string[], side: string | null, caps: PropCaps): Promise<PreTrade[]> {
+  const r = await supabaseAdmin().from("trades").select("trade_id, symbol, direction").eq("venue", "blofin").eq("status", "open");
+  const open = (r.data ?? []) as { trade_id: string; symbol: string; direction: string }[];
+  return coins.slice(0, 8).map((raw) => {
+    const coin = baseSymbol(raw);
+    const blofin_open = open.filter((t) => baseSymbol(t.symbol) === coin).map((t) => ({ trade_id: t.trade_id, direction: t.direction }));
+    const hedge = side ? blofin_open.some((t) => t.direction !== side) : blofin_open.length > 0;
+    return { coin, side, max_leverage: capFor(caps, coin), blofin_open, hedge };
+  });
+}
+
+export function preTradeLine(p: PreTrade) {
+  const lev = p.max_leverage != null ? `firm max ${p.max_leverage}x` : "firm max unknown";
+  const bf = p.blofin_open.length
+    ? p.hedge
+      ? `HARD FLAG: BloFin has an open ${p.coin} ${p.blofin_open.map((t) => t.direction).join("/")} (${p.blofin_open.map((t) => t.trade_id).join(", ")}) — a prop ${p.side ?? "trade the other way"} would be a cross-account hedge, which the firm prohibits. His call.`
+      : `BloFin has an open ${p.coin} ${p.blofin_open[0].direction} on the same side (not a hedge).`
+    : "no open BloFin position in this coin";
+  return `${p.coin}${p.side ? ` ${p.side}` : ""}: ${lev} · ${bf}`;
+}
+
 export async function getHourlySwing(coins: string[]): Promise<HourlySwing[]> {
   const db = supabaseAdmin();
   const out = await Promise.all(coins.slice(0, 8).map(async (raw) => {
@@ -151,7 +204,7 @@ export const swingLine = (s: HourlySwing) =>
 export const lossesToLimit = (room: number, risk: number) => (risk > 0 ? Math.max(0, Math.floor(room / risk)) : null);
 
 /** Fixed status text for agents to relay. Firm limits are facts; sizing is guidance. */
-export function propText(a: PropStatus, trades: PropTrade[], edge?: DeskEdge) {
+export function propText(a: PropStatus, trades: PropTrade[], edge?: DeskEdge, caps?: PropCaps) {
   const flagged = trades.filter((t) => t.account_id === a.account_id && (t.firm_flags?.length ?? 0) > 0);
   const resetPhx = new Date(a.day_resets_at).toLocaleString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
   const lines = [
@@ -159,7 +212,10 @@ export function propText(a: PropStatus, trades: PropTrade[], edge?: DeskEdge) {
     `Balance ${usd(a.balance)} · equity ${usd(a.equity)} · target ${usd(a.target_balance)} (${usd(a.to_target)} to go, ${n(a.target_progress_pct).toFixed(0)}% there)`,
     `Static floor ${usd(a.dd_floor)} · room ${usd(a.room_to_floor)} (${lossesToLimit(n(a.room_to_floor), n(a.risk_high_usd))} losses at 1%)`,
     `Today: P&L ${usd(a.day_pnl)} · daily floor ${usd(a.daily_floor)} · room ${usd(a.room_today)} of ${usd(a.daily_limit_usd)} (${lossesToLimit(n(a.room_today), n(a.risk_high_usd))} losses at 1%) · resets ${resetPhx} Phoenix`,
-    `Max leverage ${n(a.max_leverage)}x · sizing guidance 0.5–1% = ${usd(a.risk_low_usd)}–${usd(a.risk_high_usd)} (guidance, not a rule)`,
+    `Daily breach is checked on EQUITY (open losses count). Room above uses the last snapshot (${a.last_snapshot_at ? new Date(a.last_snapshot_at).toLocaleString("en-US", { timeZone: "America/Phoenix", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " Phoenix" : "none yet"}) — with a trade open, ask for current equity.`,
+    caps ? capsLine(caps) ?? `Max leverage ${n(a.max_leverage)}x` : `Max leverage ${n(a.max_leverage)}x (top cap; per-coin caps apply)`,
+    `Fees 0.04%/order and swap ~0.033%/day count toward the limits.`,
+    `Sizing guidance 0.5–1% = ${usd(a.risk_low_usd)}–${usd(a.risk_high_usd)} (guidance, not a rule)`,
     `Trades ${a.trades} (${a.open_trades} open) · days traded ${a.days_traded}` + (a.total_r != null ? ` · ${n(a.total_r).toFixed(2)}R total, win ${n(a.win_pct).toFixed(0)}%` : ""),
   ];
   if (flagged.length) lines.push(`FIRM FLAGS: ` + flagged.map((t) => `${t.symbol} ${t.trade_id}: ${t.firm_flags!.join(", ")}`).join(" | "));

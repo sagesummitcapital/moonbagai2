@@ -1,7 +1,7 @@
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Empty, KV, LongText, Mono, Note, PageHeader, Section, Stat, StatGrid, Table, Tile, Unit, money, whenShort, type Tone } from "../_components/ui";
-import { getPropData, lossesToLimit, edgeLines, GROK_PROP_PLAYBOOK, type DeskEdge, type PropStatus, type PropTrade, type PropDay } from "@/lib/moonbag/prop";
+import { getPropData, getPropCaps, capsLine, lossesToLimit, edgeLines, GROK_PROP_PLAYBOOK, type PropCaps, type DeskEdge, type PropStatus, type PropTrade, type PropDay } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ function Stepper({ stage }: { stage: string }) {
   );
 }
 
-function AccountView({ a, trades, days, edge }: { a: PropStatus; trades: PropTrade[]; days: PropDay[]; edge: DeskEdge }) {
+function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: PropTrade[]; days: PropDay[]; edge: DeskEdge; caps: PropCaps | null }) {
   const gain = n(a.balance) - n(a.starting_balance);
   const targetGain = n(a.target_balance) - n(a.starting_balance);
   const ddLimit = n(a.starting_balance) - n(a.dd_floor);
@@ -99,7 +99,7 @@ function AccountView({ a, trades, days, edge }: { a: PropStatus; trades: PropTra
             tone={dailyTone}
             size="md"
             meter={<Meter value={n(a.room_today)} max={n(a.daily_limit_usd)} tone={dailyTone} />}
-            sub={<>floor {money(a.daily_floor)} today · resets {resetPhx} (5 PM Phoenix)</>}
+            sub={<>floor {money(a.daily_floor)} today · checked on equity · resets {resetPhx} Phoenix</>}
           />
         </Tile>
         <Tile tone={ddTone === "green" ? undefined : "warn"}>
@@ -118,15 +118,25 @@ function AccountView({ a, trades, days, edge }: { a: PropStatus; trades: PropTra
         <Card title="Firm rules" sub="Hard limits. Breaking any one fails the account.">
           <KV rows={[
             ["Profit target", `+${pct((targetGain / n(a.starting_balance)) * 100, 0)} → ${money(a.target_balance)}`],
-            ["Max daily loss", `${money(a.daily_limit_usd)} (3% of prior-day balance)`],
-            ["Daily reset", "00:00 UTC · 5:00 PM Phoenix"],
+            ["Max daily loss", `${money(a.daily_limit_usd)} (3% of the balance at reset, on equity)`],
+            ["Daily reset", "00:30 UTC · 5:30 PM Phoenix"],
             ["Max drawdown", `5% static → floor ${money(a.dd_floor)}`],
-            ["Max leverage", `${n(a.max_leverage)}x`],
+            ["Max leverage", caps ? (capsLine(caps) ?? `${n(a.max_leverage)}x`).replace("Max leverage per coin (firm): ", "") : `${n(a.max_leverage)}x`],
+            ["Fees", "0.04%/order + swap ~0.033%/day, count toward limits"],
             ["Phases", "1 (one-step)"],
             ["Time limit / min days", "None / none"],
             ["Profit split", `${n(a.profit_split_pct)}% to you`],
             ["Evaluation fee", a.fee_paid != null ? money(a.fee_paid) : "—"],
           ]} />
+          <Section title="Prohibited by the firm" className="mt-4">
+            <ul className="list-disc space-y-1 pl-5 text-[13px] leading-snug text-white/70">
+              <li>Executing someone else&apos;s trade idea — callers (Woods, Eliz, Johnny), signal groups, social posts.</li>
+              <li>Hedging across accounts: a prop trade opposite or correlated against another account, BloFin included.</li>
+              <li>More than one account per household, device or IP.</li>
+              <li>Changing trading style after passing.</li>
+            </ul>
+          </Section>
+          <p className="mt-3 text-[12px] text-white/40">From Grok&apos;s review of Breakout&apos;s help center (11/4). Check the firm&apos;s current rules if anything looks off.</p>
         </Card>
 
         <Card title="Your sizing" sub="Guidance only — your call each trade (0.5% to 1%). Never flagged as a rule break.">
@@ -144,7 +154,8 @@ function AccountView({ a, trades, days, edge }: { a: PropStatus; trades: PropTra
               <li>The static floor is the account. Protect the {money(ddLimit)} cushion first; the target comes from not breaching.</li>
               <li>Size for the daily limit, not the target. No time limit means no reason to press.</li>
               <li>Stop for the day once a third of the daily room is left — the desk pings Grok at that point.</li>
-              <li>Every trade has a stop at entry. Leverage stays at or under {n(a.max_leverage)}x.</li>
+              <li>Every trade has a stop at entry. Leverage stays under the coin&apos;s firm cap (BTC {n(a.max_leverage)}x, most alts far lower).</li>
+              <li>Your own reads only, and never the other side of an open BloFin trade.</li>
               <li>Snapshot the balance from the firm dashboard after each session so the numbers here match theirs.</li>
             </ul>
           </Section>
@@ -210,11 +221,12 @@ function AccountView({ a, trades, days, edge }: { a: PropStatus; trades: PropTra
 export default async function PropPage() {
   const { data, error } = await load(() => getPropData());
   const accounts = data?.accounts ?? [];
+  const caps = await Promise.all(accounts.map((a) => getPropCaps(a.account_id).catch(() => null)));
   return (
     <div className="space-y-8">
       <DataNotice error={error} />
       {accounts.length === 0 && <Card><Empty>No prop firm accounts yet.</Empty></Card>}
-      {accounts.map((a) => <AccountView key={a.account_id} a={a} trades={data!.trades} days={data!.days} edge={data!.edge} />)}
+      {accounts.map((a, i) => <AccountView key={a.account_id} a={a} trades={data!.trades} days={data!.days} edge={data!.edge} caps={caps[i]} />)}
       {accounts.length > 0 && (
         <Card title="How Grok handles this account" sub="The fixed instructions Grok gets with every GET /prop.">
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed text-white/75">{GROK_PROP_PLAYBOOK}</pre>

@@ -1,6 +1,6 @@
 import { withAgent, json, readJson, requireFields, BadRequest } from "@/lib/moonbag/apiAuth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getPropData, propText, GROK_PROP_PLAYBOOK, getPropToday, getHourlySwing, todayLine, swingLine } from "@/lib/moonbag/prop";
+import { getPropData, propText, GROK_PROP_PLAYBOOK, getPropToday, getHourlySwing, todayLine, swingLine, getPropCaps, getPreTrade, preTradeLine } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
  * PROP FIRM ACCOUNTS (CR-56, approved by Stavros 11/4). A separate book from BloFin.
  * GET  ?account_id=BRK-PRO-10K-1 (optional)  → status text (incl. what his BloFin record says) + `playbook` (Grok's fixed handling rules)
  *      + accounts, daily log, trades with firm flags, prop journal notes, edge
- *      + `today` (trades/losses today, room in $ and R at 0.5%/1%). Add ?coin=BTC,ETH for `swing`: 1h ATR(14) and the 1.5× ATR minimum stop.
+ *      + `today` (trades/losses today, room in $ and R at 0.5%/1%). Add ?coin=BTC,ETH[&side=long|short] for `swing` (1h ATR(14), 1.5× ATR
+ *      minimum stop) and `pre_trade` (CR-57: per-coin firm leverage cap, open BloFin position that would make it a cross-account hedge).
  * POST {action:"snapshot", account_id, balance, equity?, note?}  → record the balance/equity Stavros reads off the firm dashboard
  * POST {action:"stage", account_id, stage, note?}  (Claude only, after Stavros confirms in chat) → evaluation | passed | funded | breached | closed
  * Trades go through POST /trades with venue "breakout" and prop_account_id.
@@ -17,12 +18,21 @@ export const GET = withAgent(["claude", "grok"], async (req) => {
   const q = new URL(req.url).searchParams;
   const id = q.get("account_id")?.trim() || undefined;
   const coins = (q.get("coin") ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+  const sideQ = (q.get("side") ?? "").toLowerCase();
+  const side = sideQ === "long" || sideQ === "short" ? sideQ : null;
   const d = await getPropData(id);
-  const [today, swing] = await Promise.all([Promise.all(d.accounts.map(getPropToday)), coins.length ? getHourlySwing(coins) : Promise.resolve([])]);
+  const [today, swing, caps] = await Promise.all([
+    Promise.all(d.accounts.map(getPropToday)),
+    coins.length ? getHourlySwing(coins) : Promise.resolve([]),
+    Promise.all(d.accounts.map((a) => getPropCaps(a.account_id))),
+  ]);
+  const pre = coins.length && d.accounts.length ? await getPreTrade(d.accounts[0].account_id, coins, side, caps[0]) : [];
   const text = d.accounts.length
-    ? d.accounts.map((a, i) => [propText(a, d.trades, d.edge), todayLine(today[i])].join("\n")).join("\n\n") + (swing.length ? "\n\nSTOP CHECK (1h)\n" + swing.map(swingLine).join("\n") : "")
+    ? d.accounts.map((a, i) => [propText(a, d.trades, d.edge, caps[i]), todayLine(today[i])].join("\n")).join("\n\n")
+      + (pre.length ? "\n\nPRE-TRADE CHECK\n" + pre.map(preTradeLine).join("\n") : "")
+      + (swing.length ? "\n\nSTOP CHECK (1h, heads-up only)\n" + swing.map(swingLine).join("\n") : "")
     : "No prop accounts on file.";
-  return json({ ok: true, text, playbook: GROK_PROP_PLAYBOOK, today, swing, ...d });
+  return json({ ok: true, text, playbook: GROK_PROP_PLAYBOOK, today, swing, pre_trade: pre, caps, ...d });
 });
 
 const STAGES = ["evaluation", "passed", "funded", "breached", "closed"];
