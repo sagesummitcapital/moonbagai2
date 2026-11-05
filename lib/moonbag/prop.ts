@@ -100,6 +100,53 @@ export async function getPropData(accountId?: string) {
   };
 }
 
+/** Per-trade helpers for the intake (Grok #414): today's prop trades and losses (firm day, 00:00 UTC), room in $ and in R. */
+export type PropToday = { account_id: string; trades_today: number; losses_today: number; pnl_today: number;
+  room_today_usd: number; room_floor_usd: number; room_today_r_1pct: number | null; room_today_r_05pct: number | null; room_floor_r_1pct: number | null; room_floor_r_05pct: number | null };
+
+export async function getPropToday(a: PropStatus): Promise<PropToday> {
+  const r = await supabaseAdmin().from("trades").select("status, opened_at, closed_at, realized_pnl")
+    .eq("venue", "breakout").eq("prop_account_id", a.account_id).or(`opened_at.gte.${new Date(a.day_start).toISOString()},closed_at.gte.${new Date(a.day_start).toISOString()}`);
+  const rows = (r.data ?? []) as { status: string; opened_at: string | null; closed_at: string | null; realized_pnl: number | null }[];
+  const start = new Date(a.day_start).getTime();
+  const closedToday = rows.filter((t) => t.closed_at && new Date(t.closed_at).getTime() >= start);
+  const rr = (room: number, risk: number) => (risk > 0 ? Math.round((room / risk) * 100) / 100 : null);
+  return {
+    account_id: a.account_id,
+    trades_today: rows.filter((t) => t.opened_at && new Date(t.opened_at).getTime() >= start).length,
+    losses_today: closedToday.filter((t) => n(t.realized_pnl) < 0).length,
+    pnl_today: n(a.day_pnl),
+    room_today_usd: n(a.room_today), room_floor_usd: n(a.room_to_floor),
+    room_today_r_1pct: rr(n(a.room_today), n(a.risk_high_usd)), room_today_r_05pct: rr(n(a.room_today), n(a.risk_low_usd)),
+    room_floor_r_1pct: rr(n(a.room_to_floor), n(a.risk_high_usd)), room_floor_r_05pct: rr(n(a.room_to_floor), n(a.risk_low_usd)),
+  };
+}
+
+/** 1h ATR(14) from the hourly candles table (same source as /quick). min_stop = 1.5 × ATR, the stop-distance check. */
+export type HourlySwing = { coin: string; last_close: number; atr_1h: number; atr_1h_pct: number; min_stop_distance: number; bar_at: string };
+
+export async function getHourlySwing(coins: string[]): Promise<HourlySwing[]> {
+  const db = supabaseAdmin();
+  const out = await Promise.all(coins.slice(0, 8).map(async (raw) => {
+    const coin = raw.toUpperCase().replace(/USDT.*$/, "").trim();
+    const r = await db.from("candles").select("h, l, c, ts").eq("asset", coin).eq("tf", "1h").order("ts", { ascending: false }).limit(15);
+    const b = (r.data ?? []) as { h: number; l: number; c: number; ts: string }[];
+    if (b.length < 3) return null;
+    let sum = 0;
+    for (let i = 0; i < b.length - 1; i++) sum += Math.max(n(b[i].h) - n(b[i].l), Math.abs(n(b[i].h) - n(b[i + 1].c)), Math.abs(n(b[i].l) - n(b[i + 1].c)));
+    const atr = sum / (b.length - 1);
+    const px = n(b[0].c);
+    return { coin, last_close: px, atr_1h: atr, atr_1h_pct: px ? (atr / px) * 100 : 0, min_stop_distance: 1.5 * atr, bar_at: b[0].ts };
+  }));
+  return out.filter(Boolean) as HourlySwing[];
+}
+
+const fpx = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : v >= 1 ? 2 : 5 });
+export const todayLine = (t: PropToday) =>
+  `Today (firm day): ${t.trades_today} prop trade(s), ${t.losses_today} loss(es). Room ${usd(t.room_today_usd)} = ${t.room_today_r_1pct ?? "—"}R at 1% / ${t.room_today_r_05pct ?? "—"}R at 0.5%. To floor ${usd(t.room_floor_usd)} = ${t.room_floor_r_1pct ?? "—"}R at 1% / ${t.room_floor_r_05pct ?? "—"}R at 0.5%.`;
+export const swingLine = (s: HourlySwing) =>
+  `${s.coin} 1h ATR ${fpx(s.atr_1h)} (${s.atr_1h_pct.toFixed(2)}%) → stop at least ${fpx(s.min_stop_distance)} from entry (1.5× ATR) · last 1h close ${fpx(s.last_close)}`;
+
 /** Losses in a row at a given $ risk before a limit is hit. */
 export const lossesToLimit = (room: number, risk: number) => (risk > 0 ? Math.max(0, Math.floor(room / risk)) : null);
 
