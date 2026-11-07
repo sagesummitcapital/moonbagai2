@@ -97,3 +97,30 @@ export const FALSIFIERS = [
 ] as const;
 
 export const FIAT_YEAR = (d = new Date()) => d.getUTCFullYear() - 1971;
+
+/**
+ * CYCLE CLOCK (Stavros 2026-11-07: "overlap these dates w entropy trap thesis ... i think i agree"; chose "Clock + gauges confirm").
+ * Two calendars for the same 1929-style sequence. Dates are a heads-up only: a phase change needs the gauges to agree
+ * (Trapdoor = SRI flips with credit/repo breaking; Deployment = RQI negative jerk with credit healing on its own).
+ * Entropy Trap clock = years since 1971 mapped onto the Long Depression (1873 + n). Gannwyck = 1929 + 100 (speculative, not advice).
+ */
+export const CYCLE_PHASES = [
+  { key: "euphoria", name: "Late bull / euphoria", analog: "1927–1929", entropy: "2025–2027", gannwyck: "2026–2029 (peak 2029)",
+    gauge: "State 1 Waiting. RQI reads a rally as a trap; SSI orange/red; retail FOMO (retail gauge high).", play: "Hold the core, build cash (Layer 3), sell strength not weakness. No new leverage into blow-offs." },
+  { key: "crash", name: "Crash / leverage unwind", analog: "1929–1931", entropy: "2027–2029", gannwyck: "2029–2031",
+    gauge: "State 2 Trapdoor: SRI flips (saw-tooth breaks), credit spreads spike, repo/bank lending freeze.", play: "Cash is king. Liquidity over bravery. Forced selling hits everything, BTC included." },
+  { key: "capitulation", name: "Capitulation", analog: "1932", entropy: "~2030", gannwyck: "2031",
+    gauge: "State 3 Deployment trigger: RQI negative jerk, breadth expands, credit heals without central-bank help.", play: "Deploy the reserve into real assets and long-term holds — on the gauges, not the date." },
+  { key: "reset", name: "Money reset", analog: "1933–1934", entropy: "2031–2032", gannwyck: "2032",
+    gauge: "Rules rewritten (1933–34: gold revalued, convertibility changed). SEI stage 4–5.", play: "BTC as reserve asset is Gannwyck's call; the book keeps BTC 'conditional — the bridge, not the destination'." },
+  { key: "new_order", name: "New system", analog: "1944 (Bretton Woods)", entropy: "~2042", gannwyck: "—",
+    gauge: "PTI back to equilibrium: stress velocity negative ≥12 months.", play: "Rotate from preservation to growth." },
+] as const;
+
+/** Where the calendar says we are; the gauges decide whether it's real. */
+export function cyclePhaseByDate(d = new Date()) {
+  const y = d.getUTCFullYear();
+  const entropy = y <= 2027 ? "euphoria" : y <= 2029 ? "crash" : y === 2030 ? "capitulation" : y <= 2032 ? "reset" : "new_order";
+  const gann = y <= 2029 ? "euphoria" : y <= 2030 ? "crash" : y === 2031 ? "capitulation" : y === 2032 ? "reset" : "new_order";
+  return { entropy, gann, longDepressionYear: 1873 + (y - 1971) };
+}

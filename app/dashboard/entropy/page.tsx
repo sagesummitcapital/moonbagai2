@@ -1,4 +1,4 @@
-import { BOOK, FALSIFIERS, FIAT_YEAR, GAUGES, LAYERS, SIGNS, STATES, getEntropy, type EntropyReading } from "@/lib/moonbag/entropy";
+import { BOOK, CYCLE_PHASES, FALSIFIERS, FIAT_YEAR, GAUGES, LAYERS, SIGNS, STATES, cyclePhaseByDate, getEntropy, type EntropyReading } from "@/lib/moonbag/entropy";
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Fold, PageHeader, Quiet, Section, Table, whenShort } from "../_components/ui";
@@ -75,6 +75,27 @@ export default async function EntropyPage() {
           ))}
         </div>
       </Card>
+
+      {/* ---------------------------------------------------- cycle clock (Stavros 11/7) */}
+      {(() => {
+        const at = cyclePhaseByDate();
+        const gaugeState = state ? label[state] : "pending";
+        return (
+          <Card title="Cycle clock" sub={`The 1929 sequence on two calendars. Dates are a heads-up only — a phase is confirmed only when the gauges agree. Gauges now: ${gaugeState}. Fiat year ${yr} ≈ ${at.longDepressionYear}.`}>
+            <Table
+              head={["Phase", "1920s–30s", "Entropy clock", "Gannwyck", "Gauges must show", "Play"]}
+              rows={CYCLE_PHASES.map((p) => [
+                <span key="n" className="font-semibold text-white">{p.name}{(at.entropy === p.key || at.gann === p.key) && <Badge tone="amber" dot className="ml-2">calendar now</Badge>}</span>,
+                p.analog, p.entropy, p.gannwyck,
+                <span key="g" className="text-white/70">{p.gauge}</span>,
+                <span key="p" className="text-white/70">{p.play}</span>,
+              ])}
+              minWidth={900}
+            />
+            <p className="mt-3 text-[12px] text-white/45">Entropy clock: years since 1971 mapped onto the Long Depression (1873 + n), so the 1929 peak lands in 2027. Gannwyck: 1929 + 100 years (speculative, from a promotional chart, not advice). Both agree on the shape; they differ by about two years on timing.</p>
+          </Card>
+        );
+      })()}
 
       {/* ---------------------------------------------------- six gauges */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
