@@ -3,7 +3,7 @@
 // per-coin levels, the Open Drive check, the playbook and the plan's record fold away underneath.
 import type { OpenPlan as Plan, OpenRecord } from "@/lib/moonbag/openPlan";
 import { GOAL_TICKS, goalPct } from "@/lib/moonbag/openPlan";
-import { Badge, Card, Expander, LongText, px2, whenShort } from "./ui";
+import { Badge, Card, Expander, Fold, LongText, px2, whenShort } from "./ui";
 
 const usd0 = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const short$ = (v: number) => (v >= 1e6 ? `$${v / 1e6}M` : v >= 1e3 ? `$${v / 1e3}k` : `$${v}`);
@@ -53,7 +53,7 @@ export function GoalBar({ total, blofin, coinbase, robinhood, pnlBlofin, deposit
         </div>
         <div className="mt-2">{bar}</div>
         <details className="group mt-1">
-          <summary className="cursor-pointer list-none text-[12px] text-white/40 hover:text-white/70 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">by account ▾</span><span className="hidden group-open:inline">by account ▴</span></summary>
+          <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12px] text-white/40 hover:text-white/70 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">by account ▾</span><span className="hidden group-open:inline">by account ▴</span></summary>
           <div className="mt-1.5">{breakdown}</div>
         </details>
       </div>
@@ -81,17 +81,15 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
     );
   }
   const confTone = plan.confidence == null ? "gray" : plan.confidence >= 70 ? "green" : plan.confidence >= 55 ? "cyan" : "gray";
-  return (
-    <Card
-      tone={plan.red_day ? "warn" : undefined}
-      title={isToday ? "Today's open plan" : `Last open plan · ${plan.plan_date}`}
-      right={
-        <>
-          {plan.red_day && <Badge tone="amber" dot>red-folder day · half risk below A+</Badge>}
-          {!isToday && <Badge tone="amber">not today&apos;s</Badge>}
-        </>
-      }
-    >
+  const title = isToday ? "Today's open plan" : `Last open plan · ${plan.plan_date}`;
+  const badges = (
+    <>
+      {plan.red_day && <Badge tone="amber" dot>red-folder day · half risk below A+</Badge>}
+      {!isToday && <Badge tone="amber">not today&apos;s</Badge>}
+    </>
+  );
+  const body = (
+    <>
       {/* the loud part: bias, confidence, headline */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
@@ -195,6 +193,20 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
           <span className="text-white/35">Analysis only — you place every order.</span>
         </div>
       </Expander>
+    </>
+  );
+  // Not today's plan (weekend, evening, before the morning routine): the whole card is one tap away, with its date and
+  // badges still readable while closed — a plan written for a past open shouldn't shout over the live desk.
+  if (!isToday) {
+    return (
+      <Fold title={title} right={badges} tone={plan.red_day ? "warn" : undefined} count={plan.market_bias ? <span className={biasText(plan.market_bias)}>{biasWord(plan.market_bias)}</span> : undefined}>
+        {body}
+      </Fold>
+    );
+  }
+  return (
+    <Card tone={plan.red_day ? "warn" : undefined} title={title} right={badges}>
+      {body}
     </Card>
   );
 }

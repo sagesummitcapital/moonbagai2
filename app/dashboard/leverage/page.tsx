@@ -16,6 +16,7 @@ import { Bars, DivergingBars, LevelLadder, Meter, Sparkline } from "../_componen
 import { LiveMetric, LivePrice, type Stored } from "../_components/LivePrice";
 import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
+import { FeedStamps } from "../_components/FeedStamps";
 import {
   Badge, Card, Cell, DocText, Empty, Expander, Fold, KV, LongText, Id, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Tile, Updated,
   ago, biasGlyph, biasTone, gradeTone, list, money, money0, num, px, px2, when, whenShort,
@@ -129,12 +130,15 @@ export default async function LeveragePage() {
             <span className="font-mono text-[15px] font-semibold tabular-nums text-white">{money(equity)}</span>
             <Badge tone={stale ? "amber" : "green"} dot>{stale ? `watch late · ${lastRun ? ago(lastRun) : "never ran"}` : `desk checked ${lastRun ? ago(lastRun) : "—"}`}</Badge>
             {feed && <Badge tone={feed.tone} dot>{`data ${feed.lastBar ? whenShort(feed.lastBar) : "—"} · ${feed.label}`}</Badge>}
+            {/* per-coin clocks under the verdict: the badge above is judged by the OLDEST coin, so when one feed lags
+                (SOL, Nov 2026) these say which coin's numbers are hours old and which are still fresh */}
+            {machine && <FeedStamps feed={machine.feed} className="basis-full" />}
           </>
         }
       />
 
       {/* ------------------------------------------------ 1. what needs you */}
-      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." />
+      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." clocks={machine ? <FeedStamps feed={machine.feed} /> : undefined} />
 
       {/* ------------------------------------------------ 1b. the Woods machine — main strategy, live every 15 min */}
       {machine && machine.rows.length > 0 && <div id="woods"><WoodsMachine m={machine} sizing={sizing} /></div>}
@@ -163,7 +167,7 @@ export default async function LeveragePage() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/[0.06] pt-3 text-[12.5px] text-white/50">
           <span>Risk per trade <b className="font-mono tabular-nums text-white/85">{num(riskPct, 1)}%</b> ≈ <b className="font-mono tabular-nums text-white/85">{money((equity * riskPct) / 100)}</b>{openTrades.length ? <> · open risk <b className="font-mono tabular-nums text-white/85">{money(openRisk)}</b></> : null}</span>
           <details className="group min-w-0 basis-full">
-            <summary className="cursor-pointer list-none text-[12px] text-white/45 hover:text-white/75 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">risk rules &amp; milestone ladder ▾</span><span className="hidden group-open:inline">risk rules &amp; milestone ladder ▴</span></summary>
+            <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12px] text-white/45 hover:text-white/75 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">risk rules &amp; milestone ladder ▾</span><span className="hidden group-open:inline">risk rules &amp; milestone ladder ▴</span></summary>
             <div className="mt-2">
             <p className="text-[12.5px] leading-snug text-white/55">By confidence: A+ 2% · A 2% BTC/ETH (1% alts) · B 1% (0.5%) · paper ½ · margin ≤ {num(risk?.max_margin_pct ?? 50, 0)}% of the balance{risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max {num(risk?.max_leverage, 0)}x.</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11.5px] tabular-nums text-white/40">

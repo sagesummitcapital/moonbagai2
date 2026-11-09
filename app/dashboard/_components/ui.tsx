@@ -319,7 +319,9 @@ export function Expander({ summary, children, className = "", open = false, padd
 }) {
   return (
     <details open={open} className={`group rounded-xl border border-white/[0.06] bg-white/[0.015] ${padded ? "px-3.5 py-2.5" : ""} ${className}`}>
-      <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] text-white/75 hover:text-white [&::-webkit-details-marker]:hidden">
+      {/* Phone tap target: the summary spans the whole padded header (negative margins give back the box padding), so a
+          one-line expander is a 40px-tall tap, not a 20px line of text — same visual height as before. */}
+      <summary className={`flex min-h-[40px] cursor-pointer list-none items-center gap-2 text-[13px] text-white/75 hover:text-white [&::-webkit-details-marker]:hidden ${padded ? "-mx-3.5 -my-2.5 px-3.5 py-2.5" : ""}`}>
         <Chevron />
         <span className="min-w-0 flex-1">{summary}</span>
       </summary>

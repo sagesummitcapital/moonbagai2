@@ -44,3 +44,16 @@ The weekly design pass reads this file first. It lists each pass, Stavros's reac
 - Note: since the 2026-10-30 edit, leverage/page.tsx no longer mounts APlusStrip.tsx — A+ cards show only inside "Needs you now". Left as is (not re-wired). If you want the strip back on top, say so.
 - Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used shim types: no new errors vs baseline. 233 changed lines.
 - Stavros's reaction: (pending)
+
+## 2026-11-08 — Quiet hours: honest clocks, calm desk (leverage desk)
+- Per-coin data clocks (BTC, ETH, SOL) under the "data" badge in the leverage desk header: bar time, age, green/rose from the feed's own ok/fresh flags, so a red page says which coin is behind.
+- The same clocks sit right under the red "Market data is stale" alarm in "Needs you now".
+- Woods machine on a quiet day leads with a "Nothing to place" status tile and the scan time; the how-it-works sentence moved to the footnote.
+- Every Woods ticket has its own footer clocks: the coin's bar feed, the bar the scan read, and scan time. The stale banner lists the per-coin clocks too.
+- "Needs you now" says it in one line when only the open trade is there: nothing else needs you, next hourly check at :25.
+- A plan that isn't today's (weekends, evenings) folds to one line with its date, bias and the "not today's"/red-folder badges. Nothing inside was removed; one tap opens it. Today's plan is unchanged.
+- Phone tap targets: the shared Expander header, "risk rules & milestone ladder" and "by account" are now 40px taps, no visual height change.
+- Files: app/dashboard/_components/FeedStamps.tsx (new), app/dashboard/_components/Attention.tsx, app/dashboard/_components/WoodsMachine.tsx, app/dashboard/_components/OpenPlan.tsx, app/dashboard/_components/ui.tsx, app/dashboard/leverage/page.tsx
+- Notes: the per-coin chips show the bar's own time (bar open, same as the Board's "bar" stamp); the page badge shows bar close, so they can read 15 min apart. Page-wide verdict is still feedHealth(), unchanged. APlusStrip still unmounted, awaiting Stavros.
+- Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used shim types: no new errors vs baseline. 154 changed lines.
+- Stavros's reaction: (pending)

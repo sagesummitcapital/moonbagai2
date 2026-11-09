@@ -5,7 +5,8 @@
 // runs every 15 minutes on Moonbag's own BloFin candles. Each ticket is laid out the way BloFin's order form asks for it.
 import type { SizingContext } from "@/lib/moonbag/limits";
 import { limitInputs, type LimitOrder } from "@/lib/moonbag/limits";
-import { feedHealth, type WoodsMachine as WM, type WoodsRow } from "@/lib/moonbag/woodsMachine";
+import { feedHealth, type Freshness, type WoodsMachine as WM, type WoodsRow } from "@/lib/moonbag/woodsMachine";
+import { FeedStamp, FeedStamps, feedRow } from "./FeedStamps";
 import { Badge, Card, ago, money, num, px2, whenShort } from "./ui";
 
 const LEGS: [key: "a" | "b" | "c" | "d", label: string][] = [
@@ -42,7 +43,7 @@ function Field({ k, v, sub, cls = "text-white" }: { k: string; v: string; sub?: 
   );
 }
 
-function Ticket({ r, sizing }: { r: WoodsRow; sizing: SizingContext | null }) {
+function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null; feed?: Freshness }) {
   const lp = r.limit_plan;
   const long = r.side === "long";
   const order: LimitOrder | null = lp
@@ -127,6 +128,12 @@ function Ticket({ r, sizing }: { r: WoodsRow; sizing: SizingContext | null }) {
           ))}
         </div>
       )}
+      {/* this ticket's own clocks: the coin's bar feed, the bar the scan read, and when it was scanned */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-white/[0.06] pt-2 font-mono text-[11px] tabular-nums text-white/40">
+        <FeedStamp coin={r.coin} f={feed} />
+        {r.data_as_of && <span>· data {whenShort(r.data_as_of)}</span>}
+        <span>· scanned {whenShort(r.as_of)} ({ago(r.as_of)})</span>
+      </div>
     </div>
   );
 }
@@ -191,11 +198,23 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           <span className="text-white/35">· scanned {scanned ? `${whenShort(scanned)} (${ago(scanned)})` : "never"}</span>
         </span>
       }
-      sub="Sweep → close back → 4H RSI divergence → 1H trigger, checked every 15 minutes on closed BloFin bars. Limits sit at the nearest pool outside no-man's land; the confidence score shows how it was built."
     >
       {health.tone === "red" && (
         <div className="mb-3 rounded-lg border border-rose-400/30 bg-rose-400/[0.07] px-3 py-2 text-[13px] text-rose-200">
           The data feed is stale — these numbers may be wrong. Don&apos;t place anything from this card until the stamp turns green.
+          {/* which coin: the verdict above follows the oldest feed, so name the one(s) that are behind */}
+          <div className="mt-1.5"><FeedStamps feed={m.feed} label="" /></div>
+        </div>
+      )}
+      {quietDay && (
+        // The quiet state, said first and plainly (Stavros: the most important thing on a card in 3 seconds). Same
+        // sentence as before, now the lead line with the scan time beside it; the anchor / week / parked sides follow.
+        <div className="mb-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="text-[15px] font-semibold text-white">Nothing to place</span>
+            <span className="font-mono text-[11.5px] tabular-nums text-white/45">scanned {scanned ? `${whenShort(scanned)} (${ago(scanned)})` : "never"} · re-checks every 15 min</span>
+          </div>
+          <p className="mt-1 text-[13px] leading-snug text-white/60">No limit worth placing right now — every side is blocked below. That is a normal state.</p>
         </div>
       )}
       {anchor && (
@@ -222,8 +241,8 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
         </div>
       )}
       {live.length ? (
-        <div className="grid gap-3 lg:grid-cols-2">{live.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} />)}</div>
-      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">{live.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
+      ) : quietDay ? null : (
         <p className="text-[13.5px] text-white/60">No limit worth placing right now — every side is blocked below. That is a normal state.</p>
       )}
       {quietDay && hasContext && (
@@ -239,10 +258,10 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12.5px] text-white/45 hover:text-white/70 [&::-webkit-details-marker]:hidden">
             <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>&nbsp;{parked.length} side{parked.length === 1 ? "" : "s"} not now (anchor, no-man&apos;s land, R:R) — tap to see
           </summary>
-          <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} />)}</div>
+          <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
         </details>
       )}
-      <p className="mt-3 text-[11.5px] text-white/35">Sized from your calculated BloFin balance. Score = the components (out of 110) scaled to 100 · A+ ≥ 75 · A ≥ 60 · B ≥ 45. A and A+ are paper-tracked automatically and graded every Saturday. Analysis only — you place every order.</p>
+      <p className="mt-3 text-[11.5px] text-white/35">Sweep → close back → 4H RSI divergence → 1H trigger, checked every 15 minutes on closed BloFin bars. Limits sit at the nearest pool outside no-man&apos;s land; the confidence score shows how it was built. Sized from your calculated BloFin balance. Score = the components (out of 110) scaled to 100 · A+ ≥ 75 · A ≥ 60 · B ≥ 45. A and A+ are paper-tracked automatically and graded every Saturday. Analysis only — you place every order.</p>
     </Card>
   );
 }

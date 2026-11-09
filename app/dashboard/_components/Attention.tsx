@@ -2,6 +2,7 @@
 // should be prominent; everything else I can expand"). Display only: every item here is built from numbers the
 // page already loads. Open trades get the live rail; A+ setups not already shown in full in the A+ strip above get a small
 // card with limit / stop / TP1 / TP2 and the data time; everything else is one line + a link.
+import type { ReactNode } from "react";
 import type { Trade } from "@/lib/moonbag/types";
 import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import { fmtPct, fmtRR, tradeMetrics } from "@/lib/moonbag/desk";
@@ -11,7 +12,7 @@ import { Action, Badge, Card, Id, Tile, Updated, money, num, px2, whenShort } fr
 
 export type Flag = { key: string; tone: "amber" | "red" | "cyan" | "green"; title: string; detail?: string; href?: string; hrefLabel?: string };
 
-export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, nextCheck }: {
+export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, nextCheck, clocks }: {
   trades: Trade[];
   live: Record<string, LP>;
   storedFor: (asset: string) => Stored | undefined;
@@ -21,9 +22,13 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
   flags: Flag[];
   /** One calm line for the quiet state, e.g. "Next hourly check at :25." */
   nextCheck?: string;
+  /** Per-coin data clocks (FeedStamps). Shown right under a red stale-data flag so "which coin is stale?" is answered on the spot. */
+  clocks?: ReactNode;
 }) {
   const total = aplusTotal ?? aplus.length;
   const quiet = !trades.length && !aplus.length && !flags.length;
+  // Only the open trade is here: say so in one line, so "nothing else to do" never has to be inferred from what is missing.
+  const onlyTrades = trades.length > 0 && !aplus.length && !flags.length;
   const urgent = flags.some((f) => f.tone === "amber" || f.tone === "red");
   // Red flags (stale market data — "don't trade off this page") sit ABOVE the trade tiles so the warning is never below
   // the fold on a phone; everything else keeps its place under the trades and A+ cards. Same flags, same order otherwise.
@@ -52,6 +57,7 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
       ) : (
         <div className="space-y-3">
           {danger.length > 0 && <FlagList items={danger} />}
+          {danger.length > 0 && clocks && <div className="-mt-1 px-1">{clocks}</div>}
           {trades.length > 0 && (
             <div className="grid gap-3 md:grid-cols-2">
               {trades.map((t) => <OpenTradeTile key={t.trade_id} t={t} live={live[t.symbol]} stored={storedFor(t.symbol)} />)}
@@ -82,6 +88,9 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
             </div>
           )}
           {rest.length > 0 && <FlagList items={rest} />}
+          {onlyTrades && (
+            <p className="text-[13px] leading-snug text-white/55">Nothing else needs you — no A+ setup, nothing late. Manage the open trade and wait.{nextCheck ? ` ${nextCheck}` : ""}</p>
+          )}
         </div>
       )}
     </Card>
