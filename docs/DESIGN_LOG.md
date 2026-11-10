@@ -15,6 +15,16 @@ The weekly design pass reads this file first. It lists each pass, Stavros's reac
 - **Context:** from 2026-10-18, every A+ setup secures 2R at TP1 (TP1 = exactly 2R and the level becomes the runner). Show both targets clearly.
   - Stavros: "if i put tp at 2r i would have secured, i think you were shooting for 5r? runners are great but if we can shoot to secure 2r+ on all A+ limit setups - that would be great"
 
+## PRIORITY — Stavros, 2026-11-09 (replaces the 10/18 priority above once done)
+
+"Design wise, i want this to be as refined and futuristic as possible. this is the future of ai and trading - lets own this lane. 72 hour review here as well."
+"We should be printing cash together, that is your main mission, anything else that doesnt work towards that is noise to me."
+
+- **Direction:** a calm, precise, near-black instrument panel — the feel of a trading terminal built by a design studio, not a dashboard template. One accent (the existing green) used sparingly for money and "act now"; cyan for information; rose for loss/short; amber for caution. Thin 1px hairlines, generous spacing, mono numerals, real hierarchy: one hero number per page. Motion only where it carries meaning (a live price tick, a stale-data pulse). No decoration that isn't data.
+- **Order of work:** (1) Command page — the 3-second read: today's BloFin result, prop room, what needs him now. (2) Leverage desk — one clear "what to do" zone, everything else one tap away. (3) Prop page. (4) A shared look for every ticket (the phone alert, the A+ card and the open-trade tile should read as the same object). (5) The rest.
+- **Rules that stay:** every hard rule in the design-pass prompt; timestamps and stale warnings always visible; no copy buttons; nothing removed from a trade ticket; 375px phone; 40px taps. The tool is his: no mentor names in labels (use "Sweep machine", "Level map", "RSI bot", "macro read").
+- **Cadence:** every 3 days from 11/9. Each pass: one theme, 3–8 finished improvements, log it here.
+
 ## Passes
 
 ## 2026-10-25 — A+ setups first (leverage desk)
@@ -57,3 +67,15 @@ The weekly design pass reads this file first. It lists each pass, Stavros's reac
 - Notes: the per-coin chips show the bar's own time (bar open, same as the Board's "bar" stamp); the page badge shows bar close, so they can read 15 min apart. Page-wide verdict is still feedHealth(), unchanged. APlusStrip still unmounted, awaiting Stavros.
 - Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used shim types: no new errors vs baseline. 154 changed lines.
 - Stavros's reaction: (pending)
+
+## 2026-11-09 — Full-project audit (Claude in Cowork, at Stavros's request: "find everything that's broken, inconsistent, inefficient ... also make improvements to UI/UX")
+Not a weekly design pass, but it touched the dashboard, so future passes should keep these:
+- Command strip: money first. Today's BloFin result is the biggest number; the prop account has its own tile (balance, room today, room to floor, snapshot time); environment chips moved below; "red-folder" now reads "big-news day (red folder)".
+- Leverage desk: restored what an earlier Claude edit had dropped — TP2 and the data time on A+ cards, and the TP2 column, grade badge and "Updated" time on Open limits. Copy now says the true schedule (Desk Lead every hour, Woods machine every 15 minutes); "late" means no run for 3 hours. The page's seven loaders now run together (faster open).
+- Prop page: snapshot time on the balance tile; trades and daily log directly under the four tiles; rules, sizing, notes and Grok's instructions fold away; side badges and signed R like the rest of the site; stepper stacks on phones.
+- Prop trades no longer leak into the Tracker's long-term tab or the Performance totals (real money only); Positions and the P&L calendar know the prop venue.
+- Phone: "as of" time visible; nav tabs, sub-tabs, Refresh, "Open →" links and calendar toggles are 40px taps; Range board prices wrap 2-up instead of overlapping.
+- Consistency: range low is green and range high is rose everywhere (Morning brief had them reversed); plain-English labels for SFP / 4H div / 1H trig / O/N / HTF / g4; null guards on gauge, mentors, entropy, board.
+- Removed dead CSS (glass, conic-border, accent-underline, bg-dots, mask-bottom-fade, animated gradient) — nothing used it.
+- Still unmounted, awaiting Stavros: APlusStrip.tsx. Unused: CopyButton.tsx (he banned copy buttons) — both can be deleted from the folder.
+- Reviewed from code only (no npm in the sandbox; typecheck against the shim baseline shows no new errors).

@@ -11,6 +11,7 @@ const VENUES: { key: string; label: string }[] = [
   { key: "robinhood", label: "Robinhood (Grok)" },
   { key: "blofin", label: "BloFin (manual leverage)" },
   { key: "coinbase", label: "Coinbase (Grok, spot crypto)" },
+  { key: "breakout", label: "Breakout prop account (evaluation — not your money)" },
   { key: "other", label: "Other venues" },
 ];
 
@@ -35,7 +36,7 @@ export default async function PositionsPage() {
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
-      <PageHeader title="Positions" sub="Everything open or pending across the three books, with the stop and targets that are live right now. Prices (Coinbase spot for coins, Yahoo for stocks) refresh hourly, each with its timestamp." />
+      <PageHeader title="Positions" sub="Everything open or pending across every book (BloFin, Robinhood, Coinbase and the prop account), with the stop and targets that are live right now. Prices (Coinbase spot for coins, Yahoo for stocks) refresh hourly, each with its timestamp." />
 
       <StatGrid cols={4}>
         <Card><Stat label="Open" value={openCount} size="md" tone={openCount ? "green" : undefined} sub={pendingCount ? `${pendingCount} pending` : "none pending"} /></Card>

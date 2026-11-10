@@ -53,5 +53,5 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   };
   const r = await db.from("weekly_bias").upsert(row, { onConflict: "week_start" }).select("week_start, bias, conviction").single();
   if (r.error) throw new BadRequest(r.error.message);
-  return json({ ok: true, bias: r.data, text: `Locked in: ${bias.toUpperCase()} for the week of ${wk}${conviction ? ` (conviction ${conviction}/5)` : ""}. The Woods machine, the morning plans and the desk now trade around it.` }, 201);
+  return json({ ok: true, bias: r.data, text: `Locked in: ${bias.toUpperCase()} for the week of ${wk}${conviction ? ` (conviction ${conviction}/5)` : ""}. The Sweep machine, the morning plans and the desk now trade around it.` }, 201);
 });

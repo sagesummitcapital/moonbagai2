@@ -94,7 +94,7 @@ export function Action({ tone = "amber", title, detail, right, className = "" }:
 
 /** "Open →" style link used on glance cards. */
 export function GoLink({ href, children = "Open →" }: { href: string; children?: ReactNode }) {
-  return <Link href={href} className="whitespace-nowrap text-[12.5px] font-medium text-accent-cyan hover:underline">{children}</Link>;
+  return <Link href={href} className="inline-flex min-h-[40px] items-center whitespace-nowrap text-[12.5px] font-medium text-accent-cyan hover:underline">{children}</Link>;
 }
 
 /** Page title block: h1 + one-line purpose + optional right-hand controls. */

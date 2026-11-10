@@ -1,6 +1,6 @@
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Empty, KV, LongText, Mono, Note, PageHeader, Section, Stat, StatGrid, Table, Tile, Unit, money, whenShort, type Tone } from "../_components/ui";
+import { Badge, Card, Empty, Fold, KV, LongText, Mono, Note, PageHeader, RMult, Section, Stat, StatGrid, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, whenShort, type Tone } from "../_components/ui";
 import { getPropData, getPropCaps, capsLine, lossesToLimit, edgeLines, GROK_PROP_PLAYBOOK, type PropCaps, type DeskEdge, type PropStatus, type PropTrade, type PropDay } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ function Stepper({ stage }: { stage: string }) {
   const failed = stage === "breached" || stage === "closed";
   const at = STEPS.findIndex((s) => s.key === stage);
   return (
-    <ol className="grid grid-cols-3 gap-2">
+    <ol className="grid gap-2 sm:grid-cols-3">
       {STEPS.map((s, i) => {
         const done = !failed && i < at;
         const cur = !failed && i === at;
@@ -81,7 +81,7 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
 
       <StatGrid cols={4}>
         <Tile>
-          <Stat label="Balance" value={money(a.balance)} sub={<>equity {money(a.equity)} · start {money(a.starting_balance)}</>} tone={gain >= 0 ? "green" : "red"} size="md" />
+          <Stat label="Balance" value={money(a.balance)} sub={<>equity {money(a.equity)} · start {money(a.starting_balance)}<br /><Updated label="snapshot" at={a.last_snapshot_at} cadenceH={24} verb="taken" /></>} tone={gain >= 0 ? "green" : "red"} size="md" />
         </Tile>
         <Tile tone="accent">
           <Stat
@@ -114,8 +114,44 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
         </Tile>
       </StatGrid>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Firm rules" sub="Hard limits. Breaking any one fails the account.">
+      <Card title="Trades" right={<Mono>{a.trades} total · {a.open_trades} open{a.total_r != null ? ` · ${n(a.total_r) > 0 ? "+" : ""}${n(a.total_r).toFixed(2)}R · win ${pct(n(a.win_pct), 0)}` : ""}</Mono>}
+        sub={flagged.length ? `${flagged.length} trade(s) with firm flags` : "Tell Grok each fill (with a screenshot) and he logs it here."}>
+        <Table
+          head={["Opened", "Symbol", "Side", "Lev", "Risk", "Risk %", "R", "Status", "Firm flags", "Note"]}
+          align={["l", "l", "l", "r", "r", "r", "r", "l", "l", "l"]}
+          empty="No prop trades yet. Tell Grok each fill and he logs it here."
+          rows={mine.map((t) => [
+            whenShort(t.opened_at),
+            <strong key="s" className="text-white">{t.symbol}</strong>,
+            <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
+            t.leverage != null ? `${n(t.leverage)}x` : "—",
+            t.risk_dollars != null ? money(t.risk_dollars) : "—",
+            t.risk_pct_of_start != null ? pct(n(t.risk_pct_of_start), 2) : "—",
+            <RMult key="r" v={t.r_multiple} />,
+            t.status,
+            t.firm_flags?.length ? <Badge tone="red">{t.firm_flags.join(", ")}</Badge> : <span className="text-white/35">clean</span>,
+            t.guidance_note ? <span className="text-white/50">{t.guidance_note}</span> : "",
+          ])}
+        />
+      </Card>
+
+      <Card title="Daily log" sub="The firm's trading days (they reset at 5:30 PM Phoenix). Daily limit is 3% of the balance that day started with.">
+        <Table
+          head={["Firm day", "Trades", "P&L", "P&L %", "Limit"]}
+          align={["l", "r", "r", "r", "r"]}
+          empty="No trading days yet."
+          rows={myDays.map((d) => [
+            d.day_utc,
+            d.trades,
+            <span key="p" className={n(d.day_pnl) >= 0 ? "text-accent-green" : "text-rose-300"}>{money(d.day_pnl)}</span>,
+            d.day_pct != null ? pct(n(d.day_pct), 2) : "—",
+            money(d.daily_limit_usd),
+          ])}
+        />
+      </Card>
+
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Fold title="Firm rules" sub="Hard limits. Breaking any one fails the account.">
           <KV rows={[
             ["Profit target", `+${pct((targetGain / n(a.starting_balance)) * 100, 0)} → ${money(a.target_balance)}`],
             ["Max daily loss", `${money(a.daily_limit_usd)} (3% of the balance at reset, on equity)`],
@@ -130,16 +166,16 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
           ]} />
           <Section title="Prohibited by the firm" className="mt-4">
             <ul className="list-disc space-y-1 pl-5 text-[13px] leading-snug text-white/70">
-              <li>Executing someone else&apos;s trade idea — callers (Woods, Eliz, Johnny), signal groups, social posts.</li>
+              <li>Executing someone else&apos;s trade idea — callers, signal groups, social posts.</li>
               <li>Hedging across accounts: a prop trade opposite or correlated against another account, BloFin included.</li>
               <li>More than one account per household, device or IP.</li>
               <li>Changing trading style after passing.</li>
             </ul>
           </Section>
           <p className="mt-3 text-[12px] text-white/40">From Grok&apos;s review of Breakout&apos;s help center (11/4). Check the firm&apos;s current rules if anything looks off.</p>
-        </Card>
+        </Fold>
 
-        <Card title="Your sizing" sub="Guidance only — your call each trade (0.5% to 1%). Never flagged as a rule break.">
+        <Fold title="Your sizing" sub="Guidance only — your call each trade (0.5% to 1%). Never flagged as a rule break.">
           <KV rows={[
             ["0.5% risk", money(risk05)],
             ["1% risk", money(risk1)],
@@ -159,7 +195,7 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
               <li>Snapshot the balance from the firm dashboard after each session so the numbers here match theirs.</li>
             </ul>
           </Section>
-        </Card>
+        </Fold>
       </div>
 
       <Card title="What your BloFin data says" sub="Same trader, same setups — your live record applied to this account. Facts, not new rules.">
@@ -177,43 +213,7 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
         </Card>
       ) : null}
 
-      <Card title="Trades" right={<Mono>{a.trades} total · {a.open_trades} open{a.total_r != null ? ` · ${n(a.total_r).toFixed(2)}R · win ${pct(n(a.win_pct), 0)}` : ""}</Mono>}
-        sub={flagged.length ? `${flagged.length} trade(s) with firm flags` : "Logged by Grok via POST /trades (venue breakout)."}>
-        <Table
-          head={["Opened", "Symbol", "Side", "Lev", "Risk", "Risk %", "R", "Status", "Firm flags", "Note"]}
-          align={["l", "l", "l", "r", "r", "r", "r", "l", "l", "l"]}
-          empty="No prop trades yet. Tell Grok each fill and he logs it here."
-          rows={mine.map((t) => [
-            whenShort(t.opened_at),
-            t.symbol,
-            t.direction,
-            t.leverage != null ? `${n(t.leverage)}x` : "—",
-            t.risk_dollars != null ? money(t.risk_dollars) : "—",
-            t.risk_pct_of_start != null ? pct(n(t.risk_pct_of_start), 2) : "—",
-            t.r_multiple != null ? n(t.r_multiple).toFixed(2) : "—",
-            t.status,
-            t.firm_flags?.length ? <Badge tone="red">{t.firm_flags.join(", ")}</Badge> : <span className="text-white/35">clean</span>,
-            t.guidance_note ? <span className="text-white/50">{t.guidance_note}</span> : "",
-          ])}
-        />
-      </Card>
-
-      <Card title="Daily log" sub="UTC trading days (the firm's day). Daily limit is 3% of the balance that day started with.">
-        <Table
-          head={["Day (UTC)", "Trades", "P&L", "P&L %", "Limit"]}
-          align={["l", "r", "r", "r", "r"]}
-          empty="No trading days yet."
-          rows={myDays.map((d) => [
-            d.day_utc,
-            d.trades,
-            <span key="p" className={n(d.day_pnl) >= 0 ? "text-accent-green" : "text-rose-300"}>{money(d.day_pnl)}</span>,
-            d.day_pct != null ? pct(n(d.day_pct), 2) : "—",
-            money(d.daily_limit_usd),
-          ])}
-        />
-      </Card>
-
-      {a.notes && <Card title="Account notes"><LongText text={a.notes} /></Card>}
+      {a.notes && <Fold title="Account notes"><LongText text={a.notes} /></Fold>}
     </div>
   );
 }
@@ -228,9 +228,9 @@ export default async function PropPage() {
       {accounts.length === 0 && <Card><Empty>No prop firm accounts yet.</Empty></Card>}
       {accounts.map((a, i) => <AccountView key={a.account_id} a={a} trades={data!.trades} days={data!.days} edge={data!.edge} caps={caps[i]} />)}
       {accounts.length > 0 && (
-        <Card title="How Grok handles this account" sub="The fixed instructions Grok gets with every GET /prop.">
+        <Fold title="How Grok handles this account" sub="The standing instructions Grok follows for the prop account.">
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed text-white/75">{GROK_PROP_PLAYBOOK}</pre>
-        </Card>
+        </Fold>
       )}
       {data && (
         <Card title="Prop journal" sub="Desk notes about the prop account (Breakout / prop firm mentions).">

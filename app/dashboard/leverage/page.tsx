@@ -49,10 +49,14 @@ export default async function LeveragePage() {
   const progress = milestone ? Math.max(0, Math.min(100, ((equity - startingEquity) / (milestone - startingEquity)) * 100)) : 100;
   // "Watch late" = the hourly Desk Lead itself has not run (agent_runs), not "no new hourly log row" — it only writes
   // lev_hourly on runs where a coin's map changes. Data freshness comes from Moonbag's own BloFin feed (every 5 min).
-  const machine = await getWoodsMachine().catch(() => null);
+  // Seven independent loaders, run together (they used to run one after another, which made this page slow to open).
+  const [machine, journal, limits, sizing, board, openPlan, goal] = await Promise.all([
+    getWoodsMachine().catch(() => null), getLossJournal(12).catch(() => null), getLimits().catch(() => null), getSizingContext().catch(() => null),
+    getBoard().catch(() => null), getOpenPlan().catch(() => null), getGoal().catch(() => null),
+  ]);
   const lastRun = machine?.deskLead?.started_at ?? data.hourly[0]?.ts;
-  // CR-6 (2026-10-20): the Desk Lead runs at 5, 8, 1 and 6 Phoenix (longest normal gap 11h overnight) — late only past 12h.
-  const stale = lastRun ? Date.now() - new Date(lastRun).getTime() > 12 * 3600_000 : true;
+  // The Desk Lead runs every hour, a few minutes past (agent_runs, checked 2026-11-09: 168 runs in 7 days). Late = no run for 3 hours.
+  const stale = lastRun ? Date.now() - new Date(lastRun).getTime() > 3 * 3600_000 : true;
   const deskBlind = machine?.deskLead ? /failed to connect|DEGRADED|not connected/i.test(machine.deskLead.summary ?? "") : false;
   const feed = machine ? feedHealth(machine.feed) : null;
   const ladder = Array.isArray(rules.milestones) ? (rules.milestones as number[]) : [240, 1000, 10000, 100000, 1000000];
@@ -62,12 +66,7 @@ export default async function LeveragePage() {
 
   // Live prices (Coinbase spot; BloFin perps track it within a few dollars) for every coin on this page.
   const cryptoSet = cryptoSetFrom(data.universe.map((u) => u.asset), Object.keys(latest));
-  const journal = await getLossJournal(12).catch(() => null);
-  const limits = await getLimits().catch(() => null);
-  const sizing = await getSizingContext().catch(() => null);
   const inputsFor = (o: Parameters<typeof limitInputs>[0]) => (sizing && o.quantity == null ? limitInputs(o, sizing) : null);
-  const board = await getBoard().catch(() => null);
-  const [openPlan, goal] = await Promise.all([getOpenPlan().catch(() => null), getGoal().catch(() => null)]);
   const win = tradingWindow();
   // A+ setups — only from strategies with a positive record (backtest or resolved signals).
   const paperScore = limits?.scoreboard.find((x) => x.origin === "paper");
@@ -78,12 +77,12 @@ export default async function LeveragePage() {
   const limitPositive = !paperScore?.closed || Number(paperScore.closed) < 3 || Number(paperScore.avg_r ?? 0) > 0;
   if (limitPositive) for (const r of [...(board?.core ?? []), ...(board?.movers ?? [])]) {
     for (const [side, p] of [["long", r.long_plan], ["short", r.short_plan]] as const) {
-      if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord });
+      if (p && p.grade === "A+") aplus.push({ key: `b-${r.asset}-${side}`, coin: r.asset, side, entry: p.entry, stop: p.stop, tp1: p.tp1, rr: p.rr, strategy: "Range-edge limit", record: limitRecord, when: r.updated_at });
     }
   }
   for (const o of limits?.open ?? []) {
     if (limitPositive && o.origin === "paper" && o.grade === "A+" && !aplus.some((x) => x.coin === o.symbol && x.side === o.direction)) {
-      aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), rr: o.plan_r == null ? null : Number(o.plan_r), strategy: "Paper limit (24h order)", record: limitRecord });
+      aplus.push({ key: `l-${o.limit_id}`, coin: o.symbol, side: o.direction, entry: Number(o.limit_price), stop: Number(o.stop), tp1: o.tp1 == null ? null : Number(o.tp1), rr: o.plan_r == null ? null : Number(o.plan_r), tp2: o.tp2 == null ? null : Number(o.tp2), when: o.updated_at, strategy: "Paper limit (24h order)", record: limitRecord });
     }
   }
   for (const sg of signals) {
@@ -91,7 +90,7 @@ export default async function LeveragePage() {
     const st = data.setups.find((x) => x.setup_id === sg.setup_id);
     const rec = st ? (Number(st.bt_avg_r) > 0 || Number(st.signal_avg_r) > 0) : false;
     if (!rec) continue;
-    aplus.push({ key: `s-${sg.signal_id}`, coin: sg.asset, side: sg.direction, entry: Number(sg.entry), stop: Number(sg.stop), tp1: sg.tp1 == null ? null : Number(sg.tp1), rr: sg.rr_tp1 == null ? null : Number(sg.rr_tp1), strategy: st?.name ?? String(sg.setup_id), record: `backtest ${st?.bt_avg_r == null ? "—" : `${Number(st.bt_avg_r).toFixed(2)}R`} · signals ${st?.resolved ?? 0} resolved ${st?.signal_avg_r == null ? "" : `${Number(st.signal_avg_r).toFixed(2)}R`}` });
+    aplus.push({ key: `s-${sg.signal_id}`, coin: sg.asset, side: sg.direction, entry: Number(sg.entry), stop: Number(sg.stop), tp1: sg.tp1 == null ? null : Number(sg.tp1), rr: sg.rr_tp1 == null ? null : Number(sg.rr_tp1), tp2: sg.tp2 == null ? null : Number(sg.tp2), when: sg.created_at, strategy: st?.name ?? String(sg.setup_id), record: `backtest ${st?.bt_avg_r == null ? "—" : `${Number(st.bt_avg_r).toFixed(2)}R`} · signals ${st?.resolved ?? 0} resolved ${st?.signal_avg_r == null ? "" : `${Number(st.signal_avg_r).toFixed(2)}R`}` });
   }
   const boardUpdated = [...(board?.core ?? []), ...(board?.movers ?? [])].map((r) => r.updated_at).sort().pop() ?? null;
   const live = await loadLive(["BTC", "ETH", ...openTrades.map((t) => t.symbol), ...liveSetups.map((x) => x.asset), ...alerts.map((a) => a.asset)], cryptoSet);
@@ -100,8 +99,8 @@ export default async function LeveragePage() {
   // ---------------------------------------------------------------- "needs you now" flags (display only — every one is a number the page already has)
   const flags: Flag[] = [];
   if (data.equityCalc?.needs_check) flags.push({ key: "balance", tone: "amber", title: "Balance check due", detail: `Last confirmed ${money(data.equityCalc.confirmed)} ${data.equityCalc.days_since_confirmed.toFixed(0)}d ago (due every 4 days) — send Grok your real BloFin balance.`, href: "#account", hrefLabel: "Account →" });
-  if (stale) flags.push({ key: "stale", tone: "amber", title: "Desk Lead is late", detail: lastRun ? `Last run ${ago(lastRun)} (it runs at 5, 8, 1 and 6 Phoenix) — check the scheduled task.` : "The Desk Lead has not run yet.", href: "#hourly", hrefLabel: "Hourly log →" });
-  else if (deskBlind) flags.push({ key: "blind", tone: "amber", title: "Last hourly run couldn't reach TradingView", detail: `Ran ${ago(lastRun)} without TradingView (rate limit). The Woods machine and prices below use Moonbag's own BloFin feed and are unaffected.` });
+  if (stale) flags.push({ key: "stale", tone: "amber", title: "Desk Lead is late", detail: lastRun ? `Last run ${ago(lastRun)} (it runs every hour) — check the scheduled task.` : "The Desk Lead has not run yet.", href: "#hourly", hrefLabel: "Hourly log →" });
+  else if (deskBlind) flags.push({ key: "blind", tone: "amber", title: "Last hourly run couldn't reach TradingView", detail: `Ran ${ago(lastRun)} without TradingView (rate limit). The Sweep machine and prices below use Moonbag's own BloFin feed and are unaffected.` });
   if (feed && feed.tone === "red") flags.push({ key: "feed", tone: "red", title: "Market data is stale — don't trade off this page", detail: `Newest closed BloFin bar ${feed.lastBar ? ago(feed.lastBar) : "missing"}. The feed refreshes every 5 minutes; if this stays red, something is broken.` });
   for (const o of limits?.open ?? []) {
     if (o.status === "touched") flags.push({ key: `touched-${o.limit_id}`, tone: "amber", title: `${o.symbol} ${o.direction === "long" ? "buy" : "sell"} limit ${px2(o.limit_price)} was touched — filled?`, detail: `${o.origin === "paper" ? "Paper limit" : "Your limit"} · stop ${px2(o.current_stop ?? o.stop)} · TP1 ${px2(o.tp1)}`, href: "#limits", hrefLabel: "Limits →" });
@@ -124,11 +123,11 @@ export default async function LeveragePage() {
       <PageHeader
         title="Leverage desk"
         kicker="BloFin"
-        sub={<>Moonbag checks the market every hour. You place every order. No trade is the default.<TraderCode /></>}
+        sub={<>Moonbag checks the market every hour and the Sweep machine every 15 minutes. You place every order. No trade is the default.<TraderCode /></>}
         right={
           <>
             <span className="font-mono text-[15px] font-semibold tabular-nums text-white">{money(equity)}</span>
-            <Badge tone={stale ? "amber" : "green"} dot>{stale ? `watch late · ${lastRun ? ago(lastRun) : "never ran"}` : `desk checked ${lastRun ? ago(lastRun) : "—"}`}</Badge>
+            <Badge tone={stale ? "amber" : "green"} dot>{stale ? `Desk Lead late · ${lastRun ? ago(lastRun) : "never ran"}` : `desk checked ${lastRun ? ago(lastRun) : "—"}`}</Badge>
             {feed && <Badge tone={feed.tone} dot>{`data ${feed.lastBar ? whenShort(feed.lastBar) : "—"} · ${feed.label}`}</Badge>}
             {/* per-coin clocks under the verdict: the badge above is judged by the OLDEST coin, so when one feed lags
                 (SOL, Nov 2026) these say which coin's numbers are hours old and which are still fresh */}
@@ -138,9 +137,9 @@ export default async function LeveragePage() {
       />
 
       {/* ------------------------------------------------ 1. what needs you */}
-      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The hourly watch runs at 25 minutes past the hour." clocks={machine ? <FeedStamps feed={machine.feed} /> : undefined} />
+      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The Desk Lead checks again a few minutes past each hour; the Sweep machine every 15 minutes." clocks={machine ? <FeedStamps feed={machine.feed} /> : undefined} />
 
-      {/* ------------------------------------------------ 1b. the Woods machine — main strategy, live every 15 min */}
+      {/* ------------------------------------------------ 1b. the Sweep machine — main strategy, live every 15 min */}
       {machine && machine.rows.length > 0 && <div id="woods"><WoodsMachine m={machine} sizing={sizing} /></div>}
 
       {/* ------------------------------------------------ 2. today's plan */}
@@ -165,11 +164,11 @@ export default async function LeveragePage() {
           {goal && <GoalBar compact total={goal.total} blofin={goal.by.blofin.equity} coinbase={goal.by.coinbase.equity} robinhood={goal.by.robinhood.equity} pnlBlofin={goal.pnlBlofin} deposits={goal.by.blofin.deposits} />}
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/[0.06] pt-3 text-[12.5px] text-white/50">
-          <span>Risk per trade <b className="font-mono tabular-nums text-white/85">{num(riskPct, 1)}%</b> ≈ <b className="font-mono tabular-nums text-white/85">{money((equity * riskPct) / 100)}</b>{openTrades.length ? <> · open risk <b className="font-mono tabular-nums text-white/85">{money(openRisk)}</b></> : null}</span>
+          <span>Risk per trade 0.5–2%: <b className="font-mono tabular-nums text-white/85">{money(equity * 0.005)}</b> · 1% <b className="font-mono tabular-nums text-white/85">{money(equity * 0.01)}</b> · 2% <b className="font-mono tabular-nums text-white/85">{money(equity * 0.02)}</b> · day stop 2% <b className="font-mono tabular-nums text-rose-300">{money(equity * 0.02)}</b>{openTrades.length ? <> · open risk <b className="font-mono tabular-nums text-white/85">{money(openRisk)}</b></> : null}</span>
           <details className="group min-w-0 basis-full">
             <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12px] text-white/45 hover:text-white/75 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">risk rules &amp; milestone ladder ▾</span><span className="hidden group-open:inline">risk rules &amp; milestone ladder ▴</span></summary>
             <div className="mt-2">
-            <p className="text-[12.5px] leading-snug text-white/55">By confidence: A+ 2% · A 2% BTC/ETH (1% alts) · B 1% (0.5%) · paper ½ · margin ≤ {num(risk?.max_margin_pct ?? 50, 0)}% of the balance{risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max {num(risk?.max_leverage, 0)}x.</p>
+            <p className="text-[12.5px] leading-snug text-white/55">Your rules (11/9): 0.5–2% per trade, your call · 2% max daily drawdown · aim 1 : 2 (1 : 1 sometimes) · 50%+ win rate · high-conviction exception up to 10% · cross margin · margin ≤ {num(risk?.max_margin_pct ?? 50, 0)}% of the balance{risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max {num(risk?.max_leverage, 0)}x. Cards size at 1%.</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11.5px] tabular-nums text-white/40">
               {ladder.map((m, i) => (
                 <span key={m} className="inline-flex items-center gap-1.5">
@@ -178,7 +177,7 @@ export default async function LeveragePage() {
                 </span>
               ))}
             </div>
-            <div className="mt-2"><Updated at={lastRun} cadenceH={11} verb="Desk Lead · last entry" /> {stale ? "— no Desk Lead entry in the last 12 hours." : "— running (5, 8, 1 and 6 Phoenix). Pings DESK ALERTs (grade 3+ that pass the checklist); the Woods machine updates every 15 minutes."}</div>
+            <div className="mt-2"><Updated at={lastRun} cadenceH={2} verb="Desk Lead · last run" /> {stale ? "— no Desk Lead run in the last 3 hours." : "— running every hour. Pings DESK ALERTs (grade 3+ that pass the checklist); the Sweep machine updates every 15 minutes."}</div>
             </div>
           </details>
         </div>
@@ -223,19 +222,21 @@ export default async function LeveragePage() {
             sub="Your resting BloFin limit orders (Grok records them; each has a TradingView alert at its price) and Moonbag's paper limits testing the backtested limit recipe."
           >
             <Table
-              head={["Coin", "Side", "Limit", "Stop", "TP1", "R : R", "Size", "Status", "Expires"]}
-              align={["l", "l", "r", "r", "r", "r", "r", "l", "l"]}
-              minWidth={820}
+              head={["Coin", "Side", "Limit", "Stop", "TP1", "TP2", "R : R", "Size", "Status", "Expires", "Updated"]}
+              align={["l", "l", "r", "r", "r", "r", "r", "r", "l", "l", "l"]}
+              minWidth={980}
               rows={limits.open.map((o) => [
-                <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge><br /><Id>{o.limit_id}</Id></span>,
+                <span key="c"><strong className="text-white">{o.symbol}</strong>{" "}<Badge tone={o.origin === "paper" ? "gray" : "cyan"}>{o.origin === "paper" ? "paper" : o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge>{o.grade ? <>{" "}<Badge tone={o.grade === "A+" ? "green" : o.grade === "A" ? "cyan" : "amber"}>{o.grade}</Badge></> : null}<br /><Id>{o.limit_id}</Id></span>,
                 <Badge key="d" tone={biasTone(o.direction)}>{biasGlyph(o.direction)} {o.direction === "long" ? "buy" : "sell"}</Badge>,
                 <span key="l" className="font-mono tabular-nums text-white">{px2(o.limit_price)}</span>,
                 <span key="s" className="font-mono tabular-nums text-rose-300">{px2(o.current_stop ?? o.stop)}</span>,
                 <span key="t" className="font-mono tabular-nums text-accent-green">{px2(o.tp1)}</span>,
+                <span key="t2" className="font-mono tabular-nums text-accent-green/80">{o.tp2 == null ? "—" : px2(o.tp2)}</span>,
                 <strong key="r" className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong>,
                 <span key="q" className="text-white/70">{o.quantity != null ? <>{num(o.quantity, 4)}{o.leverage != null ? ` · ${num(o.leverage, 0)}x` : ""}</> : (() => { const i = inputsFor(o); return i ? <a href={`#inputs-${o.limit_id}`} className="text-accent-cyan underline decoration-dotted underline-offset-2" title={i.text}>{i.qty} · {i.leverage}x</a> : "—"; })()}</span>,
                 <Badge key="st" tone={o.status === "touched" ? "amber" : "gray"}>{o.status === "touched" ? "touched — filled?" : "working"}</Badge>,
                 <span key="e" className="whitespace-nowrap text-white/60">{o.expires_at ? whenShort(o.expires_at) : "until cancelled"}</span>,
+                <span key="u" className="whitespace-nowrap text-white/60">{whenShort(o.updated_at)}</span>,
               ])}
               empty="No resting limits. Tell Grok when you place one and it shows up here with a TradingView alert at its price."
             />
@@ -278,7 +279,7 @@ export default async function LeveragePage() {
                             className="mt-3"
                             cols={2}
                             rows={[
-                              ["Order", `${sideWord} limit ${px2(o.limit_price)} · isolated`],
+                              ["Order", `${sideWord} limit ${px2(o.limit_price)} · cross`],
                               ["Size", `${i.qty} ${o.symbol} (≈ ${money(i.notional)}) — set BloFin's size unit to ${o.symbol}`],
                               ["Leverage", `${i.leverage}x (max ${i.ceiling}x) · margin ${money(i.margin)}`],
                               ["Stop loss", `${px2(o.current_stop ?? o.stop)} (${num(i.stopPct, 2)}%) · liq ≈ ${px2(i.liq)}${i.liqOk ? "" : " ⚠"}`],
@@ -374,7 +375,7 @@ export default async function LeveragePage() {
                 </div>
                 {journal.filters.length > 0 && (
                   <div className="mt-3 text-[12px] leading-relaxed text-white/60">
-                    <div className="uppercase tracking-wide text-white/45">Woods / Eliz filters — followed vs ignored</div>
+                    <div className="uppercase tracking-wide text-white/45">Line filters — followed vs ignored</div>
                     {journal.filters.map((f) => (
                       <div key={f.filter_id}>{f.mentor}: {f.rule} — followed {f.n_followed} ({num(f.r_followed ?? 0)}R) · ignored {f.n_ignored} ({num(f.r_ignored ?? 0)}R)</div>
                     ))}
@@ -628,7 +629,7 @@ export default async function LeveragePage() {
               <strong key="a" className="text-white">{s.asset}</strong>,
               <Badge key="d" tone={biasTone(s.direction)}>{biasGlyph(s.direction)} {s.direction}</Badge>,
               <Mono key="su" className="text-white/70">{s.setup_id}</Mono>,
-              <Badge key="g" tone={gradeTone(s.confidence_grade)}>{num(s.confidence_score, 0)} · g{s.confidence_grade}</Badge>,
+              <Badge key="g" tone={gradeTone(s.confidence_grade)}>{num(s.confidence_score, 0)} · grade {s.confidence_grade}</Badge>,
               <span key="pl" className="whitespace-nowrap">{num(s.entry)} <span className="text-white/30">/</span> {num(s.stop)} <span className="text-white/30">/</span> {num(s.tp1)}</span>,
               <span key="o" className="whitespace-nowrap"><Badge tone={s.outcome === "tp1" ? "green" : s.outcome === "stop" ? "red" : "gray"}>{s.outcome?.replace("_", " ")}</Badge> <RMult v={s.outcome_r} /> {s.status === "taken" && <Badge tone="green">taken</Badge>}</span>,
               <LongText key="l" text={s.lesson ?? s.status_reason ?? "—"} max={110} className="min-w-[200px] text-[12.5px] leading-snug text-white/65" />,
@@ -690,7 +691,7 @@ export default async function LeveragePage() {
                 h.regime ?? "—",
                 <LongText key="n" text={h.note ?? "—"} max={120} className="min-w-[240px] text-[12.5px] leading-snug text-white/60" />,
               ])}
-              empty="The hourly watch hasn't written its first entry yet. It runs at 25 minutes past every hour."
+              empty="The Desk Lead hasn't written its first entry yet. It runs every hour, a few minutes past."
             />
           </Fold>
         </div>
@@ -777,7 +778,7 @@ function AssetCard({ asset, h, live, series, thesis, alerts }: {
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-white/70">Every level &amp; TradingView alerts</span>
             <Badge tone={alerts.length ? "cyan" : "gray"}>{alerts.length} alert{alerts.length === 1 ? "" : "s"} live</Badge>
-            <Badge tone={biasTone(h?.htf_bias ?? thesis?.bias)}>HTF {biasGlyph(h?.htf_bias ?? thesis?.bias)} {h?.htf_bias ?? thesis?.bias ?? "—"}</Badge>
+            <Badge tone={biasTone(h?.htf_bias ?? thesis?.bias)}>Higher timeframe {biasGlyph(h?.htf_bias ?? thesis?.bias)} {h?.htf_bias ?? thesis?.bias ?? "—"}</Badge>
           </span>
         }
       >

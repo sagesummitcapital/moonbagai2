@@ -73,7 +73,7 @@ export function DashNav() {
               key={g.href}
               href={g.href}
               aria-current={on ? "page" : undefined}
-              className={`rounded-lg px-2 py-1.5 text-center text-[13px] transition sm:px-4 ${on ? "bg-white/[0.1] font-semibold text-white" : "text-white/55 hover:bg-white/[0.04] hover:text-white"}`}
+              className={`inline-flex min-h-[40px] items-center justify-center rounded-lg px-2 text-center text-[13px] transition sm:px-4 ${on ? "bg-white/[0.1] font-semibold text-white" : "text-white/55 hover:bg-white/[0.04] hover:text-white"}`}
             >
               {g.label}
             </Link>
@@ -90,7 +90,7 @@ export function DashNav() {
                   key={i.href}
                   href={i.href}
                   aria-current={on ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-full px-3 py-1 text-[12.5px] transition ${on ? "bg-white/[0.08] font-medium text-white" : "text-white/50 hover:text-white"}`}
+                  className={`inline-flex min-h-[40px] items-center whitespace-nowrap rounded-full px-3 text-[12.5px] transition ${on ? "bg-white/[0.08] font-medium text-white" : "text-white/50 hover:text-white"}`}
                 >
                   {on && <span className="mr-1.5 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-accent-green" aria-hidden />}
                   {i.label}

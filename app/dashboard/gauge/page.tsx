@@ -19,7 +19,7 @@ export default async function GaugePage() {
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
-      <PageHeader title="Retail rotation gauge" sub="Is retail money in Bitcoin only, rotating, or chasing alts? Built from Eliz's read that alts need retail to come back. Context only: it never creates, blocks or grades a setup." />
+      <PageHeader title="Retail rotation gauge" sub="Is retail money in Bitcoin only, rotating, or chasing alts? Built on the read that alts need retail to come back. Context only: it never creates, blocks or grades a setup." />
       {g ? (
         <Card title={`Today · ${g.day}`} right={<Mono>updated {whenShort(g.created_at)}</Mono>}>
           <div className="flex flex-wrap items-end gap-4">
@@ -28,7 +28,7 @@ export default async function GaugePage() {
           </div>
           <div className="mt-4">
             <Table head={["Input", "Score (0–100)", "Weight"]} align={["l", "r", "r"]}
-              rows={g.components.map((c) => [c.name, num(c.value, 1), String(c.weight)])} />
+              rows={(g.components ?? []).map((c) => [c.name, num(c.value, 1), String(c.weight)])} />
           </div>
         </Card>
       ) : (

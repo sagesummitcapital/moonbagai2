@@ -366,7 +366,7 @@ export async function getRobinhoodBook() {
     db.from("risk_config").select("*").eq("venue", "robinhood").limit(1),
     db.from("account_snapshots").select("*").eq("venue", "robinhood").order("reported_at", { ascending: false }).limit(1),
     db.from("trades").select("*").eq("venue", "robinhood").order("created_at", { ascending: false }).limit(60),
-    db.from("handoffs").select("*").order("created_at", { ascending: false }).limit(15),
+    db.from("handoffs").select("*").eq("broker", "robinhood").order("created_at", { ascending: false }).limit(15),
     db.from("daily_thesis").select("*").eq("status", "active").not("asset", "in", "(BTC,ETH)"),
     db.from("investment_themes").select("*").order("status").order("conviction", { ascending: false, nullsFirst: false }),
     db.from("paper_trades").select("*").eq("book", "robinhood").order("opened_at", { ascending: false }).limit(30),

@@ -8,7 +8,6 @@ import { getSizingContext, limitInputs, type LimitOrder } from "./limits";
 import { anchorState, getWoodsLevels } from "./woods";
 import { livePrice } from "./livePrice";
 import { getLiquidity, liquidityNotes } from "./liquidity";
-export { livePrice };
 
 const MIN_STOP: Record<string, number> = { BTC: 0.008, ETH: 0.008 };
 const MMR = 0.005; // BloFin maintenance margin, rough — BloFin's own liquidation price is the one to trust
@@ -43,20 +42,20 @@ export async function quickLive(coin: string, side: "long" | "short", margin: "i
   const lvl = structure.find((x) => sg * (px - (x - sg * 0.5 * atr)) >= minDist);
   let stop = lvl != null ? lvl - sg * 0.5 * atr : px - sg * minDist;
   if (sg * (px - stop) < minDist) stop = px - sg * minDist;
-  const card = await quickInputs({ coin: c, side, entry: px, stop, grade, margin, risk });
+  const card = await quickInputs({ coin: c, side, entry: px, stop, grade, margin, risk }, lv); // reuse the levels built above (was loaded twice)
   if (!card.ok) return card;
   const when = new Date(lp.at).toLocaleTimeString("en-US", { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit", second: "2-digit" });
   const head = `LIVE ${c} ${fp(px)} (${lp.source}, ${when} Phoenix) — entry at market now. Stop ${fp(stop)} = ${lvl != null ? `just past the ${fp(lvl)} level` : "the minimum distance (no level close enough)"} + ½ × 1h ATR.`;
   return { ...card, text: `${head}\n${card.text}`, entry: px, stop, live: lp };
 }
 
-export async function quickInputs(q: QuickIn) {
+export async function quickInputs(q: QuickIn, preLevels?: Awaited<ReturnType<typeof buildLevels>> | null) {
   const coin = q.coin.toUpperCase().replace(/USDT.*$/, "");
   const sg = q.side === "long" ? 1 : -1;
   if (!(q.entry > 0) || !(q.stop > 0) || sg * (q.entry - q.stop) <= 0) {
     return { ok: false as const, text: `NO TRADE — the stop must be ${q.side === "long" ? "below" : "above"} the entry.` };
   }
-  const [ctx, lv, wl] = await Promise.all([getSizingContext(), buildLevels().catch(() => null), getWoodsLevels().catch(() => [])]);
+  const [ctx, lv, wl] = await Promise.all([getSizingContext(), preLevels !== undefined ? preLevels : buildLevels().catch(() => null), getWoodsLevels().catch(() => [])]);
   if (!ctx) return { ok: false as const, text: "NO TRADE — no BloFin balance on record. Post it first (POST /accounts)." };
   const risk = Math.abs(q.entry - q.stop);
   const stopPct = (risk / q.entry) * 100;
@@ -105,7 +104,7 @@ export async function quickInputs(q: QuickIn) {
   const anc = anchorState(btcLive?.price ?? btc?.price ?? (coin === "BTC" ? q.entry : null), wl);
   const woods: string[] = [];
   if (anc.state !== "unknown") woods.push(`Anchor: ${anc.text}`);
-  if (coin !== "BTC" && q.side === "long" && anc.state === "below") woods.push("Woods rule 1 (warning, not a block — CR-9): BTC is below its reclaim level, so this alt long is lower quality — take it only if its own trigger is clean.");
+  if (coin !== "BTC" && q.side === "long" && anc.state === "below") woods.push("BTC line rule (warning, not a block): BTC is below its reclaim level, so this alt long is lower quality — take it only if its own trigger is clean.");
   if (c?.rangeLow != null && c?.rangeHigh != null && c.rangeHigh > c.rangeLow) {
     const pos = (q.entry - c.rangeLow) / (c.rangeHigh - c.rangeLow);
     if (pos > 0.35 && pos < 0.65) woods.push(`No-man's land: entry is mid-range (${fp(c.rangeLow)}–${fp(c.rangeHigh)}) — trade the edge or the break.`);

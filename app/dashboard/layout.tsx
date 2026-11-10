@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </Link>
               <div className="flex items-center gap-3">
                 {access.allowed && (
-                  <span className="hidden font-mono text-[11px] tabular-nums text-white/35 sm:inline" title="When this page was built (Phoenix). Refresh pulls live prices and rebuilds it.">
+                  <span className="font-mono text-[11px] tabular-nums text-white/35" title="When this page was built (Phoenix). Refresh pulls live prices and rebuilds it.">
                     as of {builtAt}
                   </span>
                 )}

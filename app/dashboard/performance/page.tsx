@@ -13,7 +13,8 @@ export default async function PerformancePage() {
     const [closed, state] = await Promise.all([listTrades({ status: "closed" }), getSystemState()]);
     return { closed, state };
   });
-  const closed = data?.closed ?? [];
+  // Real money only: prop-firm (breakout) trades are evaluation results and are tracked on the Prop firm page.
+  const closed = (data?.closed ?? []).filter((t) => t.venue !== "breakout");
   const pnlDays = await getPnlDays().catch(() => []); // P&L calendar (Stavros 2026-11-01)
   const pnl = closed.reduce((a, t) => a + Number(t.realized_pnl ?? 0), 0);
   const wins = closed.filter((t) => Number(t.realized_pnl ?? 0) > 0).length;
@@ -39,7 +40,7 @@ export default async function PerformancePage() {
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
-      <PageHeader title="Performance" sub="Every closed trade across the three books, with the forecasting and execution scores that go with them. Closed trades are final records, so nothing here needs a live price." right={<><Badge tone="gray">{closed.length} closed trades</Badge><Updated label="last close" at={closed.map((t) => t.closed_at).filter(Boolean).sort().reverse()[0]} cadenceH={24 * 7} verb="" /></>} />
+      <PageHeader title="Performance" sub="Every closed trade across the three real-money books (the prop account has its own page), with the forecasting and execution scores that go with them. Closed trades are final records, so nothing here needs a live price." right={<><Badge tone="gray">{closed.length} closed trades</Badge><Updated label="last close" at={closed.map((t) => t.closed_at).filter(Boolean).sort().reverse()[0]} cadenceH={24 * 7} verb="" /></>} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Card><Stat label="Realized P&L" value={<Delta v={pnl} prefix="$" arrow={false} className="text-[26px] md:text-[30px]" />} sub={`${closed.length} closed trades`} /></Card>

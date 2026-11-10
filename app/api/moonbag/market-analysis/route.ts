@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export const GET = withAgent(["claude", "grok"], async (req) => {
   const q = new URL(req.url).searchParams;
-  const days = Math.min(90, Math.max(1, Number(q.get("days") ?? 0) || 0));
+  const days = Math.min(90, Math.max(0, Number(q.get("days") ?? 0) || 0)); // 0 = not asked → just today
   const day = q.get("day") ? validDay(q.get("day")) : days ? null : phxToday();
   return json({ ok: true, analysis: await listByDay("market_analysis", day, days || 1) });
 });

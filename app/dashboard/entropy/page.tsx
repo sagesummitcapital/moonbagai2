@@ -24,11 +24,11 @@ const seiName = (s?: number | null) => {
 function ours(r: EntropyReading | null, key: string): { value: string; tone: string; sub?: string } {
   if (!r) return { value: "first reading pending", tone: "gray" };
   switch (key) {
-    case "ssi": return { value: `${r.ssi == null ? "—" : Number(r.ssi).toFixed(0)} / 100 · ${r.ssi_zone ?? "—"}`, tone: zoneTone(r.ssi_zone), sub: `velocity ${sgn(r.ssi_v)} · accel ${sgn(r.ssi_a)} · jerk ${sgn(r.ssi_j)}` };
+    case "ssi": return { value: `${r.ssi == null ? "—" : Number(r.ssi).toFixed(0)} / 100 · ${r.ssi_zone ?? "—"}`, tone: zoneTone(r.ssi_zone), sub: `speed ${sgn(r.ssi_v)} · speeding up ${sgn(r.ssi_a)} · forced or organic (jerk) ${sgn(r.ssi_j)}` };
     case "pti": return { value: label[r.pti_state ?? ""] ?? "—", tone: r.pti_state === "phase_transition" ? "red" : r.pti_state === "disequilibrium" ? "amber" : "green", sub: `bowl ${r.bowl ?? "—"} · stress rising ${r.pti_weeks_up ?? 0} weeks in a row (our record)` };
     case "sri": return { value: label[r.sri ?? ""] ?? "—", tone: r.sri === "deflationary" ? "red" : r.sri === "inflationary_flip_risk" ? "amber" : "cyan", sub: r.notes?.sri };
     case "sei": return { value: seiName(r.sei_stage), tone: (r.sei_stage ?? 0) >= 4 ? "red" : (r.sei_stage ?? 0) >= 3 ? "amber" : "cyan", sub: r.notes?.sei };
-    case "sam": return { value: r.sam_active ?? "—", tone: "cyan", sub: Object.entries(r.sam ?? {}).map(([k, v]) => `${k} ${sgn(v.accel)}`).join(" · ") };
+    case "sam": return { value: r.sam_active ?? "—", tone: "cyan", sub: Object.entries(r.sam ?? {}).map(([k, v]) => `${k} ${sgn(v?.accel)}`).join(" · ") };
     case "rqi": return { value: label[r.rqi ?? ""] ?? "—", tone: r.rqi === "trap" ? "red" : r.rqi === "real" ? "green" : "gray", sub: r.notes?.rqi };
     default: return { value: "—", tone: "gray" };
   }

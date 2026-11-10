@@ -97,7 +97,8 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   const book: "blofin" | "longterm" = ["robinhood", "coinbase", "longterm"].includes(searchParams?.book ?? "") ? "longterm" : "blofin";
 
   const inMonth = all.filter((t) => monthKey(t.closed_at!) === m);
-  const shown = inMonth.filter((t) => (book === "blofin" ? t.venue === "blofin" : t.venue !== "blofin"));
+  // Long-term = Coinbase + Robinhood only. Prop-firm (breakout) trades are evaluation money and live on the Prop firm page.
+  const shown = inMonth.filter((t) => (book === "blofin" ? t.venue === "blofin" : t.venue === "coinbase" || t.venue === "robinhood"));
   const total = tally(shown.map(tradeRow));
 
   const group = (label: (t: Trade) => string, list = shown) => {

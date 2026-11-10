@@ -137,7 +137,6 @@ export type SizingContext = {
   ceilings?: Record<string, { tier: string; max: number }>;
 };
 
-const RISK_CORE = new Set(["BTC", "ETH", "SOL"]);
 const qtyDecimals = (price: number) => (price >= 1000 ? 4 : price >= 10 ? 2 : price >= 1 ? 1 : 0);
 const floorTo = (x: number, d: number) => Math.floor(x * 10 ** d) / 10 ** d;
 const fp = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: v >= 1 ? 2 : 4, maximumFractionDigits: v >= 1 ? 2 : 4 });
@@ -152,7 +151,9 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   const grade = (o.grade ?? "B").toUpperCase();
   const notes: string[] = [];
 
-  let riskPct = RISK_CORE.has(sym) ? 2 : 1;
+  // Stavros's rules (2026-11-09): 0.5%–2% per trade at his discretion, every coin the same (HYPE and the other alts are not special).
+  // Cards size at 1% and print the 0.5% and 2% dollars next to it; the cuts below can only lower it.
+  let riskPct = 1;
   if (grade === "B") { riskPct /= 2; notes.push("grade B: half risk"); }
   if (ctx.redDay?.red && grade !== "A+") { riskPct /= 2; notes.push(`red-folder day${ctx.redDay.events ? ` (${ctx.redDay.events})` : ""}: half risk — no fill within 2h of the release`); }
   else if (ctx.redDay?.red) notes.push(`red-folder day${ctx.redDay.events ? ` (${ctx.redDay.events})` : ""}: A+ keeps full risk — no fill within 2h of the release`);
@@ -160,13 +161,12 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   // Caller's risk (Stavros 2026-10-18: Woods/Eliz/Johnny "may give risk as well. Like 1% or .5%") — can only LOWER the house risk, never raise it.
   if (opts.riskCap != null && opts.riskCap > 0 && opts.riskCap < riskPct) { riskPct = opts.riskCap; notes.push(`caller's risk ${opts.riskCap}%`); }
   else if (opts.riskCap != null && opts.riskCap > riskPct) notes.push(`caller asked ${opts.riskCap}% — capped at the house ${riskPct}% for this grade/coin`);
-  const riskUsd = (ctx.equity * riskPct) / 100;
+  let riskUsd = (ctx.equity * riskPct) / 100;
 
   const d = qtyDecimals(entry);
   let qty = floorTo(riskUsd / dist, d);
 
   const u = ctx.ceilings?.[sym];
-  const core = u ? u.tier === "core" : sym === "BTC" || sym === "ETH";
   // Leverage (Stavros, 2026-10-15: "up to 100x — safety rule wins"; raised to 150x 2026-10-16: "raise to 150x since that is what exchange allows"): the ceiling is the coin's database cap (lev_universe,
   // ≤ 150) and never more than keeps liquidation ≥ 1.25 × the stop distance away, allowing ~0.5% maintenance margin.
   // Leverage never changes the dollar risk; the default is still the LOWEST leverage that keeps margin ≤ 50% of the balance.
@@ -180,13 +180,14 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
     leverage = ceiling;
     qty = floorTo((marginCap * ceiling) / entry, d);
     notional = qty * entry;
+    riskUsd = qty * dist; // the card must show the risk of the size it actually prints
     notes.push(`size cut to fit ${ceiling}x and the margin cap — risk is lower than ${riskPct}%`);
   }
   const margin = notional / leverage;
   const liq = entry * (1 - sg / leverage);
   const liqOk = Math.abs(entry - liq) >= 1.25 * dist;
   if (!liqOk) notes.push("liquidation is too close to the stop — use less leverage");
-  const qtyTp1 = floorTo(qty * (opts.split ?? 0.5), d);
+  const qtyTp1 = floorTo(qty * (opts.split ?? 0.7), d); // TP1 = 70%, then stop to entry (2026-10-18 rule; same as /quick and /focus)
   const qtyTp2 = floorTo(qty - qtyTp1, d);
   const stopPct = (dist / entry) * 100;
   const beAt = entry + sg * 1.5 * dist;
@@ -205,8 +206,8 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   const text = [
     ...plan,
     `${sym} ${side} · LIMIT ${fp(entry)} · SL ${fp(stop)} (${stopPct.toFixed(2)}%) · TP1 ${tp1 != null ? fp(tp1) : "—"}${rr != null ? ` (${rr.toFixed(1)}R)` : ""} for ${qtyTp1} · TP2 ${tp2 != null ? fp(tp2) : "—"} for ${qtyTp2}`,
-    `Size ${qty} ${sym} (≈ $${notional.toFixed(2)}) · Leverage ${leverage}x isolated (max ${ceiling}x) · Margin $${margin.toFixed(2)} · Risk $${riskUsd.toFixed(2)} (${riskPct}% of $${ctx.equity.toFixed(2)}) · Liq ≈ ${fp(liq)}`,
-    `Manage: stop to entry at +1.5R (${fp(beAt)}). Cancel ${exp ? `at ${exp} Phoenix ` : ""}if not filled, or if price reaches TP1 first. Quick mode instead: TP ${fp(quickTp)} (2R), stop to entry at +1R (${fp(quickBe)}).`,
+    `Size ${qty} ${sym} (≈ $${notional.toFixed(2)}) · Leverage ${leverage}x cross (max ${ceiling}x) · Margin $${margin.toFixed(2)} · Risk $${riskUsd.toFixed(2)} (${riskPct}% of $${ctx.equity.toFixed(2)}; your range 0.5% = $${(ctx.equity * 0.005).toFixed(2)} to 2% = $${(ctx.equity * 0.02).toFixed(2)}) · Liq ≈ ${fp(liq)} (isolated-margin estimate; on cross, BloFin's own liquidation price is the one to trust)`,
+    `Manage: take 70% at TP1, then stop to entry; run the rest to TP2. No stop move before +1R. Cancel ${exp ? `at ${exp} Phoenix ` : ""}if not filled, or if price reaches TP1 first. Quick mode instead: TP ${fp(quickTp)} (2R), stop to entry at +1R (${fp(quickBe)}).`,
     ...(notes.length ? [`Note: ${notes.join(" · ")}`] : []),
   ].join("\n");
   return { riskPct, riskUsd, qty, qtyTp1, qtyTp2, notional, leverage, ceiling, margin, liq, liqOk, stopPct, beAt, quickTp, quickBe, notes, plan, text };

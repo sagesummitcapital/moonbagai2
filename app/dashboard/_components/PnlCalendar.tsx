@@ -8,7 +8,8 @@ const VENUES = [
   { k: "blofin", label: "BloFin" },
   { k: "robinhood", label: "Robinhood" },
   { k: "coinbase", label: "Coinbase" },
-  { k: "all", label: "All" },
+  { k: "all", label: "All real money" },
+  { k: "breakout", label: "Prop (eval)" },
 ] as const;
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -28,7 +29,7 @@ export function PnlCalendar({ days }: { days: PnlDay[] }) {
   const byDay = useMemo(() => {
     const map = new Map<string, { pnl: number; trades: number }>();
     for (const d of days) {
-      if (venue !== "all" && d.venue !== venue) continue;
+      if (venue === "all" ? d.venue === "breakout" : d.venue !== venue) continue; // "all" = real money; the prop evaluation has its own toggle
       const cur = map.get(d.day) ?? { pnl: 0, trades: 0 };
       map.set(d.day, { pnl: cur.pnl + d.pnl_usd, trades: cur.trades + d.trades });
     }
@@ -62,7 +63,7 @@ export function PnlCalendar({ days }: { days: PnlDay[] }) {
         <div className="flex flex-wrap gap-1">
           {VENUES.map((v) => (
             <button key={v.k} type="button" onClick={() => setVenue(v.k)}
-              className={`h-9 rounded-full px-3 text-[12.5px] ${venue === v.k ? "bg-white text-black" : "border border-white/10 text-white/60 hover:bg-white/5"}`}>
+              className={`min-h-[40px] rounded-full px-3 text-[12.5px] ${venue === v.k ? "bg-white text-black" : "border border-white/10 text-white/60 hover:bg-white/5"}`}>
               {v.label}
             </button>
           ))}

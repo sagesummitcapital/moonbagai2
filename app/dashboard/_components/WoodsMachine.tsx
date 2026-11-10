@@ -16,7 +16,7 @@ const LEGS: [key: "a" | "b" | "c" | "d", label: string][] = [
   ["d", "1H trigger"],
 ];
 
-const COMP_LABEL: Record<string, string> = { level: "level", anchor: "BTC anchor", rr: "R:R", rsi: "4H RSI", trend: "trend", record: "track record", macro: "Eliz macro", bias: "weekly bias", fib: "fib 0.75–0.786" };
+const COMP_LABEL: Record<string, string> = { level: "level", anchor: "BTC anchor", rr: "R:R", rsi: "4H RSI", trend: "trend", record: "track record", macro: "macro read", bias: "weekly bias", fib: "fib 0.75–0.786" };
 const COMP_MAX: Record<string, number> = { level: 25, anchor: 20, rr: 20, rsi: 15, trend: 10, record: 10, macro: 10, bias: 10, fib: 10 };
 
 function gradeTone(g: string | null) {
@@ -153,15 +153,15 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
     <>
       {anchor?.macro?.text && (
         <div className="-mt-1.5 mb-3 rounded-lg bg-accent-cyan/[0.05] px-3 py-2 text-[13px] text-accent-cyan/90">
-          <strong>Macro:</strong> {anchor.macro.text.replace(/^Eliz: /, "Eliz — ")} <a href="/dashboard/mentors" className="ml-1 text-white/45 hover:text-white/70">playbook →</a>
+          <strong>Macro:</strong> {anchor.macro.text.replace(/^(Eliz|Woods): /, "")} <a href="/dashboard/mentors" className="ml-1 text-white/45 hover:text-white/70">playbook →</a>
         </div>
       )}
       {anchor?.combo && (anchor.combo.state || anchor.combo.woodsbot) && (
         <div className={`-mt-1.5 mb-3 rounded-lg px-3 py-2 text-[13px] ${anchor.combo.state === "bear" || anchor.combo.woodsbot?.side === "short" ? "bg-rose-400/[0.07] text-rose-200" : "bg-violet-400/[0.08] text-violet-100"}`}>
           <strong>Divergence combo:</strong>{" "}
           {anchor.combo.woodsbot
-            ? `WoodsBot ${anchor.combo.woodsbot.side === "short" ? "▼ bearish" : "▲ bullish"} combo on the ${whenShort(anchor.combo.woodsbot.bar)} 4H bar — ${anchor.combo.woodsbot.side === "short" ? "momentum fading across the market; look for shorts at swept highs, no new longs at highs" : "selling momentum fading across the market; look for longs at swept lows, no shorts into it"}.`
-            : "No WoodsBot combo in the last 40h."}
+            ? `RSI bot ${anchor.combo.woodsbot.side === "short" ? "▼ bearish" : "▲ bullish"} combo on the ${whenShort(anchor.combo.woodsbot.bar)} 4H bar — ${anchor.combo.woodsbot.side === "short" ? "momentum fading across the market; look for shorts at swept highs, no new longs at highs" : "selling momentum fading across the market; look for longs at swept lows, no shorts into it"}.`
+            : "No RSI-bot combo in the last 40h."}
           <div className="mt-1 text-[11.5px] text-white/50">Not an entry by itself: wait for the sweep + 1H trigger, stop past the swing. Moonbag&apos;s own scan (experimental, 4/10 right so far): {anchor.combo.text}</div>
         </div>
       )}
@@ -187,7 +187,7 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
   const hasContext = !!(anchor?.macro?.text || (anchor?.combo && (anchor.combo.state || anchor.combo.woodsbot)) || anchor?.context);
   return (
     <Card
-      title="Woods machine"
+      title="Sweep machine"
       tone={health.tone === "red" ? "warn" : recentTriggers.length ? "accent" : undefined}
       right={
         <span className="inline-flex flex-wrap items-center gap-1.5 font-mono text-[11.5px] tabular-nums">

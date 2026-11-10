@@ -68,7 +68,7 @@ export default async function MentorsPage() {
         })}
       </div>
 
-      <Card title="How they think" sub="Moonbag's model of each mentor, rebuilt as their posts come in (CR-10). Every week the model predicts their call from what they saw, and the match rate shows whether it really thinks like them.">
+      <Card title="How they think" sub="Moonbag's model of each mentor, rebuilt as their posts come in. Every week the model predicts their call from what they saw, and the match rate shows whether it really thinks like them.">
         <div className="grid gap-4 md:grid-cols-2">
           {(["eliz", "woods"] as Mentor[]).map((m) => {
             const t = tests.filter((x) => x.mentor === m && x.match);
@@ -95,7 +95,7 @@ export default async function MentorsPage() {
         </div>
       </Card>
 
-      <Card title="Moonbag vs the mentors" sub="Moonbag logs its own call each morning BEFORE reading theirs (CR-11). Only calls Moonbag made first count. Both are graded the same way: direction, level hit before the invalidation, and R. No claim of beating them before 30+ fair pairs each.">
+      <Card title="Moonbag vs the mentors" sub="Moonbag logs its own call each morning BEFORE reading theirs. Only calls Moonbag made first count. Both are graded the same way: direction, level hit before the invalidation, and R. No claim of beating them before 30+ fair pairs each.">
         {vs.length ? (
           <div className="space-y-1 text-[13px] text-white/80">
             {vs.map((r) => (
@@ -142,7 +142,7 @@ export default async function MentorsPage() {
           {calls.map((c) => (
             <div key={c.call_id} className="flex flex-wrap items-start gap-2 text-[13px]">
               <Badge tone={callTone(c.status)}>{c.status}</Badge>
-              <span className="text-white/45">{MENTORS[c.mentor].name} · {whenShort(c.made_at)}</span>
+              <span className="text-white/45">{MENTORS[c.mentor]?.name ?? c.mentor} · {whenShort(c.made_at)}</span>
               <span className="min-w-0 flex-1 text-white/85">{c.call}{c.grade_note ? <span className="block text-[12px] text-white/50">{c.grade_note}</span> : null}</span>
             </div>
           ))}
@@ -152,7 +152,7 @@ export default async function MentorsPage() {
       <Quiet title="Their words, verbatim" sub="every post we have, newest first">
         <div className="space-y-2">
           {posts.map((p) => (
-            <Fold key={p.post_id} title={`${MENTORS[p.mentor].name} · ${p.title ?? p.kind}`} right={<span className="font-mono text-[11.5px] text-white/45">{whenShort(p.posted_at ?? p.received_at)}</span>}>
+            <Fold key={p.post_id} title={`${MENTORS[p.mentor]?.name ?? p.mentor} · ${p.title ?? p.kind}`} right={<span className="font-mono text-[11.5px] text-white/45">{whenShort(p.posted_at ?? p.received_at)}</span>}>
               <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-white/75">{p.raw_text}</pre>
               {p.source && <Note className="mt-2">Source: {p.source}</Note>}
             </Fold>

@@ -100,7 +100,9 @@ export async function buildLevels() {
         const isLimit = p != null && mineLimits.some((o) => o.symbol === asset && Math.abs(Number(o.limit_price) - p) <= 0.0005 * p);
         if (isLimit) label = "LIMIT";
         else if (a.action === "EXIT" && tr && entry != null && p != null) {
-          const isStop = tr.direction === "long" ? p < entry : p > entry;
+          // A stop moved past entry (risk-free) is still the stop: match the trade's own stop first, then fall back to the side of entry.
+          const st = tr.current_stop ?? tr.stop;
+          const isStop = st != null && Math.abs(Number(st) - p) <= 0.0005 * p ? true : tr.direction === "long" ? p < entry : p > entry;
           label = isStop ? "STOP" : "TARGET";
         } else if (a.action === "EXIT") label = "EXIT";
         else if (a.action === "ENTER") label = `LEVEL${a.direction && a.direction !== "neutral" ? ` · ${a.direction} play` : ""}`;

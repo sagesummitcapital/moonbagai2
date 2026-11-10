@@ -19,14 +19,14 @@ function Zone({ side, p }: { side: "long" | "short"; p: BoardPlan | null }) {
         <span className={`text-[12px] font-semibold uppercase tracking-wide ${col}`}>{side === "long" ? "▲ Long" : "▼ Short"}</span>
         <Badge tone={gradeTone(p.grade)}>{p.grade}</Badge>
         {hot && <Badge tone={side === "long" ? "green" : "red"} dot>getting close</Badge>}
-        <span className="ml-auto font-mono text-[11.5px] tabular-nums text-white/45">{p.dist_pct.toFixed(2)}% away</span>
+        <span className="ml-auto font-mono text-[11.5px] tabular-nums text-white/45">{p.dist_pct == null ? "—" : `${Number(p.dist_pct).toFixed(2)}% away`}</span>
       </div>
       {live ? (
-        <div className="mt-1.5 grid grid-cols-4 gap-1 font-mono text-[12.5px] tabular-nums">
+        <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1.5 font-mono text-[12.5px] tabular-nums sm:grid-cols-4 [&>span]:min-w-0 [&>span]:break-words">
           <span><span className="block text-[10.5px] uppercase text-white/40">{p.order === "market" ? "Market" : "Limit"}</span><span className="text-white">{px2(p.entry)}</span></span>
           <span><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="text-rose-300">{px2(p.stop)}</span></span>
           <span><span className="block text-[10.5px] uppercase text-white/40">TP1</span><span className="text-accent-green">{px2(p.tp1)}</span></span>
-          <span><span className="block text-[10.5px] uppercase text-white/40">R : R</span><span className="text-white">{p.rr == null ? "—" : `${p.rr.toFixed(1)}R`}</span></span>
+          <span><span className="block text-[10.5px] uppercase text-white/40">R : R</span><span className="text-white">{p.rr == null ? "—" : `1 : ${Number(p.rr).toFixed(1)}`}</span></span>
         </div>
       ) : (
         <p className="mt-1 text-[12px] text-white/50">{p.note}</p>

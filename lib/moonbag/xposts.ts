@@ -162,11 +162,12 @@ export async function ensureMorningBriefPost() {
 
 export async function listPosts(status?: string, limit = 20) {
   const db = supabaseAdmin();
-  let q = db.from("x_posts").select("*").order("created_at", { ascending: true }).limit(limit);
+  // A status (e.g. pending) → oldest first, the order to publish in. No status ("all") → the newest posts, shown oldest first.
+  let q = db.from("x_posts").select("*").order("created_at", { ascending: !!status }).limit(limit);
   if (status) q = q.eq("status", status);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return data;
+  return status ? data : [...(data ?? [])].reverse();
 }
 
 export async function getPost(postId: string) {

@@ -56,7 +56,9 @@ export function edgeLines(a: PropStatus, e: DeskEdge) {
     }
     if (all.max_dd_r != null) {
       const dd1 = n(all.max_dd_r) * n(a.risk_high_usd);
-      out.push(`Your worst run (${n(all.max_dd_r).toFixed(1)}R) costs ${usd(dd1)} at 1% vs ${usd(n(a.starting_balance) - n(a.dd_floor))} of drawdown room — it fits at 1%; at 1.5%+ it would not.`);
+      const room = n(a.room_to_floor);
+      const half = dd1 / 2;
+      out.push(`Your worst run (${n(all.max_dd_r).toFixed(1)}R) would cost ${usd(dd1)} at 1% or ${usd(half)} at 0.5%, against ${usd(room)} of room to the floor right now — ${dd1 <= room ? "it fits at 1%" : half <= room ? "it does NOT fit at 1%; it fits at 0.5%" : "it does not fit even at 0.5%"}.`);
     }
   }
   const bad = e.books.filter((x) => x.book !== "Stavros · all" && x.n >= 2 && n(x.expectancy_r) < 0).map((x) => `${x.book.replace("Stavros · ", "")} (${n(x.expectancy_r).toFixed(2)}R, n ${x.n})`);
@@ -64,7 +66,8 @@ export function edgeLines(a: PropStatus, e: DeskEdge) {
   const best = [...e.perDay].filter((d) => d.days >= 2).sort((x, y) => n(y.avg_day_r) - n(x.avg_day_r))[0];
   if (best) out.push(`Trades per day: your best days were ${best.trades_per_day} trade(s) (${n(best.avg_day_r).toFixed(2)}R avg, ${best.green_days}/${best.days} green). ` +
     e.perDay.filter((d) => n(d.avg_day_r) < 0).map((d) => `${d.trades_per_day}/day averaged ${n(d.avg_day_r).toFixed(2)}R`).join("; ") + ".");
-  out.push(`Your two-loss stop: two 1% losses = ${usd(2 * n(a.risk_high_usd))}, inside the ${usd(a.daily_limit_usd)} daily limit. Three would be ${usd(3 * n(a.risk_high_usd))} — right at the limit.`);
+  const two = 2 * n(a.risk_high_usd), three = 3 * n(a.risk_high_usd), lim = n(a.daily_limit_usd);
+  out.push(`Your two-loss stop: two 1% losses = ${usd(two)}, ${two < lim ? "inside" : "NOT inside"} the ${usd(lim)} daily limit. Three would be ${usd(three)} — ${three >= lim ? "at or over the limit" : "still inside it"}.`);
   return out;
 }
 
@@ -103,7 +106,7 @@ export async function getPropData(accountId?: string) {
   };
 }
 
-/** Per-trade helpers for the intake (Grok #414): today's prop trades and losses (firm day, 00:00 UTC), room in $ and in R. */
+/** Per-trade helpers for the intake (Grok #414): today's prop trades and losses (firm day, from the account's reset time — 00:30 UTC for Breakout), room in $ and in R. */
 export type PropToday = { account_id: string; trades_today: number; losses_today: number; pnl_today: number;
   room_today_usd: number; room_floor_usd: number; room_today_r_1pct: number | null; room_today_r_05pct: number | null; room_floor_r_1pct: number | null; room_floor_r_05pct: number | null };
 

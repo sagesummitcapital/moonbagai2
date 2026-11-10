@@ -74,10 +74,12 @@ export const POST = withAgent(["grok", "claude"], async (req, agent) => {
   const gt = (b.grok_take ?? null) as Record<string, unknown> | null;
   if (gt && (gt.entry != null || gt.text)) {
     const ge = n(gt.entry), gs = n(gt.stop), g1 = n(gt.tp1);
-    await db.from("desk_journal").insert({ kind: "grok_view", author: "grok", recorded_by: agent, thread_id: id, coin, side, entry: ge, stop: gs, tp1: g1, tp2: n(gt.tp2),
+    const gv = await db.from("desk_journal").insert({ kind: "grok_view", author: "grok", recorded_by: agent, thread_id: id, coin, side, entry: ge, stop: gs, tp1: g1, tp2: n(gt.tp2),
       rr1: ge != null && gs != null && g1 != null && ge !== gs ? Math.abs(g1 - ge) / Math.abs(ge - gs) : null, body: gt.text ? String(gt.text).slice(0, 4000) : null, price_at: view.price });
+    if (gv.error) throw new BadRequest(`Idea #${id} saved, but Grok's view was not: ${gv.error.message}`);
   }
-  await db.from("desk_journal").insert({ kind: "moonbag_view", author: "moonbag", recorded_by: agent, thread_id: id, coin, side, body: view.text, refs: view.refs, price_at: view.price,
+  const mv = await db.from("desk_journal").insert({ kind: "moonbag_view", author: "moonbag", recorded_by: agent, thread_id: id, coin, side, body: view.text, refs: view.refs, price_at: view.price,
     entry: live?.entry ?? null, stop: live?.stop ?? null, tp1: live?.tp1 ?? null, tp2: live?.tp2 ?? null, rr1: live?.rr1 ?? null, at_market: true });
+  if (mv.error) throw new BadRequest(`Idea #${id} saved, but Moonbag's view was not: ${mv.error.message}`);
   return json({ ok: true, thread_id: id, text: `Desk journal #${id}\n${view.text}`, live_card: view.liveCard, refs: view.refs });
 });

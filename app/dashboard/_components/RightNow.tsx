@@ -69,7 +69,7 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
                     <Badge tone="gray">{v.label}{t.leverage ? ` · ${num(t.leverage, 0)}x` : ""}</Badge>
                     {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
                   </div>
-                  <Link href={v.href} className="text-[12px] text-accent-cyan hover:underline">Open →</Link>
+                  <Link href={v.href} className="inline-flex min-h-[40px] items-center text-[12.5px] font-medium text-accent-cyan hover:underline">Open →</Link>
                 </div>
                 <TradeRail
                   className="mt-2.5"
@@ -107,7 +107,7 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
                     <Badge tone="green">DESK ALERT · {s.status}</Badge>
                     <Badge tone={gradeTone(s.confidence_grade)}>grade {s.confidence_grade} · {num(s.confidence_score, 0)}</Badge>
                   </div>
-                  <Link href="/dashboard/leverage" className="text-[12px] text-accent-cyan hover:underline">Open →</Link>
+                  <Link href="/dashboard/leverage" className="inline-flex min-h-[40px] items-center text-[12.5px] font-medium text-accent-cyan hover:underline">Open →</Link>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-[12.5px]">
                   <div><div className="text-[11px] uppercase tracking-[0.1em] text-white/40">Trigger</div><div className="font-mono tabular-nums text-white">{px(lvl)}</div></div>
@@ -124,7 +124,7 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
             <div className="min-w-0 rounded-xl border border-white/[0.1] bg-white/[0.02] p-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11.5px] uppercase tracking-[0.14em] text-white/45">Waiting on Grok</div>
-                <Link href="/dashboard/opportunities" className="text-[12px] text-accent-cyan hover:underline">Open →</Link>
+                <Link href="/dashboard/opportunities" className="inline-flex min-h-[40px] items-center text-[12.5px] font-medium text-accent-cyan hover:underline">Open →</Link>
               </div>
               <ul className="mt-2 space-y-1.5 text-[13px]">
                 {handoffs.slice(0, 6).map((h) => (

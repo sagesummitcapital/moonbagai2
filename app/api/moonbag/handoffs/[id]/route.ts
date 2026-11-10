@@ -3,9 +3,9 @@ import { respondToHandoff } from "@/lib/moonbag/db";
 
 export const dynamic = "force-dynamic";
 
-const GROK_STATUSES = ["acknowledged", "executed", "rejected"];
+const GROK_STATUSES = ["acknowledged", "executed", "rejected", "expired"]; // expired: an unfilled limit rung past expires_at (AGENT_API.md, Coinbase G)
 
-/** Grok responds: acknowledged | executed | rejected (+ optional status_reason, grok_response). */
+/** Grok responds: acknowledged | executed | rejected | expired (+ optional status_reason, grok_response). */
 export const PATCH = withAgent(["grok", "claude"], async (req, agent, { params }) => {
   const body = await readJson(req);
   if (agent === "grok" && typeof body.status === "string" && !GROK_STATUSES.includes(body.status)) {

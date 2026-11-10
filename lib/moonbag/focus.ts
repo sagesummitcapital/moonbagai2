@@ -71,13 +71,13 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
   const L: string[] = [];
   const now = Date.now();
   L.push(`MOONBAG FOCUS · ${phx(now)} Phoenix · live BloFin`);
-  L.push(`BTC ${fp(btc)} · ETH ${fp(p("ETH"))} · SOL ${fp(p("SOL"))} · HYPE ${fp(p("HYPE"))}${woodsAt ? ` · Woods map ${Math.round((now - Date.parse(woodsAt)) / 60000)} min old${refresh && (refresh as { refreshed?: boolean }).refreshed ? " (just refreshed)" : ""}` : ""}`);
+  L.push(`BTC ${fp(btc)} · ETH ${fp(p("ETH"))} · SOL ${fp(p("SOL"))} · HYPE ${fp(p("HYPE"))}${woodsAt ? ` · level map ${Math.round((now - Date.parse(woodsAt)) / 60000)} min old${refresh && (refresh as { refreshed?: boolean }).refreshed ? " (just refreshed)" : ""}` : ""}`);
 
   // Market frame: Woods anchor on the LIVE BTC price + context + today's plan
   const a = btcRow?.anchor ?? null;
   if (a?.line_low != null && a?.line_high != null && btc != null) {
     const st = btc > a.line_high ? "ABOVE" : btc < a.line_low ? "BELOW" : "INSIDE";
-    L.push(`Frame: BTC ${st} Woods's line ${fp(a.line_low)}–${fp(a.line_high)} — ${st === "ABOVE" ? "longs favoured on 4H acceptance" : st === "BELOW" ? "below the line — alt longs are lower quality (a warning, not a block — CR-9); each setup still needs its own trigger" : "chop zone: trade the edges, not the middle"}${a.context?.state ? ` · market ${a.context.state}` : ""}`);
+    L.push(`Frame: BTC ${st} the line in the sand ${fp(a.line_low)}–${fp(a.line_high)} — ${st === "ABOVE" ? "longs favoured on 4H acceptance" : st === "BELOW" ? "below the line — alt longs are lower quality (a warning, not a block — CR-9); each setup still needs its own trigger" : "chop zone: trade the edges, not the middle"}${a.context?.state ? ` · market ${a.context.state}` : ""}`);
   }
   // HTF LEVEL MAP (CR-16, Stavros 2026-10-25: "look at Monday highs and lows as well as weekly and monthly time frames, 15m timeframe
   // for entry. 4h and 1d for validation.") — the two nearest levels above and below the LIVE BTC price.
@@ -88,7 +88,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const f = (x: { name: string; price: number }) => `${fp(x.price)} ${x.name} (${pctAway(btc, x.price) >= 0 ? "+" : ""}${pctAway(btc, x.price).toFixed(1)}%)`;
     L.push(`BTC levels: above ${up.length ? up.map(f).join(" · ") : "—"} | below ${dn.length ? dn.map(f).join(" · ") : "—"}`);
   }
-  if (blocking.length) L.push(`Woods/Eliz warnings (context only): ${[...new Set(blocking.map((f) => f.reason ?? f.rule))].join(" · ")}`);
+  if (blocking.length) L.push(`Line warnings (context only): ${[...new Set(blocking.map((f) => String(f.reason ?? f.rule).replace(/\b(Woods|Eliz|Johnny)(['’]s)?\s/g, "the ")))].join(" · ")}`);
   const dow = new Date(now).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" });
   if (!["Sat", "Sun"].includes(dow)) {
     const ny = new Date(new Date(now).toLocaleString("en-US", { timeZone: "America/New_York" }));

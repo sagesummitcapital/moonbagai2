@@ -395,7 +395,9 @@ export async function getRiskStatus(venue = "robinhood") {
   const openRisk = openTrades.reduce((a, t) => {
     const stop = Number(t.current_stop ?? t.stop ?? 0);
     const entry = Number(t.entry ?? 0);
-    return a + Math.max(0, (entry - stop) * Number(t.quantity ?? 0));
+    // risk = distance to the stop on the losing side; a stop past entry (risk-free) counts 0. Works for shorts too.
+    const sg = t.direction === "short" ? -1 : 1;
+    return a + Math.max(0, sg * (entry - stop) * Number(t.quantity ?? 0));
   }, 0);
   const exposure = openTrades.reduce(
     (a, t) => a + Number(t.position_value ?? Number(t.entry ?? 0) * Number(t.quantity ?? 0)),

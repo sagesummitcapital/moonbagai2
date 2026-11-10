@@ -75,7 +75,7 @@ export function GoalBar({ total, blofin, coinbase, robinhood, pnlBlofin, deposit
 export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; record: OpenRecord | null; isToday: boolean }) {
   if (!plan) {
     return (
-      <Card title="Today's open plan" sub="Written every weekday before the US open (6:30 AM Phoenix) for BTC, ETH and SOL.">
+      <Card title="Today's open plan" sub="Written every weekday before the US open (9:30 AM New York) for BTC, ETH and SOL.">
         <p className="text-[13px] text-white/60">The first plan is written by the morning routine at 5:15 AM Phoenix on the next weekday.</p>
       </Card>
     );
@@ -84,7 +84,7 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
   const title = isToday ? "Today's open plan" : `Last open plan · ${plan.plan_date}`;
   const badges = (
     <>
-      {plan.red_day && <Badge tone="amber" dot>red-folder day · half risk below A+</Badge>}
+      {plan.red_day && <Badge tone="amber" dot>big-news day (red folder) · half risk below A+</Badge>}
       {!isToday && <Badge tone="amber">not today&apos;s</Badge>}
     </>
   );
@@ -137,8 +137,8 @@ export function OpenPlanCard({ plan, record, isToday }: { plan: Plan | null; rec
             )}
             {(c.overnight_high != null || c.overnight_low != null || c.pdh != null || c.pdl != null) && (
               <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[11px] tabular-nums text-white/45">
-                {c.overnight_high != null && <span>O/N high <span className="text-rose-300/90">{px2(c.overnight_high)}</span></span>}
-                {c.overnight_low != null && <span>O/N low <span className="text-accent-green/90">{px2(c.overnight_low)}</span></span>}
+                {c.overnight_high != null && <span>Overnight high <span className="text-rose-300/90">{px2(c.overnight_high)}</span></span>}
+                {c.overnight_low != null && <span>Overnight low <span className="text-accent-green/90">{px2(c.overnight_low)}</span></span>}
                 {c.pdh != null && <span>Prev high <span className="text-rose-300/90">{px2(c.pdh)}</span></span>}
                 {c.pdl != null && <span>Prev low <span className="text-accent-green/90">{px2(c.pdl)}</span></span>}
               </div>
@@ -224,10 +224,10 @@ function WoodsBlock({ w, at }: { w: import("@/lib/moonbag/openPlan").WoodsMap; a
   return (
     <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">Woods map</span>
+        <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">Level map</span>
         {w.state && <span className={`font-mono text-[13px] font-semibold uppercase ${stTone}`}>{w.state}</span>}
         {w.flip && <span className="text-[12.5px] text-white/60">{w.flip}</span>}
-        <span className="font-mono text-[11px] text-white/35">morning map · written {whenShort(at)} — the live checklist is in the Woods machine</span>
+        <span className="font-mono text-[11px] text-white/35">morning map · written {whenShort(at)} — the live checklist is in the Sweep machine</span>
       </div>
       {w.anchor?.text && <p className="mt-1.5 text-[13.5px] leading-snug text-white/85">{w.anchor.text}</p>}
       {w.checklist && w.checklist.length > 0 && (
@@ -235,7 +235,7 @@ function WoodsBlock({ w, at }: { w: import("@/lib/moonbag/openPlan").WoodsMap; a
           {w.checklist.map((x) => (
             <div key={`${x.coin}-${x.side}`} className="flex flex-wrap items-center gap-1.5">
               <span className={`w-24 shrink-0 font-mono text-[12.5px] ${x.side === "long" ? "text-accent-green" : "text-rose-300"}`}>{x.coin} {x.side}</span>
-              <Tick v={x.a} label="sweep" /><Tick v={x.b} label="SFP" /><Tick v={x.c} label="4H div" /><Tick v={x.d} label="1H trig" />
+              <Tick v={x.a} label="sweep" /><Tick v={x.b} label="close back" /><Tick v={x.c} label="4H RSI turn" /><Tick v={x.d} label="1H trigger" />
               {x.note && <span className="text-[12px] text-white/50">{x.note}</span>}
             </div>
           ))}

@@ -50,7 +50,7 @@ export const BOOK = {
     "This is a phase transition, not a cycle: interventions push the stress level down for a while but never reverse its direction. Since 2008 stress velocity has not turned negative.",
     "Read the motion, not the level: velocity (getting worse?), acceleration and jerk (is the move organic or forced?). Levels can be managed; velocity is hard to fake.",
     "No single gauge is the signal — the combination is. Read together, the readings say: critically stressed, masked by intervention, intervention running out.",
-    "Fiat-cycle clock: 2026 is year 55 since 1971, which the author pairs with 1927 in the Long Depression (1873–1944) — close to the 1929–30 analogue.",
+    "Fiat-cycle clock: the book counts years since 1971 (2026 = year 55) and pairs them with the Long Depression (1873–1944), so 2026 ≈ 1927 — close to the 1929–30 analogue. The live count is in the page header.",
     "Resolution comes through a crisis, not around it. Preservation is the entry fee; buying real assets in the crisis is the prize.",
   ],
   extra: [

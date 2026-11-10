@@ -36,7 +36,7 @@ async function moonbagLimit(coin: string, side: "long" | "short"): Promise<Plan 
   if (w?.limit_plan) {
     const p = w.limit_plan;
     return { entry: Number(p.entry), stop: Number(p.stop), tp1: Number(p.tp1), tp2: num(p.tp2), rr1: Number(p.rr1), grade: w.grade,
-      label: `Woods machine plan (confidence ${w.confidence ?? "—"}${w.blocked ? ` · blocked: ${w.blocked}` : ""})` };
+      label: `Sweep machine plan (confidence ${w.confidence ?? "—"}${w.blocked ? ` · blocked: ${w.blocked}` : ""})` };
   }
   return null;
 }

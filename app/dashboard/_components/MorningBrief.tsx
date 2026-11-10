@@ -187,8 +187,8 @@ function Coin({ c, live }: { c: BriefCoin; live?: PriceMap[string] }) {
       {(c.rangeLow != null || c.rangeHigh != null) && (
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px]">
           <span className="text-white/45">TradingView lines</span>
-          <Badge tone="red">▼ range low {c.rangeLow != null ? num(c.rangeLow) : "—"}</Badge>
-          <Badge tone="green">▲ range high {c.rangeHigh != null ? num(c.rangeHigh) : "—"}</Badge>
+          <Badge tone="green">▼ range low {c.rangeLow != null ? num(c.rangeLow) : "—"}</Badge>
+          <Badge tone="red">▲ range high {c.rangeHigh != null ? num(c.rangeHigh) : "—"}</Badge>
           {side && <span className="text-white/40">price {side}{now.isLive ? "" : " (stored)"}</span>}
         </div>
       )}
