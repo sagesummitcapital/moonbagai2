@@ -168,7 +168,7 @@ export default async function LeveragePage() {
           <details className="group min-w-0 basis-full">
             <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12px] text-white/45 hover:text-white/75 [&::-webkit-details-marker]:hidden"><span className="group-open:hidden">risk rules &amp; milestone ladder ▾</span><span className="hidden group-open:inline">risk rules &amp; milestone ladder ▴</span></summary>
             <div className="mt-2">
-            <p className="text-[12.5px] leading-snug text-white/55">Your rules (11/9): 0.5–2% per trade, your call · 2% max daily drawdown · aim 1 : 2 (1 : 1 sometimes) · 50%+ win rate · high-conviction exception up to 10% · cross margin · margin ≤ {num(risk?.max_margin_pct ?? 50, 0)}% of the balance{risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max {num(risk?.max_leverage, 0)}x. Cards size at 1%.</p>
+            <p className="text-[12.5px] leading-snug text-white/55">Your rules (11/9): 0.5–2% per trade, sized at 1% until your last 20 trades are positive · 2% max daily drawdown · two losses in a day = done · aim 1 : 2 (1 : 1 sometimes) · 50%+ win rate · 10% high-conviction trade paused for now · cross margin · margin ≤ {num(risk?.max_margin_pct ?? 50, 0)}% of the balance{risk?.max_margin_dollars != null ? ` and ${money(risk.max_margin_dollars)}` : ""} · max {num(risk?.max_leverage, 0)}x. Cards size at 1%.</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11.5px] tabular-nums text-white/40">
               {ladder.map((m, i) => (
                 <span key={m} className="inline-flex items-center gap-1.5">
