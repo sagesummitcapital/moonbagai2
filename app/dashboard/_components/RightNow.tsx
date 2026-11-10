@@ -34,9 +34,16 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
   const quiet = !trades.length && !alerts.length && !handoffs.length;
   const late = freshness.filter((f) => f.at && Date.now() - new Date(f.at).getTime() > f.cadenceH * 2 * 3600_000);
   const missing = freshness.filter((f) => !f.at);
+  const busy = trades.length > 0 || alerts.length > 0;
   return (
     <Card
-      title="Right now"
+      title={
+        // The dot only moves when something is live (an open trade or a desk alert) — motion means "look here".
+        <span className={`inline-flex items-center gap-2 ${busy ? "text-white/90" : ""}`}>
+          <span className={`h-2 w-2 shrink-0 rounded-full ${busy ? "bg-accent-green motion-safe:animate-pulse-dot" : handoffs.length ? "bg-accent-cyan" : late.length ? "bg-amber-300" : "bg-white/25"}`} aria-hidden />
+          {quiet ? "Nothing needs you" : "Needs you now"}
+        </span>
+      }
       tone={trades.length || alerts.length ? "accent" : late.length ? "warn" : undefined}
       right={
         <>
@@ -49,8 +56,8 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
       }
     >
       {quiet ? (
-        <p className="text-[14px] leading-relaxed text-white/65">
-          Nothing needs you right now — no open trade, no DESK ALERT, no hand-off waiting on Grok. Waiting for price to reach a level is the normal state.
+        <p className="text-[13px] leading-relaxed text-white/50">
+          No open trade, no DESK ALERT, no hand-off waiting on Grok. Waiting for price to reach a level is the normal state.
           {late.length > 0 && <> <span className="text-amber-200">{late.map((f) => f.label).join(", ")} {late.length === 1 ? "is" : "are"} late.</span></>}
         </p>
       ) : (
@@ -64,7 +71,7 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
               <div key={t.trade_id} className="min-w-0 rounded-xl border border-accent-green/30 bg-accent-green/[0.04] p-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <strong className="text-[14px] text-white">{t.symbol}</strong>
+                    <strong className="text-[16px] leading-none tracking-tight text-white">{t.symbol}</strong>
                     <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
                     <Badge tone="gray">{v.label}{t.leverage ? ` · ${num(t.leverage, 0)}x` : ""}</Badge>
                     {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
@@ -102,7 +109,7 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
               <div key={s.signal_id} className="min-w-0 rounded-xl border border-accent-cyan/30 bg-accent-cyan/[0.04] p-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <strong className="text-[14px] text-white">{s.asset}</strong>
+                    <strong className="text-[16px] leading-none tracking-tight text-white">{s.asset}</strong>
                     <Badge tone={biasTone(s.direction)}>{biasGlyph(s.direction)} {s.direction}</Badge>
                     <Badge tone="green">DESK ALERT · {s.status}</Badge>
                     <Badge tone={gradeTone(s.confidence_grade)}>grade {s.confidence_grade} · {num(s.confidence_score, 0)}</Badge>
@@ -144,16 +151,17 @@ export function RightNow({ trades, alerts, handoffs, armedAlerts, live, cryptoSe
       )}
 
       {/* how old is what you are looking at — one tap away unless something is late */}
-      <details open={late.length > 0} className="group mt-4 border-t border-white/[0.06] pt-2.5">
-        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-white/40 hover:text-white/70 [&::-webkit-details-marker]:hidden">
+      <details open={late.length > 0} className={`group border-t border-white/[0.06] ${quiet ? "mt-3" : "mt-4"}`}>
+        <summary className="flex min-h-[40px] cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-white/40 hover:text-white/70 [&::-webkit-details-marker]:hidden">
           <span className="uppercase tracking-[0.14em]">Data age</span>
-          <span className={late.length ? "text-amber-200" : "text-white/40"}>
+          <span className={`inline-flex items-center gap-1.5 ${late.length ? "font-medium text-amber-200" : "text-white/55"}`}>
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${late.length ? "bg-amber-300" : missing.length === freshness.length ? "bg-white/30" : "bg-accent-green"}`} aria-hidden />
             {late.length ? `${late.length} late` : missing.length === freshness.length ? "no records yet" : "all feeds on time"}
           </span>
           <span className="ml-auto group-open:hidden">show ▾</span>
           <span className="ml-auto hidden group-open:inline">hide ▴</span>
         </summary>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           {freshness.map((f) => (
             f.href ? (
               <Link key={f.label} href={f.href} className="hover:underline"><Updated label={f.label} at={f.at} cadenceH={f.cadenceH} verb={f.verb ?? "updated"} /></Link>

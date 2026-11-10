@@ -107,16 +107,17 @@ export default async function TodayPage() {
         />
       )}
 
-      {/* ------------------------------------------------ 2. the three books — one number each */}
+      {/* ------------------------------------------------ 2. the three books — one number each, a step below the hero in the command strip.
+          Green is reserved for "Needs you now" above, so the leverage card no longer turns green as well. */}
       <div className="grid gap-3 md:grid-cols-3">
-        <Card tone={lev?.openTrades.length || liveSignals.length ? "accent" : undefined}>
+        <Card>
           <div className="flex items-start justify-between gap-2">
             <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Leverage · BloFin</div>
             <GoLink href="/dashboard/leverage" />
           </div>
           {lev ? (
             <>
-              <div className="mt-1.5 font-mono text-[26px] font-semibold leading-none tabular-nums text-white">{money(lev.equity)}</div>
+              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{money(lev.equity)}</div>
               <div className="mt-3 text-[13px] leading-snug text-white/75">
                 {lev.openTrades.length ? (
                   <div className="space-y-1">
@@ -156,7 +157,7 @@ export default async function TodayPage() {
           </div>
           {rh ? (
             <>
-              <div className="mt-1.5 font-mono text-[26px] font-semibold leading-none tabular-nums text-white">{rh.snapshot ? money(rh.snapshot.equity) : "—"}</div>
+              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{rh.snapshot ? money(rh.snapshot.equity) : "—"}</div>
               <div className="mt-3 text-[13px] leading-snug text-white/75">
                 {rh.open.length ? (
                   <div className="space-y-1">
@@ -187,7 +188,7 @@ export default async function TodayPage() {
           </div>
           {cb ? (
             <>
-              <div className="mt-1.5 font-mono text-[26px] font-semibold leading-none tabular-nums text-white">{money(cb.equity)}</div>
+              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{money(cb.equity)}</div>
               <div className="mt-3 text-[13px] leading-snug text-white/75">
                 {cb.open.length ? (
                   <div className="space-y-1">
@@ -219,7 +220,7 @@ export default async function TodayPage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className={`font-mono text-[26px] font-semibold leading-none ${biasTone(marketBias) === "green" ? "text-accent-green" : biasTone(marketBias) === "red" ? "text-rose-300" : "text-white/70"}`}>{biasGlyph(marketBias)} {marketBias ? marketBias[0].toUpperCase() + marketBias.slice(1) : "No view"}</span>
+              <span className={`font-mono text-[20px] font-semibold leading-none ${biasTone(marketBias) === "green" ? "text-accent-green" : biasTone(marketBias) === "red" ? "text-rose-300" : "text-white/70"}`}>{biasGlyph(marketBias)} {marketBias ? marketBias[0].toUpperCase() + marketBias.slice(1) : "No view"}</span>
               <span className="text-[13px] text-white/50">confidence <b className={`font-mono tabular-nums ${confTone === "green" ? "text-accent-green" : confTone === "cyan" ? "text-accent-cyan" : "text-amber-200"}`}>{num(conf, 0)}</b>/100</span>
             </div>
             {bm?.view && <LongText text={bm.view} max={180} className="mt-2 text-[14px] leading-relaxed text-white/85" />}

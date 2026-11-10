@@ -497,7 +497,8 @@ export function freshness(iso: string | null | undefined, cadenceH: number, now 
   return { tone: h <= cadenceH ? "green" : h <= cadenceH * 2 ? "amber" : "red", ageMin };
 }
 
-const STAMP_DOT: Record<Tone, string> = { green: "bg-accent-green", red: "bg-rose-400", amber: "bg-amber-300", cyan: "bg-accent-cyan", gray: "bg-white/30" };
+// A stale (red) stamp pulses — the only stamp that moves, so bad data catches the eye. Off under reduced-motion.
+const STAMP_DOT: Record<Tone, string> = { green: "bg-accent-green", red: "bg-rose-400 motion-safe:animate-pulse-dot", amber: "bg-amber-300", cyan: "bg-accent-cyan", gray: "bg-white/30" };
 const STAMP_TEXT: Record<Tone, string> = { green: "text-white/50", red: "text-rose-300", amber: "text-amber-200", cyan: "text-accent-cyan", gray: "text-white/40" };
 
 /**

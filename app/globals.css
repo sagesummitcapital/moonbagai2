@@ -262,6 +262,13 @@ html {
   font-feature-settings: "tnum";
 }
 
+/* Instrument figure: fixed-width digits, slashed zero (0 never reads as O), slightly tightened — used on headline numbers. */
+.fig {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum", "zero";
+  letter-spacing: -0.03em;
+}
+
 /* ========== Noise overlay ========== */
 .noise::after {
   content: "";

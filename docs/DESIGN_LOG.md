@@ -79,3 +79,17 @@ Not a weekly design pass, but it touched the dashboard, so future passes should 
 - Removed dead CSS (glass, conic-border, accent-underline, bg-dots, mask-bottom-fade, animated gradient) — nothing used it.
 - Still unmounted, awaiting Stavros: APlusStrip.tsx. Unused: CopyButton.tsx (he banned copy buttons) — both can be deleted from the folder.
 - Reviewed from code only (no npm in the sandbox; typecheck against the shim baseline shows no new errors).
+
+## 2026-11-10 — Command page: the 3-second read
+- Today's BloFin result is the one hero number: about twice the size of anything else on the page (40px phone, up to 56px desktop), with a thin green/rose/grey bar beside it for up/down/flat.
+- Month, prop, on-plan and discipline became one instrument row next to the hero, split by hairlines instead of four boxes. Same numbers, same links.
+- Prop room reads as numbers: "room today", "to floor" and "to pass" on their own lines under the balance; whichever has run out turns rose. Snapshot time stays underneath.
+- "Right now" card is titled "Needs you now" or "Nothing needs you". A small green dot pulses only when a trade is open or a desk alert is live. The all-clear sentence is shorter and quieter; coin names on the tiles are a bit larger.
+- Data age row is a full 40px tap with a green/amber dot ("all feeds on time" / "N late"). It still opens by itself when anything is late.
+- Green means one thing on the page: the Leverage book card no longer turns green alongside "Needs you now". The three book balances and the market bias drop from 26px to 20px so they sit below the hero.
+- Retail / News / Weekend chips are hairline chips with no fill unless they are an amber warning, in the strip's footer.
+- Headline numbers use an instrument style (fixed-width digits, slashed zero, new `.fig` class). A red (stale) data stamp's dot now pulses gently — site-wide, since it lives in the shared stamp; off under reduced-motion.
+- Files: app/dashboard/_components/Command.tsx, app/dashboard/_components/RightNow.tsx, app/dashboard/_components/ui.tsx, app/dashboard/page.tsx, app/globals.css
+- Notes: nothing removed (every field, stamp, link and warning condition kept); no loader, query or formula touched. tailwind.config.js decorative tokens left in place. APlusStrip still unmounted, awaiting Stavros.
+- Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used tsc 7 with shim types: no new errors vs baseline. ~141 changed lines.
+- Stavros's reaction: (pending)
