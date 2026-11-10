@@ -53,6 +53,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `PATCH /handoffs/{handoff_id}` | Grok (+Claude) | Grok: `acknowledged` / `executed` / `rejected` / `expired` (an unfilled limit rung past `expires_at`) + `status_reason`, `grok_response`. A final status cannot be changed |
 | `GET /trades?status=&venue=` · `POST /trades` · `PATCH /trades/{trade_id}` | both | List /  record / open / manage / close executions (Grok: Robinhood fills + BloFin trades Stavros reports + Breakout prop trades with `venue:"breakout"` and `prop_account_id`) |
 | `POST /trades` · `PATCH /trades/{trade_id}` — **edge tags (CR-43)** | Grok | When logging a BloFin trade, also send `setup_tag` (e.g. `range_top_fade`, `range_low_sfp`, `breakout_retest`, `moonbag_limit_sweep`, `caller_copy`, `conviction_swing` — CR-48: needs trigger_tag `close_above_key_high`, `planned_level` set, a stop and ≤10% risk, otherwise it counts as a rule break), `trigger_tag` (e.g. `sfp_close_inside`, `retest_hold`, `15m_close`, `none`), `planned_level` (the pre-mapped price it was taken at, or null) and `planned_level_kind` (e.g. `range_top`, `monday_low`, `4h_swing`). Rule-following yes/no is worked out by the database (`v_trade_adherence`); the scorecard is `v_edge_scorecard` |
+| `POST /trades/{trade_id}/corrections` · `GET …/corrections` | both | **Fix a logging mistake in a result** (CR-66, 11/9), on open or closed trades. Body `{fields, reason, exit_id?}`. Without `exit_id`: `opened_at`, `closed_at`, `exit_price`, `realized_pnl`, `fees`. With `exit_id`: that fill's `price`, `pnl`, `fee`, `exited_at` (the trade's P&L and exit price are re-summed). `reason` = what was wrong + the source (his screenshot and time). Every change is logged with the old value. The plan (entry, original stop, targets, size, risk, leverage) can never be changed here |
 | `POST /trades/{trade_id}/exits` · `GET …/exits` | both | Partial take-profits and the final close, one fill per call (sums P&L, closes the trade on the last fill) |
 | `GET /system-state` · `POST /system-state` | both / Claude | Read or recompute confidence (+ `current_regime`, `risk_environment`) |
 | `POST /reports` · `GET /reports` | Claude / both | Save/read the MOONBAG DAILY markdown |
@@ -91,7 +92,7 @@ Errors come back as `{ "ok": false, "error": "…" }`. Immutability violations a
   The old version becomes `superseded`; its live alerts become `stale` (cancel them in TradingView, then
   `PATCH /alerts/{id} {"status":"cancelled"}`) and its open handoffs become `cancelled`.
 - Theses cannot be edited or deleted. Evaluations cannot be edited or deleted.
-- Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**.
+- Trade plan fields (entry, original `stop`, targets, risk, size, leverage, exit, P&L) are **write-once**. The one exception: a logging mistake in a **result** (open/close time, exit price, P&L, fees, or one fill's price/pnl/fee/time) is fixed with `POST /trades/{id}/corrections` and a reason. Only use it to make the record match what BloFin shows; never to improve how a trade looks. Fees on a trade = entry fee + exit fees.
   After entry, adjustments go in the live fields: `current_stop` and `current_tp1` / `current_tp2` / `current_tp3`.
   The originals stay as the record of the plan; `r_multiple` is computed from the original stop.
 - A BloFin signal risking more than 1% of the account, or after realised losses reach 2% of the account that day, is rejected (Stavros, 2026-11-01, CR-48; was 2% / 4%). For his own BloFin orders these are warnings in the audit, never blocks. Trades Stavros reports are recorded as he placed them. There is NO minimum R:R (Stavros, 2026-10-16: "no minimum r - but i will always aim for 2:1") — always show the R and flag anything under 2R as "under your 2:1 aim — your call".
@@ -552,7 +553,7 @@ BLOFIN LEVERAGED TRADES (Stavros executes manually on BloFin and tells you):
    - When he closes what is left, POST /exits again with that quantity (or "percent" for the rest).
      That last fill closes the trade — do NOT also PATCH status "closed". The database sums P&L across
      fills, sets the size-weighted exit price and the R for the whole trade.
-   - Never PATCH realized_pnl/exit_price/fees yourself on a trade with partials.
+   - Never PATCH realized_pnl/exit_price/fees yourself on a trade with partials. If a fill was logged wrong, correct that fill: POST /trades/{id}/corrections {"exit_id", "fields": {"pnl": …}, "reason"}.
    - The response carries "x_post_id" (a trade update or the close post) — post it like the others.
    Read back to him: how much is still open, what is banked, and where the stop is now.
 14. Moonbag watches open BloFin trades and switches THAT coin's two TradingView alerts to its stop and next target.
