@@ -18,8 +18,13 @@ const PAGE = 100;
 
 type Row = Record<string, unknown>;
 
+/** Env values with stray spaces, line breaks or wrapping quotes removed (a common copy-paste problem in Vercel). */
+function env(name: string) {
+  return (process.env[name] ?? "").trim().replace(/^["']|["']$/g, "").trim();
+}
+
 export function blofinConfigured() {
-  return Boolean(process.env.BLOFIN_API_KEY && process.env.BLOFIN_API_SECRET && process.env.BLOFIN_API_PASSPHRASE);
+  return Boolean(env("BLOFIN_API_KEY") && env("BLOFIN_API_SECRET") && env("BLOFIN_API_PASSPHRASE"));
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -37,11 +42,11 @@ async function get(path: string, params: Record<string, string | number | undefi
   if (auth) {
     const ts = String(Date.now());
     const nonce = randomUUID();
-    headers["ACCESS-KEY"] = process.env.BLOFIN_API_KEY ?? "";
-    headers["ACCESS-PASSPHRASE"] = process.env.BLOFIN_API_PASSPHRASE ?? "";
+    headers["ACCESS-KEY"] = env("BLOFIN_API_KEY");
+    headers["ACCESS-PASSPHRASE"] = env("BLOFIN_API_PASSPHRASE");
     headers["ACCESS-TIMESTAMP"] = ts;
     headers["ACCESS-NONCE"] = nonce;
-    headers["ACCESS-SIGN"] = sign(requestPath + "GET" + ts + nonce, process.env.BLOFIN_API_SECRET ?? "");
+    headers["ACCESS-SIGN"] = sign(requestPath + "GET" + ts + nonce, env("BLOFIN_API_SECRET"));
   }
   const res = await fetch(BASE + requestPath, { method: "GET", headers, cache: "no-store" });
   const body = (await res.json().catch(() => null)) as { code?: string; msg?: string; data?: unknown } | null;
