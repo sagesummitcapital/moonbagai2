@@ -18,6 +18,7 @@ export const NAV: Group[] = [
     label: "Trade",
     href: "/dashboard/leverage",
     items: [
+      { href: "/dashboard/levels", label: "Levels" },
       { href: "/dashboard/leverage", label: "Leverage desk" },
       { href: "/dashboard/positions", label: "Positions" },
       { href: "/dashboard/opportunities", label: "Opportunities" },
