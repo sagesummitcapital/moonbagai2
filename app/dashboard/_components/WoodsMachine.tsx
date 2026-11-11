@@ -116,7 +116,7 @@ function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null
             </div>
           ) : null}
           <div className="mt-2 text-[11.5px] leading-snug text-white/40">
-            TP1 {px2(lp.tp1)}: take 70%, stop to break-even, runner to TP2.{inp ? ` TP1 qty ${inp.qtyTp1} · TP2 qty ${inp.qtyTp2}.` : ""} Fills only if price sweeps {lp.pool_note ?? lp.pool}.
+            At +1R take 50% and move the stop to entry; TP1 {px2(lp.tp1)} 30% more; last 20% to TP2.{inp ? ` +1R qty ${inp.qtyHalf} · TP1 qty ${inp.qtyTp1} · TP2 qty ${inp.qtyTp2}.` : ""} Fills only if price sweeps {lp.pool_note ?? lp.pool}.
           </div>
         </>
       ) : null}

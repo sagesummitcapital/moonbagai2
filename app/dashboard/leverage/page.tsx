@@ -283,10 +283,10 @@ export default async function LeveragePage() {
                               ["Size", `${i.qty} ${o.symbol} (≈ ${money(i.notional)}) — set BloFin's size unit to ${o.symbol}`],
                               ["Leverage", `${i.leverage}x (max ${i.ceiling}x) · margin ${money(i.margin)}`],
                               ["Stop loss", `${px2(o.current_stop ?? o.stop)} (${num(i.stopPct, 2)}%) · liq ≈ ${px2(i.liq)}${i.liqOk ? "" : " ⚠"}`],
-                              ["TP1", `${px2(o.tp1)} for ${i.qtyTp1} ${o.symbol} (${fmtRR(o.plan_r == null ? null : Number(o.plan_r))})`],
-                              ["TP2", `${px2(o.tp2)} for ${i.qtyTp2} ${o.symbol}`],
+                              ["+1R", `${px2(i.halfAt)}: take ${i.qtyHalf} ${o.symbol} (50%), stop to entry`],
+                              ["TP1", `${px2(o.tp1)} for ${i.qtyTp1} ${o.symbol} (30% · ${fmtRR(o.plan_r == null ? null : Number(o.plan_r))})`],
+                              ["TP2", `${px2(o.tp2)} for ${i.qtyTp2} ${o.symbol} (last 20%)`],
                               ["Risk", `${money(i.riskUsd)} = ${num(i.riskPct, 2)}% of ${money(sizing.equity)}`],
-                              ["Stop to entry", `at +1.5R (${px2(i.beAt)})`],
                               ["Quick mode", `TP ${px2(i.quickTp)} (2R), stop to entry at +1R (${px2(i.quickBe)})`],
                               ["Cancel", `${o.expires_at ? `${whenShort(o.expires_at)} if not filled, ` : ""}or if price reaches TP1 first`],
                             ]}

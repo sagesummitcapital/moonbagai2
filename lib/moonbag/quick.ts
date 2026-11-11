@@ -93,7 +93,7 @@ export async function quickInputs(q: QuickIn, preLevels?: Awaited<ReturnType<typ
     limit_id: "quick", symbol: coin, direction: q.side, limit_price: q.entry, stop: q.stop, current_stop: q.stop,
     tp1, tp2, grade: q.grade ?? "B", level: null, level_kind: null, expires_at: null, quantity: null,
   } as unknown as LimitOrder;
-  const inp = limitInputs(order, ctx, { split: 0.7, riskCap: q.risk ?? null });
+  const inp = limitInputs(order, ctx, { split: 0.3, riskCap: q.risk ?? null });
   if (!inp) return { ok: false as const, text: "NO TRADE — couldn't size it." };
 
   const maxSafeLev = Math.max(1, Math.floor(1 / (1.25 * (risk / q.entry) + MMR)));
@@ -127,9 +127,9 @@ export async function quickInputs(q: QuickIn, preLevels?: Awaited<ReturnType<typ
     `Bias: ${q.side} — your call${c?.bias ? ` (desk 1h bias ${String(c.bias).toUpperCase()})` : ""}`,
     `Entering when: ${fp(q.entry)} (market or limit)`,
     `Wrong if: price trades through ${fp(q.stop)} (${stopPct.toFixed(2)}%)`,
-    `${coin} ${q.side === "long" ? "Long" : "Short"} · Entry ${fp(q.entry)} · SL ${fp(q.stop)} · TP1 ${fp(tp1!)} (${rr1.toFixed(1)}R, ${inp.qtyTp1}) · TP2 ${fp(tp2!)} (${inp.qtyTp2})`,
+    `${coin} ${q.side === "long" ? "Long" : "Short"} · Entry ${fp(q.entry)} · SL ${fp(q.stop)} · +1R ${fp(inp.halfAt)} (${inp.qtyHalf}) · TP1 ${fp(tp1!)} (${rr1.toFixed(1)}R, ${inp.qtyTp1}) · TP2 ${fp(tp2!)} (${inp.qtyTp2})`,
     `Size ${inp.qty} ${coin} (≈ $${inp.notional.toFixed(2)}) · Leverage ${inp.leverage}x ${q.margin ?? "cross"} (max safe ${Math.min(maxSafeLev, 150)}x for this stop) · Margin $${inp.margin.toFixed(2)} · Risk $${inp.riskUsd.toFixed(2)} (${inp.riskPct}% of $${ctx.equity.toFixed(2)}) · Liq ≈ ${fp(inp.liq)}`,
-    `Manage: take 70% at TP1 (secure 2R), stop to entry, let 30% run to TP2. Targets: ${src}.`,
+    `Manage: at +1R take 50% and move the stop to entry; at TP1 take 30% more; let the last 20% run to TP2. Targets: ${src}.`,
     ...woods,
     ...liqLines,
     ...(q.margin !== "isolated" ? ["Cross margin (house rule): the whole balance backs this trade — the stop MUST be on the exchange at entry."] : []),

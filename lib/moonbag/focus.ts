@@ -112,7 +112,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
       const tp = t.current_tp1 ?? t.tp1;
       L.push(`  ${t.symbol} ${t.direction} @ ${fp(t.entry)} · now ${fp(c)}${r != null ? ` (${r >= 0 ? "+" : ""}${r.toFixed(2)}R)` : ""} · stop ${fp(st)}${c != null ? ` (${Math.abs(pctAway(c, st)).toFixed(2)}% away)` : ""}${tp != null ? ` · TP1 ${fp(tp)}` : ""}`);
       if (c != null && Number.isFinite(st) && sg * (c - st) <= 0) act.push(`${t.symbol}: price ${fp(c)} is through your stop ${fp(st)} — you're probably stopped out on BloFin; check it and tell Grok.`);
-      else if (r != null && r >= 2 && tp != null && Math.abs(Number(tp) - t.entry) / risk > 2.05) act.push(`${t.symbol}: at +${r.toFixed(1)}R — secure 2R (70% off, stop to entry).`);
+      else if (r != null && r >= 2 && tp != null && Math.abs(Number(tp) - t.entry) / risk > 2.05) act.push(`${t.symbol}: at +${r.toFixed(1)}R — take 30% more at 2R; the +1R half should already be off with the stop at entry.`);
       else if (r != null && r >= 1 && Math.abs(st - t.entry) / t.entry > 0.0005 && sg * (st - t.entry) < 0) act.push(`${t.symbol}: +${r.toFixed(1)}R — consider stop to breakeven.`);
     }
   }
@@ -151,7 +151,7 @@ export async function buildFocus(opts: { refresh?: boolean } = {}) {
     const near = away <= NEAR_PCT(s.symbol);
     const blocked = wm.find((w) => w.coin === s.symbol && w.side === s.direction)?.blocked;
     const filt = filterFor(s.symbol, s.direction);
-    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 70%)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}${filt ? ` · ⚠ ${initial(filt.mentor)} warning: ${filt.reason}` : ""}`);
+    L.push(`  ${s.grade} ${s.symbol} ${s.direction === "long" ? "BUY" : "SELL"} LIMIT ${fp(s.limit_price)} · SL ${fp(s.current_stop ?? s.stop)} · TP1 ${fp(s.tp1)} (2R, 30% · 50% off at +1R)${s.tp2 ? ` · TP2 ${fp(s.tp2)}` : ""} · ${c != null ? `${away.toFixed(2)}% away` : ""}${near ? " — SET IT NOW if you like it" : ""}${blocked ? ` · ⚠ ${blocked.replace(/BTC anchor: no alt longs below the line/, "BTC below the line: lower quality")}` : ""}${notes.length ? ` · ${notes[0].replace(/\s*—.*$/, "")}` : ""}${filt ? ` · ⚠ ${initial(filt.mentor)} warning: ${filt.reason}` : ""}`);
     if (near) act.push(`${s.symbol}: A${s.grade === "A+" ? "+" : ""} ${s.direction} limit ${fp(s.limit_price)} is ${away.toFixed(2)}% away — set it now if you agree (inputs: GET /quick or moonbag.ai/dashboard/leverage).`);
   }
 

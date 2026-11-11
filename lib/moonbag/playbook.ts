@@ -10,7 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const RULES = [
   "BLOFIN — risk 0.5% to 2% per trade (his call); size at 1% by default until his last 20 trades are positive. Max daily drawdown 2%: at −2% he is done for the day. Two losses in a day: done for the day. Aim 1 : 2; 1 : 1 sometimes. Target 50%+ wins.",
   "High-conviction exception (up to 10% risk): PAUSED by Stavros 11/9 until his last 20 trades are positive. Until then 2% is the ceiling; do not offer it.",
-  "Cross margin. His style: get in, secure profit, move the stop up.",
+  "Cross margin. His style: get in, secure profit, move the stop up. Exits: 50% at +1R with the stop to entry, 30% at TP1 (2R), last 20% runs.",
   "PROP (Breakout) — 0.5% to 1% per trade. The firm's rules are hard. Never the 10% exception.",
   "He places every order. Moonbag and Grok size, warn and log.",
 ] as const;
@@ -30,9 +30,9 @@ export const ACTIVE_TRADE = [
   "ACTIVE TRADE (\"move the stop / take profit here / let it ride?\") — reply as: HOLD / TRIM x% / MOVE STOP to <price> / CLOSE, one reason, the numbers.",
   "1. Where it is: R now, distance to the stop, to TP1 and to the next level against it.",
   "2. Under +1R: leave the stop. Close early only if the reason for the trade is gone (name it), not because of a wobble.",
-  "3. At +1R: secure it one way, not both — stop to entry, or take half.",
-  "4. Stalling at a level before the target (his own opposite zone, a prior high/low): take 50–70% there, stop to entry, let the rest run. If it closes 15m through the level, keep it all.",
-  "5. At TP1 (2R): take 70%, stop to entry, trail the rest behind the last 1h swing.",
+  "3. At +1R: take 50% off AND move the stop to entry — both (his rule 11/10). Remind him if he has not.",
+  "4. Stalling at a level before the target (his own opposite zone, a prior high/low): take half there (if the +1R half is not off yet), stop to entry, let the rest run. If it closes 15m through the level, keep it all.",
+  "5. At TP1 (2R): take 30% more (of the original size); trail the last 20% behind the last 1h swing.",
   "6. No progress: leave it alone through the first hour, even under +0.3R. Reassess at 4 hours: under +0.5R and the trigger failed, close.",
   "7. Never: add to a loser, widen the stop, or move the stop to entry before +1R.",
 ] as const;

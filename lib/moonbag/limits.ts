@@ -110,6 +110,8 @@ export type LimitInputs = {
   riskPct: number;
   riskUsd: number;
   qty: number;
+  qtyHalf: number;
+  halfAt: number;
   qtyTp1: number;
   qtyTp2: number;
   notional: number;
@@ -187,8 +189,11 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   const liq = entry * (1 - sg / leverage);
   const liqOk = Math.abs(entry - liq) >= 1.25 * dist;
   if (!liqOk) notes.push("liquidation is too close to the stop — use less leverage");
-  const qtyTp1 = floorTo(qty * (opts.split ?? 0.7), d); // TP1 = 70%, then stop to entry (2026-10-18 rule; same as /quick and /focus)
-  const qtyTp2 = floorTo(qty - qtyTp1, d);
+  // Exits (CR-68, Stavros 2026-11-10): 50% at +1R with the stop to entry, 30% at TP1 (2R), the last 20% runs to TP2.
+  const qtyHalf = floorTo(qty * 0.5, d);
+  const qtyTp1 = floorTo(qty * (opts.split ?? 0.3), d);
+  const qtyTp2 = floorTo(qty - qtyHalf - qtyTp1, d);
+  const halfAt = entry + sg * dist;
   const stopPct = (dist / entry) * 100;
   const beAt = entry + sg * 1.5 * dist;
   const quickTp = entry + sg * 2 * dist;
@@ -205,12 +210,12 @@ export function limitInputs(o: LimitOrder, ctx: SizingContext, opts: { split?: n
   const exp = o.expires_at ? new Date(o.expires_at).toLocaleString("en-US", { timeZone: "America/Phoenix", weekday: "short", hour: "numeric", minute: "2-digit" }) : null;
   const text = [
     ...plan,
-    `${sym} ${side} · LIMIT ${fp(entry)} · SL ${fp(stop)} (${stopPct.toFixed(2)}%) · TP1 ${tp1 != null ? fp(tp1) : "—"}${rr != null ? ` (${rr.toFixed(1)}R)` : ""} for ${qtyTp1} · TP2 ${tp2 != null ? fp(tp2) : "—"} for ${qtyTp2}`,
+    `${sym} ${side} · LIMIT ${fp(entry)} · SL ${fp(stop)} (${stopPct.toFixed(2)}%) · +1R ${fp(halfAt)} for ${qtyHalf} · TP1 ${tp1 != null ? fp(tp1) : "—"}${rr != null ? ` (${rr.toFixed(1)}R)` : ""} for ${qtyTp1} · TP2 ${tp2 != null ? fp(tp2) : "—"} for ${qtyTp2}`,
     `Size ${qty} ${sym} (≈ $${notional.toFixed(2)}) · Leverage ${leverage}x cross (max ${ceiling}x) · Margin $${margin.toFixed(2)} · Risk $${riskUsd.toFixed(2)} (${riskPct}% of $${ctx.equity.toFixed(2)}; your range 0.5% = $${(ctx.equity * 0.005).toFixed(2)} to 2% = $${(ctx.equity * 0.02).toFixed(2)}) · Liq ≈ ${fp(liq)} (isolated-margin estimate; on cross, BloFin's own liquidation price is the one to trust)`,
-    `Manage: take 70% at TP1, then stop to entry; run the rest to TP2. No stop move before +1R. Cancel ${exp ? `at ${exp} Phoenix ` : ""}if not filled, or if price reaches TP1 first. Quick mode instead: TP ${fp(quickTp)} (2R), stop to entry at +1R (${fp(quickBe)}).`,
+    `Manage: at +1R (${fp(halfAt)}) take 50% and move the stop to entry; at TP1 take 30% more; let the last 20% run to TP2. No stop move before +1R. Cancel ${exp ? `at ${exp} Phoenix ` : ""}if not filled, or if price reaches TP1 first. Quick mode instead: TP ${fp(quickTp)} (2R), stop to entry at +1R (${fp(quickBe)}).`,
     ...(notes.length ? [`Note: ${notes.join(" · ")}`] : []),
   ].join("\n");
-  return { riskPct, riskUsd, qty, qtyTp1, qtyTp2, notional, leverage, ceiling, margin, liq, liqOk, stopPct, beAt, quickTp, quickBe, notes, plan, text };
+  return { riskPct, riskUsd, qty, qtyHalf, halfAt, qtyTp1, qtyTp2, notional, leverage, ceiling, margin, liq, liqOk, stopPct, beAt, quickTp, quickBe, notes, plan, text };
 }
 
 /** Sizing context from the database: latest BloFin balance, risk config, today's red-folder flag, loss streak, ceilings. */

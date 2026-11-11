@@ -1,5 +1,12 @@
 {
   "crons": [
-    { "path": "/api/moonbag/candles/sync", "schedule": "10 0 * * *" }
+    {
+      "path": "/api/moonbag/candles/sync",
+      "schedule": "10 0 * * *"
+    },
+    {
+      "path": "/api/moonbag/blofin/sync",
+      "schedule": "20 13 * * *"
+    }
   ]
 }
