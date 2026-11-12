@@ -36,7 +36,7 @@ export function checkText(c: PlanCheck, coin: string, side: string) {
   const s = c.state;
   const head = c.verdict === "PASS"
     ? `PROP CHECK — ${coin} ${side}: PASS. Risk allowed now ${usd(c.allowed_risk)}${c.max_qty != null ? ` → max size ${c.max_qty} ${coin}` : " — no size allowed"}${c.max_leverage ? ` at up to ${c.max_leverage}x` : ""}.${c.warnings?.length ? ` Note: ${c.warnings.join("; ")}.` : ""}`
-    : `PROP CHECK — ${coin} ${side}: BLOCKED. ${c.reasons.join("; ")}.`;
+    : `PROP CHECK — ${coin} ${side}: BLOCKED. ${c.reasons.join("; ")}.${c.warnings?.length ? ` Note: ${c.warnings.join("; ")}.` : ""}`;
   return [
     head,
     `Today: ${s.trades_today}/${s.rules.max_trades} trades, ${s.losses_today}/${s.rules.max_losses} losses, P&L ${s.pnl_today >= 0 ? "+" : ""}${s.pnl_today}. Room: ${usd(s.room_to_day_stop)} to the day stop, ${usd(s.room_to_firm_daily)} to the firm's daily limit, ${usd(s.room_to_floor)} to the floor (after open risk ${usd(s.open_risk)}).`,

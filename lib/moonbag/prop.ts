@@ -212,7 +212,7 @@ export function propText(a: PropStatus, trades: PropTrade[], edge?: DeskEdge, ca
     `${a.firm} ${a.program} (${a.account_id}) · ${a.stage.toUpperCase()}`,
     `Balance ${usd(a.balance)} · equity ${usd(a.equity)} · target ${usd(a.target_balance)} (${usd(a.to_target)} to go, ${n(a.target_progress_pct).toFixed(0)}% there)`,
     `Static floor ${usd(a.dd_floor)} · room ${usd(a.room_to_floor)} (${lossesToLimit(n(a.room_to_floor), n(a.risk_high_usd))} losses at 1%)`,
-    `Today: P&L ${usd(a.day_pnl)} · daily floor ${usd(a.daily_floor)} · room ${usd(a.room_today)} of ${usd(a.daily_limit_usd)} (${lossesToLimit(n(a.room_today), n(a.risk_high_usd))} losses at 1%) · resets ${resetPhx} Phoenix`,
+    `Today: P&L ${usd(a.day_pnl)} · firm daily floor ${usd(a.daily_floor)} · firm room before open trades ${usd(a.room_today)} of ${usd(a.daily_limit_usd)} · resets ${resetPhx} Phoenix (your plan's room is in the PROP PLAN line above)`,
     `Daily breach is checked on EQUITY (open losses count). Room above uses the last snapshot (${a.last_snapshot_at ? new Date(a.last_snapshot_at).toLocaleString("en-US", { timeZone: "America/Phoenix", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " Phoenix" : "none yet"}) — with a trade open, ask for current equity.`,
     caps ? capsLine(caps) ?? `Max leverage ${n(a.max_leverage)}x` : `Max leverage ${n(a.max_leverage)}x (top cap; per-coin caps apply)`,
     `Fees 0.04%/order and swap ~0.033%/day count toward the limits.`,
