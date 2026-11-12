@@ -1,6 +1,7 @@
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Empty, Fold, KV, LongText, Mono, Note, PageHeader, RMult, Section, Stat, StatGrid, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, whenShort, type Tone } from "../_components/ui";
+import { getPlanState, type PlanState } from "@/lib/moonbag/propPlan";
 import { getPropData, getPropCaps, capsLine, lossesToLimit, edgeLines, GROK_PROP_PLAYBOOK, type PropCaps, type DeskEdge, type PropStatus, type PropTrade, type PropDay } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,40 @@ function Stepper({ stage }: { stage: string }) {
   );
 }
 
-function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: PropTrade[]; days: PropDay[]; edge: DeskEdge; caps: PropCaps | null }) {
+/** Today's plan (CR-73): one glance — can he trade, how much, and what is left before the day stop. */
+function PlanCard({ p }: { p: PlanState }) {
+  const open = p.status === "OPEN";
+  const cell = (k: string, v: string, tone = "text-white") => (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+      <div className="text-[11px] uppercase tracking-[0.12em] text-white/40">{k}</div>
+      <div className={`mt-0.5 font-mono text-[18px] tabular-nums ${tone}`}>{v}</div>
+    </div>
+  );
+  const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
+  return (
+    <div className={`rounded-2xl border p-4 ${open ? "border-accent-green/25 bg-accent-green/[0.04]" : "border-rose-400/30 bg-rose-400/[0.05]"}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/45">Today&apos;s plan</div>
+        <div className={`text-[15px] font-semibold ${open ? "text-accent-green" : "text-rose-300"}`}>
+          {open ? `OPEN — next trade risks up to ${usd(p.allowed_risk)}` : "LOCKED — no new trades"}
+        </div>
+      </div>
+      {!open && <p className="mt-1 text-[13px] text-rose-100/85">{p.locks.join(" · ")}</p>}
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {cell("Trades left", `${p.trades_left} of ${p.rules.max_trades}`)}
+        {cell("Losses left", `${p.losses_left} of ${p.rules.max_losses}`, p.losses_left === 0 ? "text-rose-300" : "text-white")}
+        {cell("To day stop", usd(p.room_to_day_stop), p.room_to_day_stop <= 0 ? "text-rose-300" : "text-white")}
+        {cell("To floor", usd(p.room_to_floor), p.room_to_floor < 200 ? "text-amber-200" : "text-white")}
+      </div>
+      <p className="mt-3 text-[11.5px] leading-relaxed text-white/40">
+        Your rules (11/12): risk up to $100, smaller as room shrinks and never bigger after a loss · 2 trades a day · 2 losses = done · day stop −${p.rules.day_stop} ·
+        no entries 6 PM–5 AM · 30 min after a loss · BTC/ETH/SOL same side = one position. Room counts open trades at their stops ({usd(p.open_risk)} now). Resets 5:30 PM Phoenix.
+      </p>
+    </div>
+  );
+}
+
+function AccountView({ a, trades, days, edge, caps, plan }: { a: PropStatus; trades: PropTrade[]; days: PropDay[]; edge: DeskEdge; caps: PropCaps | null; plan?: PlanState | null }) {
   const gain = n(a.balance) - n(a.starting_balance);
   const targetGain = n(a.target_balance) - n(a.starting_balance);
   const ddLimit = n(a.starting_balance) - n(a.dd_floor);
@@ -75,6 +109,7 @@ function AccountView({ a, trades, days, edge, caps }: { a: PropStatus; trades: P
         sub={`${a.wallet_name ?? a.account_id} · separate book from BloFin. Firm rules below are hard: one breach ends the account.`}
         right={<Badge tone={breached ? "red" : a.stage === "funded" ? "green" : "cyan"} dot>{a.stage}</Badge>}
       />
+      {plan && <PlanCard p={plan} />}
       <Stepper stage={a.stage} />
 
       {breached && <Note>This account breached a firm rule. Log what happened in the journal before buying another evaluation.</Note>}
@@ -222,11 +257,12 @@ export default async function PropPage() {
   const { data, error } = await load(() => getPropData());
   const accounts = data?.accounts ?? [];
   const caps = await Promise.all(accounts.map((a) => getPropCaps(a.account_id).catch(() => null)));
+  const plans = await Promise.all(accounts.map((a) => getPlanState(a.account_id).catch(() => null)));
   return (
     <div className="space-y-8">
       <DataNotice error={error} />
       {accounts.length === 0 && <Card><Empty>No prop firm accounts yet.</Empty></Card>}
-      {accounts.map((a, i) => <AccountView key={a.account_id} a={a} trades={data!.trades} days={data!.days} edge={data!.edge} caps={caps[i]} />)}
+      {accounts.map((a, i) => <AccountView key={a.account_id} a={a} trades={data!.trades} days={data!.days} edge={data!.edge} caps={caps[i]} plan={plans[i]} />)}
       {accounts.length > 0 && (
         <Fold title="How Grok handles this account" sub="The standing instructions Grok follows for the prop account.">
           <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed text-white/75">{GROK_PROP_PLAYBOOK}</pre>
