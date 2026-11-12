@@ -1,5 +1,6 @@
 import { withAgent, json, readJson, requireFields, BadRequest } from "@/lib/moonbag/apiAuth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getPlanState } from "@/lib/moonbag/propPlan";
 import { getPropData, propText, GROK_PROP_PLAYBOOK, getPropToday, getHourlySwing, todayLine, swingLine, getPropCaps, getPreTrade, preTradeLine } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +28,15 @@ export const GET = withAgent(["claude", "grok"], async (req) => {
     Promise.all(d.accounts.map((a) => getPropCaps(a.account_id))),
   ]);
   const pre = coins.length && d.accounts.length ? await getPreTrade(d.accounts[0].account_id, coins, side, caps[0]) : [];
+  const plans = await Promise.all(d.accounts.map((a) => getPlanState(a.account_id).catch(() => null)));
+  const planLine = (p: Awaited<ReturnType<typeof getPlanState>> | null) =>
+    !p ? "" : p.status === "OPEN" ? `PROP PLAN — OPEN: next trade risks up to $${p.allowed_risk}; ${p.trades_left} trade(s), ${p.losses_left} loss(es) left today. Run GET /prop/check before the trade.` : `PROP PLAN — ${p.status}: ${p.locks.join("; ")}.`;
   const text = d.accounts.length
-    ? d.accounts.map((a, i) => [propText(a, d.trades, d.edge, caps[i]), todayLine(today[i])].join("\n")).join("\n\n")
+    ? d.accounts.map((a, i) => [planLine(plans[i]), propText(a, d.trades, d.edge, caps[i]), todayLine(today[i])].filter(Boolean).join("\n")).join("\n\n")
       + (pre.length ? "\n\nPRE-TRADE CHECK\n" + pre.map(preTradeLine).join("\n") : "")
       + (swing.length ? "\n\nSTOP CHECK (1h, heads-up only)\n" + swing.map(swingLine).join("\n") : "")
     : "No prop accounts on file.";
-  return json({ ok: true, text, playbook: GROK_PROP_PLAYBOOK, today, swing, pre_trade: pre, caps, ...d });
+  return json({ ok: true, text, plan: plans, playbook: GROK_PROP_PLAYBOOK, today, swing, pre_trade: pre, caps, ...d });
 });
 
 const STAGES = ["evaluation", "passed", "funded", "breached", "closed"];

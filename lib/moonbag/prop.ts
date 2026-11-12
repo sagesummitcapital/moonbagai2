@@ -64,10 +64,8 @@ export function edgeLines(a: PropStatus, e: DeskEdge) {
   const bad = e.books.filter((x) => x.book !== "Stavros · all" && x.n >= 2 && n(x.expectancy_r) < 0).map((x) => `${x.book.replace("Stavros · ", "")} (${n(x.expectancy_r).toFixed(2)}R, n ${x.n})`);
   if (bad.length) out.push(`Setups losing money on BloFin so far: ${bad.join(", ")}.`);
   const best = [...e.perDay].filter((d) => d.days >= 2).sort((x, y) => n(y.avg_day_r) - n(x.avg_day_r))[0];
-  if (best) out.push(`Trades per day: your best days were ${best.trades_per_day} trade(s) (${n(best.avg_day_r).toFixed(2)}R avg, ${best.green_days}/${best.days} green). ` +
-    e.perDay.filter((d) => n(d.avg_day_r) < 0).map((d) => `${d.trades_per_day}/day averaged ${n(d.avg_day_r).toFixed(2)}R`).join("; ") + ".");
-  const two = 2 * n(a.risk_high_usd), three = 3 * n(a.risk_high_usd), lim = n(a.daily_limit_usd);
-  out.push(`Your two-loss stop: two 1% losses = ${usd(two)}, ${two < lim ? "inside" : "NOT inside"} the ${usd(lim)} daily limit. Three would be ${usd(three)} — ${three >= lim ? "at or over the limit" : "still inside it"}.`);
+  void best; // per-day stats are informational only; the Prop Plan (11/12) sets the rule
+  out.push(`Your Prop Plan (11/12): at most 2 new trades a day, 2 losses = done, day stop −$150, risk up to $100 shrinking with room. Your first two trades of a day made +0.03R; 3rd+ trades −0.17R; after two losses −0.29R.`);
   return out;
 }
 
@@ -199,7 +197,7 @@ export async function getHourlySwing(coins: string[]): Promise<HourlySwing[]> {
 
 const fpx = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : v >= 1 ? 2 : 5 });
 export const todayLine = (t: PropToday) =>
-  `Today (firm day): ${t.trades_today} prop trade(s), ${t.losses_today} loss(es). Room ${usd(t.room_today_usd)} = ${t.room_today_r_1pct ?? "—"}R at 1% / ${t.room_today_r_05pct ?? "—"}R at 0.5%. To floor ${usd(t.room_floor_usd)} = ${t.room_floor_r_1pct ?? "—"}R at 1% / ${t.room_floor_r_05pct ?? "—"}R at 0.5%.`;
+  `Today (firm day): ${t.trades_today} prop trade(s), ${t.losses_today} loss(es). Firm room before open trades ${usd(t.room_today_usd)} = ${t.room_today_r_1pct ?? "—"}R at 1% / ${t.room_today_r_05pct ?? "—"}R at 0.5%. To floor ${usd(t.room_floor_usd)} = ${t.room_floor_r_1pct ?? "—"}R at 1% / ${t.room_floor_r_05pct ?? "—"}R at 0.5%.`;
 export const swingLine = (s: HourlySwing) =>
   `${s.coin} 1h ATR ${fpx(s.atr_1h)} (${s.atr_1h_pct.toFixed(2)}%) → stop at least ${fpx(s.min_stop_distance)} from entry (1.5× ATR) · last 1h close ${fpx(s.last_close)}`;
 
@@ -218,7 +216,7 @@ export function propText(a: PropStatus, trades: PropTrade[], edge?: DeskEdge, ca
     `Daily breach is checked on EQUITY (open losses count). Room above uses the last snapshot (${a.last_snapshot_at ? new Date(a.last_snapshot_at).toLocaleString("en-US", { timeZone: "America/Phoenix", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " Phoenix" : "none yet"}) — with a trade open, ask for current equity.`,
     caps ? capsLine(caps) ?? `Max leverage ${n(a.max_leverage)}x` : `Max leverage ${n(a.max_leverage)}x (top cap; per-coin caps apply)`,
     `Fees 0.04%/order and swap ~0.033%/day count toward the limits.`,
-    `Sizing guidance 0.5–1% = ${usd(a.risk_low_usd)}–${usd(a.risk_high_usd)} (guidance, not a rule)`,
+    `Sizing: the Prop Plan (11/12) sets it — GET /prop/check for the risk allowed right now (up to $100, smaller as room shrinks).`,
     `Trades ${a.trades} (${a.open_trades} open) · days traded ${a.days_traded}` + (a.total_r != null ? ` · ${n(a.total_r).toFixed(2)}R total, win ${n(a.win_pct).toFixed(0)}%` : ""),
   ];
   if (flagged.length) lines.push(`FIRM FLAGS: ` + flagged.map((t) => `${t.symbol} ${t.trade_id}: ${t.firm_flags!.join(", ")}`).join(" | "));
