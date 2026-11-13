@@ -1,7 +1,7 @@
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Empty, Fold, KV, LongText, Mono, Note, PageHeader, RMult, Section, Stat, StatGrid, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, whenShort, type Tone } from "../_components/ui";
-import { getPlanState, type PlanState } from "@/lib/moonbag/propPlan";
+import { getPlanState, PRE_TRADE_CHECKLIST, type PlanState } from "@/lib/moonbag/propPlan";
 import { getPropData, getPropCaps, capsLine, lossesToLimit, edgeLines, GROK_PROP_PLAYBOOK, type PropCaps, type DeskEdge, type PropStatus, type PropTrade, type PropDay } from "@/lib/moonbag/prop";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +82,19 @@ function PlanCard({ p }: { p: PlanState }) {
         Your rules (11/12): risk up to $100, smaller as room shrinks and never bigger after a loss · 2 trades a day · 2 losses = done · day stop −${p.rules.day_stop} ·
         no entries 6 PM–5 AM · 30 min after a loss · BTC/ETH/SOL same side = one position. Room counts open trades at their stops ({usd(p.open_risk)} now). Resets 5:30 PM Phoenix.
       </p>
+      <details className="group mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5" open={open}>
+        <summary className="cursor-pointer list-none text-[11.5px] font-semibold uppercase tracking-[0.14em] text-white/55">
+          Before you click — your 11 checks <span className="font-normal normal-case tracking-normal text-white/35">(reminders, never a block)</span>
+        </summary>
+        <ol className="mt-2 grid gap-x-6 gap-y-1 text-[12.5px] leading-snug text-white/75 sm:grid-cols-2">
+          {PRE_TRADE_CHECKLIST.map((x, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="w-4 shrink-0 text-right font-mono tabular-nums text-white/35">{i + 1}</span>
+              <span>{x}</span>
+            </li>
+          ))}
+        </ol>
+      </details>
     </div>
   );
 }

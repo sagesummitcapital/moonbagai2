@@ -29,6 +29,26 @@ export async function checkPropTrade(a: { account: string; coin: string; side: s
   return r.data as PlanCheck;
 }
 
+/**
+ * PRE-TRADE CHECKLIST (CR-74, Stavros 11/12: "going to do this before every trade from now on"; approved "Yes that's good").
+ * Shown on /prop/check and the prop card as reminders only — it never blocks a trade.
+ */
+export const PRE_TRADE_CHECKLIST: string[] = [
+  "One job per timeframe: higher = trend, middle = zone, lower = entry",
+  "Not at your zone = no trade. Waiting is a position",
+  "Know exactly what you are waiting for before you look",
+  "Not obvious = no trade",
+  "Trade the London or New York open",
+  "Set the stop and target, then leave the charts",
+  "After entry, zoom out to 15m / 1h",
+  "Near the stop, ask: would I enter here now?",
+  "If this loss would hurt, the size is too big",
+  "After exit, note how far price ran (review only — the 20% runner rule stays)",
+  "Survive first",
+];
+
+export const checklistText = () => `BEFORE YOU CLICK (your 11 checks, reminders only): ${PRE_TRADE_CHECKLIST.map((x, i) => `${i + 1}) ${x}`).join(" · ")}.`;
+
 const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 
 /** One block of text Grok relays word for word. */
@@ -40,6 +60,7 @@ export function checkText(c: PlanCheck, coin: string, side: string) {
   return [
     head,
     `Today: ${s.trades_today}/${s.rules.max_trades} trades, ${s.losses_today}/${s.rules.max_losses} losses, P&L ${s.pnl_today >= 0 ? "+" : ""}${s.pnl_today}. Room: ${usd(s.room_to_day_stop)} to the day stop, ${usd(s.room_to_firm_daily)} to the firm's daily limit, ${usd(s.room_to_floor)} to the floor (after open risk ${usd(s.open_risk)}).`,
+    checklistText(),
     "He places every order. This is the plan he set on 11/12, not advice.",
   ].join("\n");
 }
