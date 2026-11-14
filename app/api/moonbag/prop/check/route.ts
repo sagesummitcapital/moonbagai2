@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * PROP PLAN CHECK (CR-73). Run it BEFORE every prop trade and relay `text` word for word.
  * GET /prop/check?account_id=BRK-PRO-10K-1                                    → today's plan state (OPEN / LOCKED, room, allowed risk)
- * GET /prop/check?account_id=…&coin=BTC&side=long&entry=…&stop=…[&qty=…][&leverage=…][&grade=A+] → PASS or BLOCK + reasons + max size
+ * GET /prop/check?account_id=…&coin=BTC&side=long&entry=…&stop=…[&qty=…][&leverage=…][&grade=A+][&target=…] → PASS or BLOCK + reasons + max size
  * STALE = the last firm balance is older than the last prop fill, or 4h+ with a trade open: post a fresh snapshot first.
  * grade below A (or missing) is a warning, not a block.
  * CR-74: every answer carries his 11-item pre-trade checklist (`checklist`, and in `text`) — reminders only, never a block.
@@ -32,6 +32,7 @@ export const GET = withAgent(["claude", "grok"], async (req) => {
   const qty = q.get("qty") ? Number(q.get("qty")) : null;
   const leverage = q.get("leverage") ? Number(q.get("leverage")) : null;
   const grade = q.get("grade")?.trim() || null;
-  const check = await checkPropTrade({ account, coin, side, entry, stop, qty, leverage, grade }).catch((e) => { throw asBad(e); });
+  const target = q.get("target") ? Number(q.get("target")) : null;
+  const check = await checkPropTrade({ account, coin, side, entry, stop, qty, leverage, grade, target }).catch((e) => { throw asBad(e); });
   return json({ ok: true, text: checkText(check, coin, side), ...check, checklist: PRE_TRADE_CHECKLIST });
 });

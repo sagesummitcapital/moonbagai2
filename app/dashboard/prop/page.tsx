@@ -79,7 +79,7 @@ function PlanCard({ p }: { p: PlanState }) {
         {cell("To floor", usd(p.room_to_floor), p.room_to_floor < 200 ? "text-amber-200" : "text-white")}
       </div>
       <p className="mt-3 text-[11.5px] leading-relaxed text-white/40">
-        Your rules (11/12): risk up to $100, smaller as room shrinks and never bigger after a loss · 2 trades a day · 2 losses = done · day stop −${p.rules.day_stop} ·
+        Your rules (11/13): risk up to $100 ($50 inside $200 of the target), smaller as room shrinks, never bigger after a win or a loss · take profit at 2R, alert at +1R, you manage it · New York open · 2 trades a day · 2 losses = done · day stop −${p.rules.day_stop} ·
         no entries 6 PM–5 AM · 30 min after a loss · BTC/ETH/SOL same side = one position. Room counts open trades at their stops ({usd(p.open_risk)} now). Resets 5:30 PM Phoenix.
       </p>
       <details className="group mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5" open={open}>

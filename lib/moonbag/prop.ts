@@ -65,7 +65,7 @@ export function edgeLines(a: PropStatus, e: DeskEdge) {
   if (bad.length) out.push(`Setups losing money on BloFin so far: ${bad.join(", ")}.`);
   const best = [...e.perDay].filter((d) => d.days >= 2).sort((x, y) => n(y.avg_day_r) - n(x.avg_day_r))[0];
   void best; // per-day stats are informational only; the Prop Plan (11/12) sets the rule
-  out.push(`Your Prop Plan (11/12): at most 2 new trades a day, 2 losses = done, day stop −$150, risk up to $100 shrinking with room. Your first two trades of a day made +0.03R; 3rd+ trades −0.17R; after two losses −0.29R.`);
+  out.push(`Your Prop Plan (11/13): at most 2 new trades a day, 2 losses = done, day stop −$200, risk up to $100 shrinking with room ($50 inside $200 of the target), take profit at 2R with an alert at +1R, New York open. Your first two trades of a day made +0.03R; 3rd+ trades −0.17R; after two losses −0.29R.`);
   return out;
 }
 
