@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Layered flow (Stavros, 2026-11-01: "make the Moonbag tool itself visually have a flow ... a hedge fund platform ... layer it so it's a
+ * CR-78 (Stavros, 2026-11-13: "simple saas product"): five pages — Today · Levels · Setups · Scorecard · System.
+ * Older pages stay reachable in a group's sub-row (System holds the archive) until he retires them.
+ * Earlier: layered flow (Stavros, 2026-11-01: "make the Moonbag tool itself visually have a flow ... a hedge fund platform ... layer it so it's a
  * simpler tool but still highlights all the main things"). Command → Trade → Holdings → Review → Research → System.
  * Every old route still exists — it lives in one group's sub-row, which shows only while you are in that group.
  * (Earlier: four destinations instead of fourteen tabs, 2026-10-15: "my attention is my most valuable asset".)
@@ -13,49 +15,48 @@ type Item = { href: string; label: string; short?: string };
 type Group = { label: string; href: string; items: Item[] };
 
 export const NAV: Group[] = [
-  { label: "Command", href: "/dashboard", items: [] },
+  { label: "Today", href: "/dashboard", items: [] },
+  { label: "Levels", href: "/dashboard/levels", items: [] },
   {
-    label: "Trade",
-    href: "/dashboard/leverage",
+    label: "Setups",
+    href: "/dashboard/setups",
     items: [
-      { href: "/dashboard/levels", label: "Levels" },
-      { href: "/dashboard/leverage", label: "Leverage desk" },
+      { href: "/dashboard/setups", label: "Setups" },
+      { href: "/dashboard/lab", label: "Strategy lab" },
+    ],
+  },
+  {
+    label: "Scorecard",
+    href: "/dashboard/scorecard",
+    items: [
+      { href: "/dashboard/scorecard", label: "Scorecard" },
+      { href: "/dashboard/prop", label: "Prop account" },
+      { href: "/dashboard/journal", label: "Journal" },
+      { href: "/dashboard/tracker", label: "Trade tracker" },
+      { href: "/dashboard/performance", label: "Performance" },
+      { href: "/dashboard/robinhood", label: "Robinhood" },
+      { href: "/dashboard/coinbase", label: "Coinbase" },
+    ],
+  },
+  {
+    label: "System",
+    href: "/dashboard/system",
+    items: [
+      { href: "/dashboard/system", label: "System" },
+      { href: "/dashboard/agents", label: "Agents" },
+      // Archive (CR-78): older pages, reachable from System until Stavros retires them.
+      { href: "/dashboard/command", label: "Old home" },
+      { href: "/dashboard/leverage", label: "Old desk" },
       { href: "/dashboard/positions", label: "Positions" },
       { href: "/dashboard/opportunities", label: "Opportunities" },
-      { href: "/dashboard/journal", label: "Journal" },
-      { href: "/dashboard/prop", label: "Prop firm" },
-    ],
-  },
-  {
-    label: "Holdings",
-    href: "/dashboard/robinhood",
-    items: [
-      { href: "/dashboard/robinhood", label: "Robinhood · long-term" },
-      { href: "/dashboard/coinbase", label: "Coinbase · holds" },
-    ],
-  },
-  {
-    label: "Review",
-    href: "/dashboard/performance",
-    items: [
-      { href: "/dashboard/performance", label: "Performance" },
       { href: "/dashboard/audit", label: "Monthly audit" },
-      { href: "/dashboard/lab", label: "Strategy lab" },
-      { href: "/dashboard/tracker", label: "Trade tracker" },
       { href: "/dashboard/history", label: "History" },
-    ],
-  },
-  {
-    label: "Research",
-    href: "/dashboard/mentors",
-    items: [
-      { href: "/dashboard/mentors", label: "Mentors" },
-      { href: "/dashboard/gauge", label: "Retail gauge" },
       { href: "/dashboard/intelligence", label: "Intelligence" },
-      { href: "/dashboard/entropy", label: "Entropy Trap" },
+      { href: "/dashboard/gauge", label: "Retail gauge" },
+      { href: "/dashboard/entropy", label: "Macro map" },
+      { href: "/dashboard/mentors", label: "Research notes" },
     ],
   },
-  { label: "System", href: "/dashboard/agents", items: [] },
 ];
 
 const inGroup = (g: Group, path: string | null) =>
@@ -66,7 +67,7 @@ export function DashNav() {
   const active = NAV.find((g) => inGroup(g, path)) ?? NAV[0];
   return (
     <div className="flex flex-col gap-2">
-      <nav aria-label="Desk sections" className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 sm:inline-grid sm:grid-cols-6 sm:w-auto sm:self-start">
+      <nav aria-label="Desk sections" className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 sm:inline-grid sm:grid-cols-5 sm:w-auto sm:self-start">
         {NAV.map((g) => {
           const on = g === active;
           return (

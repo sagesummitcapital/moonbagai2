@@ -1,365 +1,222 @@
-import { getActiveTheses, getSystemState, getYesterdayReview, latestReport } from "@/lib/moonbag/db";
-import { buildBriefing } from "@/lib/moonbag/briefing";
-import { getCoinbaseBook, getLeverageDesk, getRobinhoodBook, isDeskAlert } from "@/lib/moonbag/desk";
+import Link from "next/link";
 import { load } from "./_components/data";
-import { Meter, ScoreBar } from "./_components/charts";
-import { LiveMetric, LivePrice } from "./_components/LivePrice";
-import { NON_TRADABLE, cryptoSetFrom, kindFor, loadLive, storedOf } from "./_components/live";
-import { MorningBrief } from "./_components/MorningBrief";
 import { DataNotice } from "./_components/Notice";
-import { CommandStrip } from "./_components/Command";
-import { getCommandData } from "@/lib/moonbag/command";
-import { RightNow, type Freshness } from "./_components/RightNow";
-import { ThesisCard } from "./_components/ThesisCard";
-import { Badge, Card, Chip, Chips, DocText, Empty, Fold, GoLink, LongText, Id, Mono, Quiet, Stat, TextValue, Unit, Updated, biasGlyph, biasTone, gradeTone, money, money0, num, px, whenShort } from "./_components/ui";
+import { Badge, Card, Empty, PageHeader, Stamps, Updated, whenShort } from "./_components/ui";
+import { clean, fmt, getToday, pct, usd, type Setup, type TodayCoin } from "@/lib/moonbag/site";
+import { biasWord, type Bias, type Outlook } from "@/lib/moonbag/outlook";
 
 export const dynamic = "force-dynamic";
 
-// CR-6 (2026-10-20, Stavros: "i am trying to fix the 'late' status"): the Desk Lead writes the desk map at 5, 8, 1 and 6 Phoenix —
-// the longest normal gap is overnight (6 PM → 5 AM, 11h), so that is its cadence, not the old 2h hourly watch.
-const DESK_LEAD_H = 11;
+/**
+ * TODAY (CR-78, Stavros 2026-11-13). One screen, in the order he decides:
+ * 1. Can I trade? (his prop plan)  2. The market in real numbers  3. His own view  4. A / A+ setups  5. Open trades.
+ * The old home page lives at /dashboard/command (System → Archive).
+ */
+const BIAS_TONE: Record<Bias, string> = { bullish: "text-accent-green", bearish: "text-rose-300", neutral: "text-white/70" };
+const tone = (v: number | null | undefined) => (v == null || v === 0 ? "text-white/60" : v > 0 ? "text-accent-green" : "text-rose-300");
+
+function Cell({ k, v, t = "text-white" }: { k: string; v: string; t?: string }) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+      <div className="text-[11px] uppercase tracking-[0.12em] text-white/40">{k}</div>
+      <div className={`mt-0.5 font-mono text-[18px] tabular-nums ${t}`}>{v}</div>
+    </div>
+  );
+}
+
+function vs(price: number | null, level: unknown) {
+  const l = Number(level);
+  if (price == null || !Number.isFinite(l) || l <= 0) return null;
+  return ((price - l) / l) * 100;
+}
+
+function ViewLine({ o, label }: { o: Outlook; label: string }) {
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 text-[13px] ${o.stale ? "border-white/10" : "border-amber-300/25 bg-amber-300/[0.04]"}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-semibold text-white">{label}</span>
+        <span className={`text-[11px] ${o.stale ? "text-rose-300" : "text-white/40"}`}>{o.stale ? `${o.age_days} days old — give Grok a fresh view` : `given ${whenShort(o.given_at)}`}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="text-white/40">Higher TF </span><span className={`font-semibold ${o.htf_bias ? BIAS_TONE[o.htf_bias] : "text-white/40"}`}>{biasWord(o.htf_bias)}</span></span>
+        <span><span className="text-white/40">Lower TF </span><span className={`font-semibold ${o.ltf_bias ? BIAS_TONE[o.ltf_bias] : "text-white/40"}`}>{biasWord(o.ltf_bias)}</span></span>
+        {o.flip != null && <span><span className="text-white/40">Flip </span><span className="font-mono text-white/90">{fmt(Number(o.flip))}</span></span>}
+        {o.invalidation != null && <span><span className="text-white/40">Wrong if </span><span className="font-mono text-white/90">{fmt(Number(o.invalidation))}</span></span>}
+      </div>
+      {(o.htf_note || o.ltf_note || o.macro_note) && <p className="mt-1 text-[12.5px] leading-snug text-white/65">{[o.htf_note, o.ltf_note, o.macro_note].filter(Boolean).join(" · ")}</p>}
+    </div>
+  );
+}
+
+function SetupRow({ s }: { s: Setup }) {
+  const long = s.direction === "long";
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+      <Badge tone={s.grade === "A+" ? "green" : "cyan"}>{s.grade}</Badge>
+      <div className="min-w-0">
+        <div className="text-[14px] font-semibold text-white">
+          {s.symbol} <span className={long ? "text-accent-green" : "text-rose-300"}>{long ? "long" : "short"}</span>
+          {s.origin === "paper" && <span className="ml-2 text-[11px] font-normal text-white/35">paper-tracked</span>}
+        </div>
+        <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[12px] tabular-nums text-white/70">
+          <span>entry {fmt(s.limit_price)}</span>
+          <span>stop {fmt(s.stop)}</span>
+          <span>target {fmt(s.tp1)}</span>
+        </div>
+      </div>
+      <div className="text-right font-mono text-[13px] tabular-nums text-white/85">{s.plan_r != null ? `${Number(s.plan_r).toFixed(1)}R` : "—"}</div>
+    </div>
+  );
+}
+
+function CoinRow({ c }: { c: TodayCoin }) {
+  const wo = vs(c.price, c.levels?.wo), mo = vs(c.price, c.levels?.mo);
+  const dn = c.below?.[0], up = c.above?.[0];
+  const v = c.my_view;
+  return (
+    <tr className="border-t border-white/[0.05]">
+      <td className="py-2 pr-3">
+        <span className="text-[14px] font-semibold text-white">{c.asset}</span>
+        {c.status !== "WAIT" && <span className="ml-2 align-middle"><Badge tone={c.status === "A+ SETUP" ? "green" : c.status === "TRIGGERED" ? "cyan" : "amber"}>{c.status}</Badge></span>}
+      </td>
+      <td className="py-2 pr-3 text-right font-mono tabular-nums text-white">{fmt(c.price)}</td>
+      <td className={`py-2 pr-3 text-right font-mono tabular-nums ${tone(c.chg_24h)}`}>{pct(c.chg_24h)}</td>
+      <td className={`py-2 pr-3 text-right font-mono tabular-nums ${tone(c.chg_7d)}`}>{pct(c.chg_7d)}</td>
+      <td className={`py-2 pr-3 text-right font-mono tabular-nums ${c.rsi_4h != null && c.rsi_4h <= 30 ? "text-accent-green" : c.rsi_4h != null && c.rsi_4h >= 70 ? "text-rose-300" : "text-white/75"}`}>{c.rsi_4h ?? "—"}</td>
+      <td className={`py-2 pr-3 text-right font-mono tabular-nums ${tone(wo)}`} title={`Weekly open ${fmt(Number(c.levels?.wo))}`}>{pct(wo)}</td>
+      <td className={`py-2 pr-3 text-right font-mono tabular-nums ${tone(mo)}`} title={`Monthly open ${fmt(Number(c.levels?.mo))}`}>{pct(mo)}</td>
+      <td className="py-2 pr-3 text-right font-mono text-[12px] tabular-nums text-white/70">{dn ? <>{fmt(Number(dn.px))} <span className="text-white/35">{clean(dn.label)}</span></> : "—"}</td>
+      <td className="py-2 pr-3 text-right font-mono text-[12px] tabular-nums text-white/70">{up ? <>{fmt(Number(up.px))} <span className="text-white/35">{clean(up.label)}</span></> : "—"}</td>
+      <td className="py-2 text-right text-[12px]">
+        {v ? <span className={v.stale ? "opacity-50" : ""}><span className={`font-semibold ${v.htf_bias ? BIAS_TONE[v.htf_bias] : "text-white/40"}`}>{biasWord(v.htf_bias)}</span><span className="text-white/30"> / </span><span className={v.ltf_bias ? BIAS_TONE[v.ltf_bias] : "text-white/40"}>{biasWord(v.ltf_bias)}</span></span> : <span className="text-white/25">no view</span>}
+      </td>
+    </tr>
+  );
+}
 
 export default async function TodayPage() {
-  const { data, error } = await load(async () => {
-    const [state, theses, yesterday, report] = await Promise.all([
-      getSystemState(),
-      getActiveTheses(),
-      getYesterdayReview(),
-      latestReport(),
-    ]);
-    return { state, theses, yesterday, report };
-  });
-  // The two books load separately so one failing never blanks the page.
-  const [{ data: lev }, { data: rh }, { data: cb }, { data: briefing }] = await Promise.all([load(getLeverageDesk), load(getRobinhoodBook), load(getCoinbaseBook), load(buildBriefing)]);
-  const { data: command } = await load(getCommandData); // Command strip (layered flow, 2026-11-01)
-  const liveSignals = (lev?.signals ?? []).filter((s) => ["armed", "triggered"].includes(s.status) && !s.outcome && isDeskAlert(s));
-
-  const state = data?.state;
-  const theses = data?.theses ?? [];
-  const master = theses.find((t) => t.asset === "MASTER");
-  const btc = theses.find((t) => t.asset === "BTC");
-  const eth = theses.find((t) => t.asset === "ETH");
-  const others = theses.filter((t) => !["MASTER", "BTC", "ETH"].includes(t.asset));
-  const conf = Number(state?.system_confidence ?? 0);
-
-  // ---------------------------------------------------------------- live prices (cached 1 h server-side, polled hourly in the browser)
-  const cryptoSet = cryptoSetFrom((lev?.universe ?? []).map((u) => u.asset), (cb?.universe ?? []).map((u) => u.symbol));
-  const openTrades = [...(lev?.openTrades ?? []), ...(rh?.open ?? []), ...(cb?.open ?? [])];
-  const live = await loadLive(
-    [
-      "BTC", "ETH",
-      ...openTrades.map((t) => t.symbol),
-      ...liveSignals.map((s) => s.asset),
-      ...(briefing?.brief.rotation.plays ?? []).map((r) => r.asset),
-      ...(briefing?.brief.stocks.best ? [briefing.brief.stocks.best.symbol] : []),
-      ...theses.map((t) => t.asset).filter((a) => !NON_TRADABLE.has(a)),
-    ],
-    cryptoSet,
-  );
-  const storedPx: Record<string, { price: number; ts: string }> = {};
-  for (const [a, h] of Object.entries(lev?.latest ?? {})) storedPx[a] = { price: Number(h.price), ts: h.ts };
-  for (const p of (Array.isArray(rh?.snapshot?.positions) ? (rh!.snapshot!.positions as { symbol?: string; market_value?: number; quantity?: number }[]) : [])) {
-    if (p.symbol && Number(p.quantity) > 0 && Number(p.market_value) > 0 && !storedPx[p.symbol]) storedPx[p.symbol] = { price: Number(p.market_value) / Number(p.quantity), ts: rh!.snapshot!.reported_at };
-  }
-  const liveFor = (asset: string) => (NON_TRADABLE.has(asset) ? undefined : live[asset] ?? null);
-
-  const deskCheckedAt = lev?.hourly[0]?.ts ?? null;
-  const cbCloseDay = cb?.universe.map((u) => u.as_of).filter(Boolean).sort().reverse()[0] ?? null;
-  // A daily close dated D happens at 00:00 UTC on D+1, so that is the instant its age counts from.
-  const cbCloseAt = cbCloseDay ? new Date(Date.parse(`${cbCloseDay}T00:00:00Z`) + 86400_000).toISOString() : null;
-  const freshness: Freshness[] = [
-    // CR-5 (2026-10-20): the hourly watch was paused 10/10 (its row showed late forever) — removed. The BloFin balance is
-    // calculated from trades between confirms, so it is only late 4+ days after Stavros's last confirm.
-    { label: "BloFin balance", at: lev?.equityCalc?.confirmed_at ?? lev?.equityReportedAt, cadenceH: 24 * 4, verb: "confirmed · calc from trades since", href: "/dashboard/leverage" },
-    { label: "Robinhood snapshot", at: rh?.snapshot?.reported_at, cadenceH: 30, verb: "reported", href: "/dashboard/robinhood" },
-    { label: "Coinbase snapshot", at: cb?.snapshot?.reported_at, cadenceH: 30, verb: "reported", href: "/dashboard/coinbase" },
-    { label: "Coinbase daily close", at: cbCloseAt, cadenceH: 26, verb: cbCloseDay ? `${cbCloseDay} · processed` : "", href: "/dashboard/coinbase" },
-    { label: "master thesis", at: master?.created_at, cadenceH: 26, verb: "written" },
-    { label: "system state", at: state?.computed_at, cadenceH: 26, verb: "computed", href: "/dashboard/intelligence" },
-  ];
-  const pendingHandoffs = [...(rh?.handoffs ?? []), ...(cb?.handoffs ?? [])].filter((h) => ["pending", "acknowledged"].includes(h.status));
-
-  const bm = briefing?.brief.market;
-  const marketBias = bm?.bias ?? master?.bias ?? null;
-  const regimeText = bm?.regime ?? state?.current_regime ?? master?.market_regime ?? null;
-  const riskText = bm?.risk ?? state?.risk_environment ?? master?.risk_environment ?? null;
-  const confTone = conf >= 70 ? "green" : conf >= 50 ? "cyan" : "amber";
-  const needsCount = openTrades.length + liveSignals.length + pendingHandoffs.length;
+  const { data, error } = await load(getToday);
+  const p = data?.plan ?? null;
+  const coins = data?.coins ?? [];
+  const setups = data?.setups ?? [];
+  const open = data?.open_trades ?? [];
+  const btcFeed = data?.feed?.BTC ?? null;
+  const feedAgeMin = btcFeed ? Math.round((Date.now() - new Date(btcFeed).getTime()) / 60000) : null;
+  const feedStale = feedAgeMin != null && feedAgeMin > 45;
+  const views = coins.filter((c) => c.my_view).map((c) => c.my_view!) as Outlook[];
+  const macroKey = data?.macro?.key ?? null;
+  const planOpen = p?.status === "OPEN";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <PageHeader title="Today" sub="Can you trade, what the market is doing in real numbers, your own view, and the setups worth your attention. You place every order." />
+      <Stamps>
+        <Updated at={btcFeed} label="prices" verb="as of" cadenceH={0.5} />
+        <Updated at={data?.macro?.created_at} label="macro read" cadenceH={26} />
+      </Stamps>
       <DataNotice error={error} />
-
-      {/* ------------------------------------------------ 0. command: environment, today, discipline */}
-      {command && <CommandStrip c={command} />}
-
-      {/* ------------------------------------------------ 1. what needs attention now */}
-      {(lev || rh || cb) && (
-        <RightNow
-          trades={openTrades}
-          alerts={liveSignals}
-          handoffs={pendingHandoffs}
-          armedAlerts={(lev?.alerts ?? []).filter((a) => a.status === "active").length}
-          live={live}
-          cryptoSet={cryptoSet}
-          stored={storedPx}
-          freshness={freshness}
-        />
+      {feedStale && (
+        <div className="rounded-xl border border-rose-400/30 bg-rose-400/[0.06] px-4 py-3 text-[13px] text-rose-100">
+          Prices on this page are {feedAgeMin} minutes old. Check your chart before acting on any number here.
+        </div>
       )}
 
-      {/* ------------------------------------------------ 2. the three books — one number each, a step below the hero in the command strip.
-          Green is reserved for "Needs you now" above, so the leverage card no longer turns green as well. */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card>
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Leverage · BloFin</div>
-            <GoLink href="/dashboard/leverage" />
-          </div>
-          {lev ? (
-            <>
-              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{money(lev.equity)}</div>
-              <div className="mt-3 text-[13px] leading-snug text-white/75">
-                {lev.openTrades.length ? (
-                  <div className="space-y-1">
-                    {lev.openTrades.map((t) => (
-                      <div key={t.trade_id} className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="font-medium text-white">{t.symbol} {t.direction}</span>
-                        <span className="font-mono text-[12px] tabular-nums text-white/50">@ {px(t.entry)}</span>
-                        <LiveMetric symbol={t.symbol} kind={kindFor(t.symbol, cryptoSet)} initial={live[t.symbol]} stored={storedPx[t.symbol] ? storedOf(storedPx[t.symbol].price, storedPx[t.symbol].ts) : undefined} metric="r" entry={t.entry} stop={t.stop} direction={t.direction} />
-                      </div>
-                    ))}
-                  </div>
-                ) : liveSignals.length ? (
-                  <Chips>
-                    {liveSignals.map((s) => (
-                      <Badge key={s.signal_id} tone={gradeTone(s.confidence_grade)}>{s.asset} {s.direction} {s.status} — grade {s.confidence_grade}</Badge>
-                    ))}
-                  </Chips>
-                ) : (
-                  <span className="text-white/55">Flat — no DESK ALERT, waiting for levels.</span>
-                )}
-              </div>
-              {lev.milestone ? (
-                <Meter className="mt-3" value={lev.equity} max={lev.milestone} tone="green" height={5} labels={[<>next milestone <b className="font-mono text-white/70">{money0(lev.milestone)}</b></>, <Updated key="u" label="balance" at={lev.equityCalc?.confirmed_at ?? lev.equityReportedAt} cadenceH={96} verb="confirmed" />]} />
-              ) : (
-                <p className="mt-3 text-[12px] text-white/45">milestones reached · <Updated label="balance" at={lev.equityCalc?.confirmed_at ?? lev.equityReportedAt} cadenceH={96} verb="confirmed" /></p>
-              )}
-            </>
-          ) : (
-            <Empty>Leverage desk not loaded.</Empty>
-          )}
-        </Card>
-
-        <Card>
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Long-term · Robinhood</div>
-            <GoLink href="/dashboard/robinhood" />
-          </div>
-          {rh ? (
-            <>
-              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{rh.snapshot ? money(rh.snapshot.equity) : "—"}</div>
-              <div className="mt-3 text-[13px] leading-snug text-white/75">
-                {rh.open.length ? (
-                  <div className="space-y-1">
-                    {rh.open.map((t) => (
-                      <div key={t.trade_id} className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="font-medium text-white">{t.symbol}</span>
-                        <span className="font-mono text-[12px] tabular-nums text-white/50">@ {px(t.entry)}</span>
-                        <LiveMetric symbol={t.symbol} kind={kindFor(t.symbol, cryptoSet)} initial={live[t.symbol]} stored={storedPx[t.symbol] ? storedOf(storedPx[t.symbol].price, storedPx[t.symbol].ts, "account snapshot") : undefined} metric="pct" entry={t.entry} direction={t.direction} tag={false} />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-white/55">In cash — no A-grade setup has met the standard.</span>
-                )}
-                {rh.equityThesis && <div className="mt-1.5"><Badge tone={biasTone(rh.equityThesis.bias)}>equities {biasGlyph(rh.equityThesis.bias)} {rh.equityThesis.bias}</Badge></div>}
-              </div>
-              <Meter className="mt-3" value={rh.box.used} max={rh.box.limit} height={5} labels={[<>loss box <b className="font-mono text-white/70">{money(rh.box.used)}</b> of {money(rh.box.limit)}</>, <>fills {rh.fillsThisWeek}/{num(rh.risk?.max_fills_per_week, 0)}</>]} />
-            </>
-          ) : (
-            <Empty>Long-term book not loaded.</Empty>
-          )}
-        </Card>
-
-        <Card>
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Crypto trend · Coinbase</div>
-            <GoLink href="/dashboard/coinbase" />
-          </div>
-          {cb ? (
-            <>
-              <div className="fig mt-1.5 font-mono text-[20px] font-semibold leading-none text-white/90">{money(cb.equity)}</div>
-              <div className="mt-3 text-[13px] leading-snug text-white/75">
-                {cb.open.length ? (
-                  <div className="space-y-1">
-                    {cb.open.map((t) => (
-                      <div key={t.trade_id} className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="font-medium text-white">{t.symbol}</span>
-                        <span className="font-mono text-[12px] tabular-nums text-white/50">@ {px(t.entry)}</span>
-                        <LiveMetric symbol={t.symbol} initial={live[t.symbol]} metric="r" entry={t.entry} stop={t.stop} direction="long" tag={false} />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-white/55">Flat — cash until a coin closes above its 55-day high.</span>
-                )}
-                <div className="mt-1.5 text-[12.5px] text-white/50">
-                  <span className="font-mono text-accent-green">{cb.universe.filter((u) => u.regime === "bull").length} bull</span> · <span className="font-mono text-rose-300">{cb.universe.filter((u) => u.regime === "bear").length} bear</span> of {cb.universe.length} coins
-                </div>
-              </div>
-              <Meter className="mt-3" value={cb.openRiskPct} max={15} height={5} labels={[<>open risk <b className="font-mono text-white/70">{num(cb.openRiskPct, 1)}%</b> of 15%</>, cb.stats.closed ? `${cb.stats.closed} closed · ${num(cb.stats.totalR, 1)}R` : "no closed trades yet"]} />
-            </>
-          ) : (
-            <Empty>Coinbase book not loaded.</Empty>
-          )}
-        </Card>
-      </div>
-
-      {/* ------------------------------------------------ 3. the market today — one line, two prices */}
-      <Card title="Market today" right={<><Updated label="thesis" at={master?.created_at} cadenceH={26} verb="written" /><Updated label="desk lead" at={deskCheckedAt} cadenceH={DESK_LEAD_H} verb="" /></>}>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className={`font-mono text-[20px] font-semibold leading-none ${biasTone(marketBias) === "green" ? "text-accent-green" : biasTone(marketBias) === "red" ? "text-rose-300" : "text-white/70"}`}>{biasGlyph(marketBias)} {marketBias ? marketBias[0].toUpperCase() + marketBias.slice(1) : "No view"}</span>
-              <span className="text-[13px] text-white/50">confidence <b className={`font-mono tabular-nums ${confTone === "green" ? "text-accent-green" : confTone === "cyan" ? "text-accent-cyan" : "text-amber-200"}`}>{num(conf, 0)}</b>/100</span>
-            </div>
-            {bm?.view && <LongText text={bm.view} max={180} className="mt-2 text-[14px] leading-relaxed text-white/85" />}
-            <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-white/55">
-              {regimeText && <span><span className="text-white/40">Regime:</span> <span className="text-white/80">{regimeText.length > 60 ? `${regimeText.slice(0, 59).trimEnd()}…` : regimeText}</span></span>}
-              {riskText && <span><span className="text-white/40">Risk:</span> <span className="text-white/80">{riskText.length > 60 ? `${riskText.slice(0, 59).trimEnd()}…` : riskText}</span></span>}
+      {/* 1 — Can I trade? */}
+      {p && (
+        <section className={`rounded-2xl border p-4 md:p-5 ${planOpen ? "border-accent-green/25 bg-accent-green/[0.04]" : "border-rose-400/30 bg-rose-400/[0.05]"}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-white/50">Can I trade? · prop account</h2>
+            <div className={`text-[16px] font-semibold ${planOpen ? "text-accent-green" : "text-rose-300"}`}>
+              {planOpen ? `Yes — risk up to ${usd(p.allowed_risk)} on the next trade` : p.status === "STALE" ? "Not yet — balance is out of date" : "No — done for now"}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {["BTC", "ETH"].map((a) => {
-              const h = lev?.latest[a];
-              return (
-                <div key={a} className="min-w-0 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="text-[13px] font-semibold text-white">{a}</span>
-                    <Badge tone={biasTone(h?.bias)}>{biasGlyph(h?.bias)} {h?.bias ?? "—"}</Badge>
-                  </div>
-                  <div className="mt-1"><LivePrice symbol={a} kind="crypto" initial={live[a]} stored={h ? storedOf(h.price, h.ts) : undefined} size="md" showChange /></div>
-                </div>
-              );
-            })}
+          {!planOpen && (
+            <ul className="mt-2 space-y-0.5 text-[13px] text-rose-100/85">
+              {p.locks.map((l, i) => <li key={i}>• {l.startsWith("STALE") ? "Send Grok a fresh Breakout balance and equity screenshot before the next trade." : clean(l)}</li>)}
+            </ul>
+          )}
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <Cell k="Trades left" v={`${p.trades_left} of ${p.rules.max_trades}`} />
+            <Cell k="Losses left" v={`${p.losses_left} of ${p.rules.max_losses}`} t={p.losses_left === 0 ? "text-rose-300" : "text-white"} />
+            <Cell k="Today" v={`${p.pnl_today >= 0 ? "+" : "−"}$${Math.abs(Math.round(p.pnl_today))}`} t={tone(p.pnl_today)} />
+            <Cell k="To day stop" v={usd(p.room_to_day_stop)} t={p.room_to_day_stop <= 0 ? "text-rose-300" : "text-white"} />
+            <Cell k="To target" v={p.to_target != null ? usd(p.to_target) : "—"} />
           </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-white/45">
+            <span>Take profit at 2R · alert at +1R · 2 trades a day · 2 losses = done · no entries 6 PM–5 AM.</span>
+            <Link href="/dashboard/prop" className="text-white/70 hover:text-white">Prop account →</Link>
+          </div>
+          {data?.top_mistake && (
+            <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] px-3 py-2 text-[12.5px] text-amber-100/90">
+              <span className="font-semibold">Before you click:</span> your most expensive habit this week is “{clean(data.top_mistake.label)}” ({data.top_mistake.last_7d}× in 7 days). {clean(data.top_mistake.rule)}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 2 — The market in numbers */}
+      <Card
+        title="Market"
+        right={macroKey ? <span className="font-mono text-[11.5px] text-white/55">{["US10Y", "DXY", "VIX", "GOLD", "OIL"].filter((k) => macroKey[k]).map((k) => `${k} ${macroKey[k]}`).join(" · ")}{macroKey.as_of ? ` (${macroKey.as_of})` : ""}</span> : undefined}
+        sub={data?.macro?.regime ? `Macro read: ${clean(data.macro.regime)}. ${clean(data.macro.changes_mind) ? `What changes it: ${clean(data.macro.changes_mind)}` : ""}` : undefined}
+      >
+        {coins.length === 0 ? <Empty>No market data yet.</Empty> : (
+          <div className="-mx-1 overflow-x-auto px-1">
+            <table className="w-full min-w-[820px] text-[13px]">
+              <thead>
+                <tr className="text-right text-[11px] uppercase tracking-[0.1em] text-white/40">
+                  <th className="pb-2 pr-3 text-left font-medium">Coin</th>
+                  <th className="pb-2 pr-3 font-medium">Price</th>
+                  <th className="pb-2 pr-3 font-medium">24h</th>
+                  <th className="pb-2 pr-3 font-medium">7d</th>
+                  <th className="pb-2 pr-3 font-medium">4h RSI</th>
+                  <th className="pb-2 pr-3 font-medium">vs week open</th>
+                  <th className="pb-2 pr-3 font-medium">vs month open</th>
+                  <th className="pb-2 pr-3 font-medium">Next level down</th>
+                  <th className="pb-2 pr-3 font-medium">Next level up</th>
+                  <th className="pb-2 font-medium">Your view</th>
+                </tr>
+              </thead>
+              <tbody>{coins.map((c) => <CoinRow key={c.asset} c={c} />)}</tbody>
+            </table>
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-white/40">
+          <span>RSI under 30 = stretched down, over 70 = stretched up. “Your view” is higher / lower timeframe.</span>
+          <Link href="/dashboard/levels" className="text-white/70 hover:text-white">All levels →</Link>
         </div>
       </Card>
 
-      {/* ------------------------------------------------ 4. everything else — present, quiet */}
-      <Quiet title="Everything else today" sub={needsCount ? undefined : "tap any row to open it"}>
-        {briefing && (
-          <Fold title="Morning brief" right={<Mono>built {whenShort(briefing.brief.date)}</Mono>}>
-            <MorningBrief
-              brief={briefing.brief}
-              live={live}
-              meta={{ deskCheckedAt, thesisAt: master?.created_at ?? null, levEquityAt: lev?.equityCalc?.confirmed_at ?? lev?.equityReportedAt ?? null, rhEquityAt: rh?.snapshot?.reported_at ?? null }}
-            />
-            <div className="mt-3"><DocText summary="Text version — the same brief Grokbot sends" text={briefing.text} /></div>
-          </Fold>
-        )}
-
-        <Fold title="System state" right={<Updated at={state?.computed_at} cadenceH={26} verb="computed" />}>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Stat
-              label="Moonbag System Confidence"
-              size="md"
-              value={<>{num(conf, 0)}<Unit>/ 100</Unit></>}
-              tone={confTone}
-              meter={<Meter value={conf} max={100} tone={confTone} height={6} labels={["0", "100"]} />}
-              sub={<>Rolling {state?.rolling_window_days ?? 30} days · {state?.forecasts_graded ?? 0} forecasts graded — measured forecasting quality, not a win probability.</>}
-            />
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Market regime</div>
-                <Updated at={state?.current_regime ? state.computed_at : master?.created_at} cadenceH={26} verb="" />
-              </div>
-              <div className="mt-1.5"><TextValue text={state?.current_regime ?? master?.market_regime ?? null} /></div>
-            </div>
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">Risk environment</div>
-                <Updated at={state?.risk_environment ? state.computed_at : master?.created_at} cadenceH={26} verb="" />
-              </div>
-              <div className="mt-1.5"><TextValue text={state?.risk_environment ?? master?.risk_environment ?? null} /></div>
-            </div>
+      {/* 3 — His view */}
+      <Card title="Your view" sub="What you told Grok. A new view replaces the old one everywhere on the site.">
+        {!data?.my_market && views.length === 0 ? (
+          <Empty>No view on file yet. Tell Grok your read (higher and lower timeframe, your levels, where you are wrong) and it shows here, on Levels, and on your TradingView lines.</Empty>
+        ) : (
+          <div className="space-y-2">
+            {data?.my_market && <ViewLine o={data.my_market} label="Market" />}
+            {views.map((o) => <ViewLine key={o.scope} o={o} label={o.scope} />)}
           </div>
-        </Fold>
-
-        {cb && (
-          <Fold title="Coinbase universe — regime & triggers" count={cb.universe.length} right={<Updated label="regimes" at={cbCloseAt} cadenceH={26} verb={`daily close ${cbCloseDay ?? ""} · processed`} />}>
-            <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
-              {cb.universe.map((u) => {
-                const held = cb.open.find((t) => t.symbol === u.symbol);
-                return held ? (
-                  <Chip key={u.symbol} tone="cyan" label={`${u.symbol} held`} value={<>@ {px(held.entry)} · stop {px(held.current_stop ?? held.stop)} · <LiveMetric symbol={u.symbol} initial={live[u.symbol]} metric="r" entry={held.entry} stop={held.stop} direction="long" tag={false} /></>} />
-                ) : (
-                  <Chip key={u.symbol} tone={u.regime === "bull" ? "green" : u.regime === "bear" ? "red" : "gray"} label={u.symbol} value={`${u.regime ?? "—"} · buy > ${px(u.trigger_px)}`} />
-                );
-              })}
-            </div>
-            <p className="mt-2 text-[12px] text-white/40">&quot;buy &gt;&quot; is the 55-day high that triggers an entry (set at the daily close); bear coins stay in cash. {cb.open.length} held · <Updated label="snapshot" at={cb.snapshot?.reported_at} cadenceH={30} verb="reported" /></p>
-          </Fold>
         )}
+      </Card>
 
-        {rh && (
-          <Fold title="Robinhood — themes & paper" right={<Updated label="snapshot" at={rh.snapshot?.reported_at} cadenceH={30} verb="reported" />}>
-            <p className="text-[13px] text-white/70">
-              {rh.themes.filter((t) => t.status === "active").length} active themes · {rh.paper.filter((p) => p.status === "open").length} paper trades open
-              {rh.open.length ? <> · {rh.open.map((t) => `${t.symbol} @ ${px(t.entry)}${t.current_stop ?? t.stop ? ` (stop ${px(t.current_stop ?? t.stop)})` : ""}`).join(", ")}</> : null}
-            </p>
-            <div className="mt-2"><GoLink href="/dashboard/robinhood">Open the long-term book →</GoLink></div>
-          </Fold>
-        )}
+      {/* 4 — Setups */}
+      <Card title="A and A+ setups" right={<Link href="/dashboard/setups" className="text-white/70 hover:text-white">All setups and strategies →</Link>}>
+        {setups.length === 0 ? <Empty>No A or A+ setup right now. No trade is the default.</Empty> : <div className="space-y-2">{setups.slice(0, 5).map((s) => <SetupRow key={s.limit_id} s={s} />)}</div>}
+      </Card>
 
-        <Fold title="Theses" count={theses.length}>
-          <div className="space-y-3">
-            {master ? <ThesisCard t={master} title="Master thesis" /> : <Card title="Master thesis"><Empty>No master thesis published today.</Empty></Card>}
-            <div className="grid gap-3 lg:grid-cols-2">
-              {btc ? <ThesisCard t={btc} title="BTC thesis" live={liveFor("BTC")} kind="crypto" /> : <Card title="BTC thesis"><Empty>No active BTC thesis.</Empty></Card>}
-              {eth ? <ThesisCard t={eth} title="ETH thesis" live={liveFor("ETH")} kind="crypto" /> : <Card title="ETH thesis"><Empty>No active ETH thesis.</Empty></Card>}
-            </div>
-            {others.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">{others.map((t) => <ThesisCard key={t.thesis_id} t={t} live={liveFor(t.asset)} kind={kindFor(t.asset, cryptoSet)} />)}</div>
-            ) : (
-              <Empty>No active equity theses.</Empty>
-            )}
+      {/* 5 — Open trades */}
+      {open.length > 0 && (
+        <Card title="Open trades">
+          <div className="space-y-2">
+            {open.map((t) => (
+              <div key={t.trade_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[13px]">
+                <span className="font-semibold text-white">{t.symbol} <span className={t.direction === "long" ? "text-accent-green" : "text-rose-300"}>{t.direction}</span> <span className="font-normal text-white/35">{t.venue === "breakout" ? "prop" : t.venue}</span></span>
+                <span className="font-mono tabular-nums text-white/75">entry {fmt(Number(t.entry))} · stop {fmt(t.stop == null ? null : Number(t.stop))}{t.risk_dollars != null ? ` · risk ${usd(Number(t.risk_dollars))}` : ""}</span>
+              </div>
+            ))}
           </div>
-        </Fold>
-
-        <Fold title={`Yesterday's review · ${data?.yesterday.date ?? "—"}`} count={data?.yesterday.theses.length ?? 0}>
-          {data?.yesterday.theses.length ? (
-            <ul className="divide-y divide-white/[0.05]">
-              {data.yesterday.theses.map((t) => {
-                const ev = data.yesterday.evaluations.find((e) => e.thesis_id === t.thesis_id);
-                return (
-                  <li key={t.thesis_id} className="grid items-start gap-x-4 gap-y-1 py-2.5 text-[13.5px] md:grid-cols-[150px_120px_minmax(0,1fr)]">
-                    <div className="flex flex-wrap items-center gap-x-2">
-                      <strong className="text-white">{t.asset}</strong>
-                      <Badge tone={biasTone(t.bias)}>{biasGlyph(t.bias)} {t.bias}</Badge>
-                    </div>
-                    <div>{ev ? <ScoreBar value={ev.total_score} tone={Number(ev.total_score) >= 70 ? "green" : Number(ev.total_score) >= 50 ? "cyan" : "amber"} label={`${num(ev.total_score, 0)}/100`} width="w-[120px]" /> : <Badge tone="amber">needs grading</Badge>}</div>
-                    <div className="min-w-0">
-                      {ev?.lesson && <LongText text={ev.lesson} max={160} className="text-[13px] leading-snug text-white/70" />}
-                      <Id>{t.thesis_id}</Id>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <Empty>No theses were recorded yesterday.</Empty>
-          )}
-        </Fold>
-
-        <Fold title="Latest Moonbag Daily report" right={data?.report ? <Mono>{data.report.report_date} · saved {whenShort(data.report.created_at)}</Mono> : undefined}>
-          {data?.report ? (
-            <DocText open summary={<span className="font-medium text-white/85">{data.report.title ?? "Read the full report"}</span>} text={data.report.markdown} />
-          ) : (
-            <Empty>No daily report saved yet.</Empty>
-          )}
-        </Fold>
-      </Quiet>
+        </Card>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { Badge, Card, Id, Updated, money, num, px2, whenShort } from "./ui";
 const CORE = ["BTC", "ETH", "SOL"];
 
 const SETUP_LABEL: Record<string, string> = {
-  woods_limit: "Woods limit",
+  woods_limit: "Sweep limit",
   limit_sweep: "Limit sweep",
   fib_75: "Fib 0.75 retrace",
 };
