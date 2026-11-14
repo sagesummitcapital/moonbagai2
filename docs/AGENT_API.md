@@ -79,6 +79,7 @@ Chat history is never the source of truth. These records are (spec §15, §25).
 | `GET /trade-intakes[?day=\|?days=7][&status=]` · `POST /trade-intakes` · `PATCH /trade-intakes/{id}` | Grok+Claude | **Trade intakes** (CR-58): every idea as a DRAFT before the order — `venue` blofin\|breakout (+`prop_account_id`), `symbol`, `side`, `bias`, `invalidation`, `trigger_tag`, `setup_tag`, `origin` own\|moonbag\|caller, `entry`, `stop`, `stop_structure`, `tp1`, `tp2`, `exit_plan`, `risk_pct`, `risk_usd`, `leverage`, `feeling` (his word), `checks[{level: hard\|soft, text}]`. `planned_r` is computed. After his screenshot: log the trade (POST /trades), then PATCH `{action:"confirm", trade_id}` — the DB refuses a trade link without the screenshot flag. `{action:"skip"}` when he passes (skips are scored too), `{action:"cancel"}` for mistakes. GET also returns `expectancy` by trigger, origin, feeling, planned R and venue |
 | `GET /quick?coin=&side=[&entry=&stop=][&risk=][&grade=][&margin=]` | Grok+Claude | **Fast inputs**: one order card from coin + side (live entry, structure stop) or from his entry + stop. BloFin sizing only — never for the prop account. Details in the Grok section below |
 | `GET /bias` · `POST /bias` | both / Grok+Claude | The week's bias and line in the sand as Stavros states it; graded weekly. Details below |
+| `GET /outlook[?scope=BTC]` · `POST /outlook` | both / Grok+Claude | **HIS OUTLOOK** (CR-77, 11/13) — the ONE place his view goes, any coin or MARKET, any day, same fields: `scope`, `htf_bias`/`htf_note`, `ltf_bias`/`ltf_note` (bullish\|bearish\|neutral), `macro_note`, `flip` (his line: above = bullish), `invalidation`, `levels` [{px,label}], `long_plan`, `short_plan`, `indicators` (EMA/RSI), `chart_note`, `his_words` (verbatim). Replaces his last view for that coin; flagged after 7 days. Updates the levels page, the TradingView flip line and (MARKET/BTC higher timeframe) the weekly bias. Details below |
 | `GET /woods` · `POST /woods` | both / Grok+Claude | Woods machine state per coin and his posted levels (context only since CR-32). Details below |
 | `POST /mentors` · `GET /mentors?mentor=` | Grok+Claude / both | Store a mentor post word for word; read one mentor's playbook. Details below |
 | `GET /x-posts/{post_id}` | both | One X post by id |
@@ -393,6 +394,23 @@ trade doesn't fit ... After your stop gets hit, the trade is over ... No clear h
 - Never help average down a loser; adds only when the trade has confirmed (in profit, stop at or above entry).
 - If he's asking for inputs with no level and no trigger ("bored, not bullish"), say NO TRADE and name the level that would make it one.
 One line, no lectures.
+
+HIS OUTLOOK — THE ONE DOOR FOR HIS VIEW (CR-77, Stavros 2026-11-13: "what i will be giving is thesis, or bias both macro and micro
+htf and ltf"; "the simpler the better"). Whenever he gives his read on the market or a coin — any day, any time, with or without
+a chart — call POST /outlook once per coin he covers (scope "MARKET" for the overall/macro read). Fill ONLY what he said:
+  htf_bias + htf_note   his higher-timeframe call (weekly/daily) — bullish | bearish | neutral, and why in his words
+  ltf_bias + ltf_note   his lower-timeframe call (4h/1h/15m)
+  macro_note            rates, dollar, stocks, news — only if he mentions it
+  flip                  his line in the sand (above = bullish, below = bearish)
+  invalidation          where he is wrong
+  levels                every level he names, as [{"px":66000,"label":"weekly open"}] — weekly open/close, Monday high/low, EMAs, etc.
+  long_plan / short_plan  "long if …" / "short if …" in his words
+  indicators            EMA / RSI / anything else he is watching
+  chart_note            what his chart shows, if he sends one (describe the drawn levels; put their prices in levels)
+  his_words             his message verbatim
+Never invent a field he did not give. Reply with the "text" it returns, then FOR CLAUDE in the journal: "outlook saved for <coins>".
+"What's my view on BTC?" → GET /outlook?scope=BTC and relay "text". If a view is over 7 days old, ask him for a fresh one.
+POST /bias still works, but /outlook with scope MARKET or BTC now sets the weekly bias for you — use /outlook.
 
 WEEKLY BIAS — STAVROS'S MONDAY CALL (2026-10-16: "i can just put my thoughts in for macro / weekly on mondays, and then
 strategy is already as automated as possible from there"). Monday 5:15 AM Moonbag posts a DRAFT bias built from the Eliz +

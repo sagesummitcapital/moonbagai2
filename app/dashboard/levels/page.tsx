@@ -2,6 +2,7 @@ import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Card, Empty, PageHeader, Stamps, Updated, whenShort } from "../_components/ui";
 import { fmtPx, getLevelsBoard, LEVEL_NAME, statusWord, type BoardRow, type Level } from "@/lib/moonbag/levelsBoard";
+import { biasWord, type Bias, type Outlook } from "@/lib/moonbag/outlook";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,54 @@ export const dynamic = "force-dynamic";
 const SHORT: Record<string, string> = {
   mo: "Month open", pmo: "Prev month open", pmc: "Prev month close", mon_h: "Mon high", mon_l: "Mon low",
   pdh: "Yday high", pdl: "Yday low", sup: "Range low", res: "Range high", flip: "Flip",
+  wo: "Week open", pwh: "Prev wk high", pwl: "Prev wk low", mine: "Yours",
 };
+
+/** Colour per source: white = range levels, blue = Moonbag's range, amber = yours (CR-77). */
+const SRC_TICK: Record<Level["src"], string> = { range: "bg-white/45", moonbag: "bg-accent-cyan/70", yours: "bg-amber-300" };
+const SRC_TEXT: Record<Level["src"], string> = { range: "text-white/40", moonbag: "text-accent-cyan/70", yours: "text-amber-200" };
+const BIAS_TONE: Record<Bias, string> = { bullish: "text-accent-green", bearish: "text-rose-300", neutral: "text-white/70" };
+
+function BiasChip({ label, b }: { label: string; b: Bias | null }) {
+  return (
+    <span className="whitespace-nowrap text-[11px]">
+      <span className="text-white/35">{label} </span>
+      <span className={`font-semibold ${b ? BIAS_TONE[b] : "text-white/30"}`}>{biasWord(b)}</span>
+    </span>
+  );
+}
+
+/** His own view (CR-77): HTF / LTF bias, notes, flip line, invalidation, plans. */
+function MyView({ o, title }: { o: Outlook; title: string }) {
+  const line = (k: string, v: string | null | undefined) =>
+    v ? (
+      <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-2">
+        <span className="text-white/40">{k}</span>
+        <span className="text-white/85">{v}</span>
+      </div>
+    ) : null;
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 text-[12.5px] ${o.stale ? "border-white/10 bg-white/[0.02]" : "border-amber-300/25 bg-amber-300/[0.04]"}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200/80">{title}</span>
+        <span className={`text-[11px] ${o.stale ? "text-rose-300" : "text-white/40"}`}>
+          {o.stale ? `${o.age_days} days old — give Grok a fresh view` : `given ${whenShort(o.given_at)}`}
+        </span>
+      </div>
+      <div className="mt-1.5 space-y-1">
+        {line("Higher TF", `${biasWord(o.htf_bias)}${o.htf_note ? ` — ${o.htf_note}` : ""}`)}
+        {line("Lower TF", `${biasWord(o.ltf_bias)}${o.ltf_note ? ` — ${o.ltf_note}` : ""}`)}
+        {line("Macro", o.macro_note)}
+        {line("Flip line", o.flip != null ? `${fmtPx(Number(o.flip))} — above bullish, below bearish` : null)}
+        {line("Wrong if", o.invalidation != null ? fmtPx(Number(o.invalidation)) : null)}
+        {line("Long if", o.long_plan)}
+        {line("Short if", o.short_plan)}
+        {line("Watching", o.indicators)}
+        {line("Chart", o.chart_note)}
+      </div>
+    </div>
+  );
+}
 
 const STATUS_STYLE: Record<BoardRow["status"], string> = {
   "A+ SETUP": "border-accent-green/40 bg-accent-green/[0.12] text-accent-green",
@@ -45,12 +93,11 @@ function Ladder({ r }: { r: BoardRow }) {
       <div className="absolute left-0 right-0 top-[15px] h-px bg-white/10" />
       {pts.map((l, i) => {
         const x = pos(Number(l.px));
-        const isMb = l.src === "moonbag";
         return (
           <div key={`${l.key}-${i}`} className="absolute top-[9px] -translate-x-1/2" style={{ left: `${x}%` }}>
-            <div className={`mx-auto h-[13px] w-px ${isMb ? "bg-accent-cyan/70" : "bg-white/45"}`} />
-            <div className={`mt-0.5 whitespace-nowrap text-center font-mono text-[9.5px] leading-none ${isMb ? "text-accent-cyan/70" : "text-white/40"} ${i % 2 ? "translate-y-0" : ""}`}>
-              {SHORT[l.key] ?? l.key}
+            <div className={`mx-auto h-[13px] w-px ${SRC_TICK[l.src] ?? "bg-white/45"}`} />
+            <div className={`mt-0.5 whitespace-nowrap text-center font-mono text-[9.5px] leading-none ${SRC_TEXT[l.src] ?? "text-white/40"}`}>
+              {l.src === "yours" && l.key === "mine" ? "Yours" : SHORT[l.key] ?? l.key}
             </div>
           </div>
         );
@@ -84,6 +131,12 @@ function Row({ r }: { r: BoardRow }) {
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-[15px] font-semibold tracking-tight text-white">{r.asset}</span>
           {r.changes.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-amber-300" title={r.changes.join(" · ")} aria-label="changed since yesterday" />}
+          {r.my_view && (
+            <span className={`hidden gap-2 sm:inline-flex ${r.my_view.stale ? "opacity-50" : ""}`} title="Your view (higher / lower timeframe)">
+              <span className={`text-[11px] font-semibold ${r.my_view.htf_bias ? BIAS_TONE[r.my_view.htf_bias] : "text-white/30"}`}>{r.my_view.htf_bias ? r.my_view.htf_bias[0].toUpperCase() : "–"}</span>
+              <span className={`text-[11px] ${r.my_view.ltf_bias ? BIAS_TONE[r.my_view.ltf_bias] : "text-white/30"}`}>{r.my_view.ltf_bias ? r.my_view.ltf_bias[0].toLowerCase() : "–"}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center justify-end gap-2 sm:order-3">
           <span className="font-mono text-[13.5px] tabular-nums text-white">{fmtPx(r.price)}</span>
@@ -106,6 +159,7 @@ function Row({ r }: { r: BoardRow }) {
       </summary>
 
       <div className="space-y-4 border-t border-white/[0.06] px-3 pb-4 pt-3 sm:px-4">
+        {r.my_view ? <MyView o={r.my_view} title={`Your view — ${r.asset}`} /> : <p className="text-[12px] text-white/35">No view of yours on file for {r.asset} — tell Grok your HTF/LTF bias and levels and it shows here.</p>}
         <p className="text-[13px] leading-snug text-white/75">
           {statusWord(r.status)}
           {r.at_level && r.status !== "TRIGGERED" ? ` (${r.at_level})` : ""}
@@ -131,7 +185,7 @@ function Row({ r }: { r: BoardRow }) {
                   </div>
                 )}
                 <div className="flex items-center justify-between gap-3 px-3 py-1.5 text-[12.5px]">
-                  <span className={l.src === "moonbag" ? "text-accent-cyan/85" : "text-white/70"}>{l.label}</span>
+                  <span className={l.src === "yours" ? "text-amber-200" : l.src === "moonbag" ? "text-accent-cyan/85" : "text-white/70"}>{l.src === "yours" && l.key === "mine" ? `Yours: ${l.label}` : l.label}</span>
                   <span className="flex items-baseline gap-2">
                     <span className="font-mono tabular-nums text-white/90">{fmtPx(Number(l.px))}</span>
                     <span className="w-14 text-right font-mono text-[11px] tabular-nums text-white/35">{l.dist_pct > 0 ? "+" : ""}{l.dist_pct}%</span>
@@ -182,6 +236,7 @@ export default async function LevelsPage() {
   const btc = rows.find((r) => r.asset === "BTC");
   const flip = btc?.levels?.flip != null ? Number(btc.levels.flip) : null;
   const live = rows.filter((r) => r.status !== "WAIT").length;
+  const mk = first?.my_market ?? null;
   return (
     <div className="space-y-6">
       <PageHeader
@@ -194,12 +249,19 @@ export default async function LevelsPage() {
       </Stamps>
       <DataNotice error={error} />
 
+      {mk && <MyView o={mk} title="Your market view" />}
+      {first && !mk && (
+        <p className="px-1 text-[12px] text-white/40">No market view of yours on file — tell Grok your macro / HTF / LTF read and it leads this page.</p>
+      )}
+
       {first && (
         <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${first.market_ok ? "border-accent-green/25 bg-accent-green/[0.05]" : "border-amber-300/20 bg-amber-300/[0.04]"}`}>
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">Market</div>
             <div className={`text-[14px] ${first.market_ok ? "text-accent-green" : "text-amber-100/90"}`}>
-              {first.market_ok ? "Confirmed — BTC is holding above its flip line and risk is on." : `Patience — BTC is below its flip line${flip ? ` (${fmtPx(flip)})` : ""}. Alts need BTC to confirm first.`}
+              {flip == null
+                ? "No current BTC flip line — give Grok yours (above = bullish, below = bearish)."
+                : first.market_ok ? `Confirmed — BTC is holding above ${btc?.levels?.flip_mine ? "your" : "its"} flip line (${fmtPx(flip)}) and risk is on.` : `Patience — BTC is below ${btc?.levels?.flip_mine ? "your" : "its"} flip line (${fmtPx(flip)}). Alts need BTC to confirm first.`}
             </div>
           </div>
           <div className="text-right text-[12px] text-white/45">
@@ -219,7 +281,7 @@ export default async function LevelsPage() {
 
       {rows.length > 0 && (
         <p className="px-1 text-[11.5px] leading-relaxed text-white/35">
-          White ticks are your range levels (month open, previous month, Monday high/low, yesterday&apos;s high/low); blue ticks are Moonbag&apos;s range and flip line.
+          Amber ticks are the levels and flip line you gave Grok; white ticks are the range levels (week open, previous week, month open, previous month, Monday high/low, yesterday&apos;s high/low); blue ticks are Moonbag&apos;s range.
           Level = price within half a 4h candle of a level. Trigger = a 4h candle swept a key level and closed back, and price is still on the right side of it.
           Market = BTC holding above its flip line with risk on. Context only — only Moonbag A/A+ setups are trades. Prices are BloFin; TradingView charts on other exchanges can differ by a few hundredths of a percent.
         </p>
