@@ -58,6 +58,17 @@ export default async function SystemPage() {
         ))}
       </div>
 
+      {(data?.missed ?? []).length > 0 && (
+        <div className="rounded-2xl border border-rose-400/30 bg-rose-400/[0.06] px-4 py-3 text-[13px] text-rose-100">
+          <div className="font-semibold">Missed runs</div>
+          <ul className="mt-1 space-y-0.5">
+            {data!.missed!.map((m) => (
+              <li key={m.agent_id}>{m.label}: last logged {m.last_at ? whenShort(m.last_at) : "never"} (expected within {Math.round(m.max_gap_min / 60)}h)</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <Card title="Waiting on you" tone={proposed.length ? "warn" : undefined} sub="Change requests that need your yes before they are built. Tell Claude in Cowork.">
         {proposed.length === 0 ? <Empty>Nothing is waiting on you.</Empty> : (
           <div className="space-y-2">

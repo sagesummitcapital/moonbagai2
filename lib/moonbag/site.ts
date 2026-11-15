@@ -94,6 +94,10 @@ export type SystemPage = {
   shipped: { change_id: number; created_at: string; change: string; status: string }[] | null;
   coach: { started_at: string; mode: string; summary: string | null }[] | null;
   journal: { id: number; created_at: string; author: string; body: string }[] | null;
+  /** CR-80: key jobs that have not logged on time. */
+  missed?: { agent_id: string; label: string; max_gap_min: number; last_at: string | null; minutes_since: number | null }[] | null;
+  /** CR-79: middle-of-range vs edges, per range kind; warn only when his trades prove it. */
+  range_location?: { kind: string; middle_n: number | null; middle_r: number | null; edge_r: number | null; warn: boolean }[] | null;
 };
 
 async function rpc<T>(fn: string): Promise<T> {
@@ -105,7 +109,7 @@ async function rpc<T>(fn: string): Promise<T> {
 export const getToday = () => rpc<Today>("mb_today");
 export const getSetupsPage = () => rpc<SetupsPage>("mb_setups_page");
 export const getScorecard = () => rpc<Scorecard>("mb_scorecard");
-export const getSystemPage = () => rpc<SystemPage>("mb_system_page");
+export const getSystemPage = () => rpc<SystemPage>("mb_system_page_v2");
 
 /** Price formatting shared by the new pages. */
 export function fmt(v: number | null | undefined) {
