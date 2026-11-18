@@ -7,7 +7,7 @@ import type { SizingContext } from "@/lib/moonbag/limits";
 import { limitInputs, type LimitOrder } from "@/lib/moonbag/limits";
 import { feedHealth, type Freshness, type WoodsMachine as WM, type WoodsRow } from "@/lib/moonbag/woodsMachine";
 import { FeedStamp, FeedStamps, feedRow } from "./FeedStamps";
-import { Badge, Card, ago, money, num, px2, whenShort } from "./ui";
+import { Badge, Card, Ticket, TicketField as Field, TicketFoot, TicketHead, TicketRow, ago, money, num, px2, whenShort } from "./ui";
 
 const LEGS: [key: "a" | "b" | "c" | "d", label: string][] = [
   ["a", "Sweep"],
@@ -33,17 +33,7 @@ function Leg({ v, label }: { v: boolean | null | undefined; label: string }) {
   );
 }
 
-function Field({ k, v, sub, cls = "text-white" }: { k: string; v: string; sub?: string; cls?: string }) {
-  return (
-    <div className="min-w-0 rounded-lg bg-black/20 px-2.5 py-2">
-      <div className="text-[10.5px] uppercase tracking-[0.12em] text-white/40">{k}</div>
-      <div className={`mt-0.5 break-words font-mono text-[15px] font-semibold leading-tight tabular-nums ${cls}`}>{v}</div>
-      {sub && <div className="mt-0.5 font-mono text-[11px] tabular-nums text-white/45">{sub}</div>}
-    </div>
-  );
-}
-
-function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null; feed?: Freshness }) {
+function SweepTicket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null; feed?: Freshness }) {
   const lp = r.limit_plan;
   const long = r.side === "long";
   const order: LimitOrder | null = lp
@@ -53,19 +43,11 @@ function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null
   const conf = r.confidence ?? 0;
   const dim = !!r.blocked;
   return (
-    <div className={`min-w-0 rounded-xl border p-3.5 ${r.trigger ? "border-accent-green/50 bg-accent-green/[0.06]" : dim ? "border-white/[0.06] bg-white/[0.015] opacity-70" : "border-white/[0.09] bg-white/[0.03]"}`}>
-      {/* header: coin + side + grade + confidence */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <strong className="text-[16px] text-white">{r.coin}</strong>
-          <span className={`text-[13px] font-semibold ${long ? "text-accent-green" : "text-rose-300"}`}>{long ? "▲ LONG" : "▼ SHORT"}</span>
-          {r.trigger && <Badge tone="green" dot>WOODS TRIGGER</Badge>}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={gradeTone(r.grade)}>{r.grade ?? "—"}</Badge>
-          <span className="font-mono text-[13px] tabular-nums text-white/80">{conf}<span className="text-white/35">/100</span></span>
-        </div>
-      </div>
+    <Ticket tone={r.trigger ? "live" : dim ? "parked" : "plain"} className={dim && !r.trigger ? "opacity-70" : ""}>
+      {/* header: coin + side, then grade + confidence — the same header every ticket on the desk uses */}
+      <TicketHead coin={r.coin} side={r.side} right={<><Badge tone={gradeTone(r.grade)}>{r.grade ?? "—"}</Badge><span className="text-[13px] text-white/80">{conf}<span className="text-white/35">/100</span></span></>}>
+        {r.trigger && <Badge tone="green" dot>SWEEP TRIGGER</Badge>}
+      </TicketHead>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden>
         <div className={`h-full rounded-full ${conf >= 75 ? "bg-accent-green" : conf >= 60 ? "bg-accent-cyan" : conf >= 45 ? "bg-amber-300" : "bg-white/30"}`} style={{ width: `${Math.max(4, Math.min(100, conf))}%` }} />
       </div>
@@ -100,22 +82,22 @@ function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null
       {/* the order, laid out like BloFin's form */}
       {lp ? (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <TicketRow className="mt-3" label="Order">
             <Field k={long ? "Buy limit" : "Sell limit"} v={px2(lp.entry)} sub={`at ${lp.pool}`} />
             <Field k="Stop loss" v={px2(lp.stop)} sub={`${num(lp.stop_pct, 2)}% away`} cls="text-rose-300" />
             <Field k="TP1 · 70%" v={px2(lp.tp1)} sub={`${num(lp.rr1, 2)}R${lp.rr1 < 2 ? " · under 2:1 aim" : ""}`} cls="text-accent-green" />
             <Field k="TP2 · 30%" v={px2(lp.tp2)} sub={`${num(lp.rr2, 2)}R runner`} cls="text-accent-green" />
-          </div>
+          </TicketRow>
           {inp ? (
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+            <TicketRow className="mt-3" label="Position" cols={5}>
               <Field k="Size" v={`${inp.qty} ${r.coin}`} sub={`≈ ${money(inp.notional)}`} />
               <Field k="Leverage" v={`${inp.leverage}x`} sub={`max safe ${inp.ceiling}x`} />
               <Field k="Margin" v={money(inp.margin)} sub="cross · stop on exchange" />
               <Field k="Risk" v={money(inp.riskUsd)} sub={`${num(inp.riskPct, 2)}% of ${money(sizing?.equity)}`} cls="text-rose-300" />
               <Field k="Liq ≈" v={px2(inp.liq)} sub={inp.liqOk ? "beyond 1.25× stop" : "⚠ too close to stop"} cls={inp.liqOk ? "text-amber-200" : "text-rose-300"} />
-            </div>
+            </TicketRow>
           ) : null}
-          <div className="mt-2 text-[11.5px] leading-snug text-white/40">
+          <div className="mt-3 text-[11.5px] leading-snug text-white/45">
             At +1R take 50% and move the stop to entry; TP1 {px2(lp.tp1)} 30% more; last 20% to TP2.{inp ? ` +1R qty ${inp.qtyHalf} · TP1 qty ${inp.qtyTp1} · TP2 qty ${inp.qtyTp2}.` : ""} Fills only if price sweeps {lp.pool_note ?? lp.pool}.
           </div>
         </>
@@ -129,12 +111,12 @@ function Ticket({ r, sizing, feed }: { r: WoodsRow; sizing: SizingContext | null
         </div>
       )}
       {/* this ticket's own clocks: the coin's bar feed, the bar the scan read, and when it was scanned */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-white/[0.06] pt-2 font-mono text-[11px] tabular-nums text-white/40">
+      <TicketFoot>
         <FeedStamp coin={r.coin} f={feed} />
-        {r.data_as_of && <span>· data {whenShort(r.data_as_of)}</span>}
-        <span>· scanned {whenShort(r.as_of)} ({ago(r.as_of)})</span>
-      </div>
-    </div>
+        {r.data_as_of && <span>data {whenShort(r.data_as_of)}</span>}
+        <span>scanned {whenShort(r.as_of)} ({ago(r.as_of)})</span>
+      </TicketFoot>
+    </Ticket>
   );
 }
 
@@ -235,13 +217,13 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
         <div className="mb-3 space-y-1">
           {recentTriggers.map((e) => (
             <div key={e.id} className="rounded-lg border border-accent-green/40 bg-accent-green/[0.08] px-3 py-2 text-[13px] text-accent-green">
-              WOODS TRIGGER · {e.coin} {e.side} · all four legs · {whenShort(e.created_at)}
+              SWEEP TRIGGER · {e.coin} {e.side} · all four legs · {whenShort(e.created_at)}
             </div>
           ))}
         </div>
       )}
       {live.length ? (
-        <div className="grid gap-3 lg:grid-cols-2">{live.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
+        <div className="grid gap-3 lg:grid-cols-2">{live.map((r) => <SweepTicket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
       ) : quietDay ? null : (
         <p className="text-[13.5px] text-white/60">No limit worth placing right now — every side is blocked below. That is a normal state.</p>
       )}
@@ -258,7 +240,7 @@ export function WoodsMachine({ m, sizing }: { m: WM; sizing: SizingContext | nul
           <summary className="inline-flex min-h-[40px] cursor-pointer list-none items-center text-[12.5px] text-white/45 hover:text-white/70 [&::-webkit-details-marker]:hidden">
             <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>&nbsp;{parked.length} side{parked.length === 1 ? "" : "s"} not now (anchor, no-man&apos;s land, R:R) — tap to see
           </summary>
-          <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <Ticket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
+          <div className="mt-2 grid gap-3 lg:grid-cols-2">{parked.map((r) => <SweepTicket key={`${r.coin}-${r.side}`} r={r} sizing={sizing} feed={feedRow(m.feed, r.coin)} />)}</div>
         </details>
       )}
       <p className="mt-3 text-[11.5px] text-white/35">Sweep → close back → 4H RSI divergence → 1H trigger, checked every 15 minutes on closed BloFin bars. Limits sit at the nearest pool outside no-man&apos;s land; the confidence score shows how it was built. Sized from your calculated BloFin balance. Score = the components (out of 110) scaled to 100 · A+ ≥ 75 · A ≥ 60 · B ≥ 45. A and A+ are paper-tracked automatically and graded every Saturday. Analysis only — you place every order.</p>

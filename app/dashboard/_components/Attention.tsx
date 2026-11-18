@@ -8,11 +8,44 @@ import type { LivePrice as LP } from "@/lib/moonbag/prices";
 import { fmtPct, fmtRR, tradeMetrics } from "@/lib/moonbag/desk";
 import type { APlus } from "./Board";
 import { LiveMetric, TradeRail, type Stored } from "./LivePrice";
-import { Action, Badge, Card, Id, Tile, Updated, money, num, px2, whenShort } from "./ui";
+import { Action, Badge, Id, Ticket, TicketField, TicketFoot, TicketHead, TicketRow, Updated, ago, money, num, px2, whenShort } from "./ui";
 
 export type Flag = { key: string; tone: "amber" | "red" | "cyan" | "green"; title: string; detail?: string; href?: string; hrefLabel?: string };
 
-export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, nextCheck, clocks }: {
+/** What the desk already knows, handed over as finished values for the status read at the top of the page. Display only:
+ *  every field is a flag or a number the leverage page already loads or already prints somewhere else on the page. */
+export type DeskState = {
+  /** feedHealth() verdict for the BloFin bars. */
+  feedTone?: string | null;
+  /** Sweep machine: sides not blocked / all sides / unblocked sides with a trigger, and when it last scanned. */
+  sweepLive: number; sweepTotal: number; sweepTriggers: number; scanAt?: string | null;
+  /** Your own resting limits, and how many limits (yours or paper) were touched. */
+  yourLimits: number; touched: number;
+  /** Open risk in dollars and the 2% day stop in dollars — the same two figures as the account card. */
+  openRisk: number; dayStop: number;
+  windowOpen?: boolean;
+};
+
+const VERDICT = {
+  red: { dot: "bg-rose-400 motion-safe:animate-pulse-dot", text: "text-rose-200", bar: "bg-rose-400" },
+  green: { dot: "bg-accent-green motion-safe:animate-pulse-dot", text: "text-white", bar: "bg-accent-green" },
+  ready: { dot: "bg-accent-green", text: "text-white", bar: "bg-accent-green" },
+  amber: { dot: "bg-amber-300", text: "text-amber-100", bar: "bg-amber-300" },
+  gray: { dot: "bg-white/30", text: "text-white/85", bar: "bg-white/20" },
+} as const;
+
+/** One instrument on the status row: label, figure, one line under it. */
+function Gauge({ k, v, sub, cls = "text-white" }: { k: string; v: ReactNode; sub?: ReactNode; cls?: string }) {
+  return (
+    <div className="min-w-0 border-l border-white/[0.08] pl-3 first:border-l-0 first:pl-0 max-sm:[&:nth-child(odd)]:border-l-0 max-sm:[&:nth-child(odd)]:pl-0">
+      <div className="text-[10.5px] uppercase tracking-[0.14em] text-white/40">{k}</div>
+      <div className={`fig mt-1 font-mono text-[20px] font-semibold leading-none ${cls}`}>{v}</div>
+      {sub && <div className="mt-1 text-[11.5px] leading-snug text-white/45">{sub}</div>}
+    </div>
+  );
+}
+
+export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, nextCheck, clocks, desk }: {
   trades: Trade[];
   live: Record<string, LP>;
   storedFor: (asset: string) => Stored | undefined;
@@ -24,6 +57,8 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
   nextCheck?: string;
   /** Per-coin data clocks (FeedStamps). Shown right under a red stale-data flag so "which coin is stale?" is answered on the spot. */
   clocks?: ReactNode;
+  /** The desk's state for the 3-second read at the top of the card. Without it the card keeps its plain title. */
+  desk?: DeskState;
 }) {
   const total = aplusTotal ?? aplus.length;
   const quiet = !trades.length && !aplus.length && !flags.length;
@@ -41,19 +76,58 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
       ))}
     </div>
   );
+  // The 3-second read. It only names the state the page is already in — the first of these that is true, most serious
+  // first — and decides nothing: the flags, tiles and tickets below are unchanged and still carry the detail.
+  const s = desk;
+  const stale = s?.feedTone === "red" || danger.length > 0;
+  const verdict: { tone: keyof typeof VERDICT; head: string; sub: string } = stale
+    ? { tone: "red", head: "Data is stale — don't trade", sub: "The market data on this page is behind. Wait for the clocks to turn green before placing or moving anything." }
+    : trades.length
+      ? { tone: "green", head: `${trades.length} open trade${trades.length === 1 ? "" : "s"} — manage ${trades.length === 1 ? "it" : "them"}`, sub: "Stop, entry, targets and the live price are in the ticket below." }
+      : s && s.touched > 0
+        ? { tone: "amber", head: `${s.touched} limit${s.touched === 1 ? "" : "s"} touched — check BloFin`, sub: "Price reached a limit. Confirm on BloFin whether it filled, then tell Grok." }
+        : s && s.sweepTriggers > 0
+          ? { tone: "ready", head: "Sweep trigger — ticket ready", sub: "The Sweep machine has all four steps on a side. The ticket is in the Sweep machine card below." }
+          : total > 0
+            ? { tone: "ready", head: `${total} A+ setup${total === 1 ? "" : "s"} ready to place`, sub: "Limit, stop and both targets are in the ticket below. You place every order." }
+            : { tone: "gray", head: "Nothing to place — stand down", sub: s ? `No open trade and no A+ setup${s.sweepTotal ? `; the Sweep machine has ${s.sweepLive} of ${s.sweepTotal} sides tradable` : ""}. No trade is the default.` : "No open trade and no A+ setup. No trade is the default." };
+  const v = VERDICT[verdict.tone];
+  const ring = stale ? "border-rose-400/30 bg-rose-400/[0.04]" : trades.length || aplus.length ? "border-accent-green/25 bg-accent-green/[0.035]" : urgent ? "border-amber-300/25 bg-amber-300/[0.035]" : "border-white/[0.06] bg-white/[0.025]";
   return (
-    <Card
-      title="Needs you now"
-      tone={trades.length || aplus.length ? "accent" : urgent ? "warn" : undefined}
-      right={
-        <>
-          <Badge tone={trades.length ? "green" : "gray"} dot>{trades.length} open trade{trades.length === 1 ? "" : "s"}</Badge>
-          <Badge tone={total ? "green" : "gray"} dot>{total} A+ setup{total === 1 ? "" : "s"}</Badge>
-        </>
-      }
-    >
+    <section className={`min-w-0 rounded-2xl border p-4 md:p-5 ${ring}`}>
+      <div className="mb-4">
+        <div className="flex gap-3">
+          <span className={`w-[3px] shrink-0 self-stretch rounded-full ${v.bar}`} aria-hidden />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <h2 className="text-[11.5px] font-semibold uppercase tracking-[0.16em] text-white/45">Needs you now</h2>
+              {s && <span className="font-mono text-[11.5px] tabular-nums text-white/40">{s.windowOpen ? "trading hours" : "outside trading hours"}</span>}
+            </div>
+            <p className={`mt-1.5 flex items-center gap-2.5 text-[21px] font-semibold leading-tight tracking-tight sm:text-[24px] ${v.text}`}>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${v.dot}`} aria-hidden />
+              <span className="min-w-0">{verdict.head}</span>
+            </p>
+            <p className="mt-1 max-w-[70ch] text-[13px] leading-snug text-white/55">{verdict.sub}</p>
+          </div>
+        </div>
+        {s ? (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-white/[0.06] pt-3.5 sm:grid-cols-4">
+              <Gauge k="In the market" v={trades.length} cls={trades.length ? "text-accent-green" : "text-white/60"} sub={trades.length ? <>open risk <span className="font-mono tabular-nums text-white/75">{money(s.openRisk)}</span></> : "no open trade"} />
+              <Gauge k="Ready to place" v={total} cls={total ? "text-accent-green" : "text-white/60"} sub={<>A+ setup{total === 1 ? "" : "s"}{s.sweepTotal ? <> · Sweep machine {s.sweepLive} of {s.sweepTotal} sides tradable</> : null}{s.scanAt ? <span className="block font-mono tabular-nums text-white/40">scan {whenShort(s.scanAt)} ({ago(s.scanAt)})</span> : null}</>} />
+              <Gauge k="Resting limits" v={s.yourLimits} cls={s.touched ? "text-amber-200" : s.yourLimits ? "text-accent-cyan" : "text-white/60"} sub={s.touched ? `${s.touched} touched — filled?` : s.yourLimits ? "yours, working on BloFin" : "none of yours"} />
+              <Gauge k="Day stop · 2%" v={money(s.dayStop)} cls="text-rose-300" sub="lose this today = done · two losses = done" />
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-white/50">
+            <Badge tone={trades.length ? "green" : "gray"} dot>{trades.length} open trade{trades.length === 1 ? "" : "s"}</Badge>
+            <Badge tone={total ? "green" : "gray"} dot>{total} A+ setup{total === 1 ? "" : "s"}</Badge>
+          </div>
+        )}
+      </div>
       {quiet ? (
-        <p className="text-[14px] leading-relaxed text-white/65">{total ? "Nothing else needs you — the A+ setups are above." : "Nothing needs you right now — no open trade, no A+ setup, nothing late."} Waiting for price to reach a level is the normal state.{nextCheck ? ` ${nextCheck}` : ""}</p>
+        <p className="text-[13px] leading-relaxed text-white/55">{total ? "Nothing else needs you — the A+ setups are above." : "Nothing is late."} Waiting for price to reach a level is the normal state.{nextCheck ? ` ${nextCheck}` : ""}</p>
       ) : (
         <div className="space-y-3">
           {danger.length > 0 && <FlagList items={danger} />}
@@ -64,26 +138,23 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
             </div>
           )}
           {aplus.length > 0 && (
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               {aplus.map((a) => (
-                <div key={a.key} className="min-w-0 rounded-xl border border-accent-green/30 bg-accent-green/[0.05] p-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone="green">A+</Badge>
-                      <strong className="text-[15px] text-white">{a.coin} <span className={a.side === "long" ? "text-accent-green" : "text-rose-300"}>{a.side === "long" ? "▲ LONG" : "▼ SHORT"}</span></strong>
-                    </div>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-1.5 font-mono text-[13px] tabular-nums sm:grid-cols-4">
-                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">Limit</span><span className="break-words text-white">{px2(a.entry)}</span></span>
-                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">Stop</span><span className="break-words text-rose-300">{px2(a.stop)}</span></span>
-                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">TP1{a.rr == null ? "" : ` · ${a.rr.toFixed(1)}R`}</span><span className="break-words text-accent-green">{px2(a.tp1)}</span></span>
-                    <span className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5"><span className="block text-[10.5px] uppercase text-white/40">TP2 · runner</span><span className="break-words text-accent-green/80">{a.tp2 == null ? "—" : px2(a.tp2)}</span></span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] leading-snug text-white/50">
-                    <span>{a.strategy} · {a.record}</span>
+                <Ticket key={a.key} tone="ready">
+                  <TicketHead coin={a.coin} side={a.side} right={a.rr == null ? undefined : <span>plan R:R <strong className="text-white">{fmtRR(a.rr)}</strong></span>}>
+                    <Badge tone="green">A+</Badge>
+                  </TicketHead>
+                  <TicketRow className="mt-3" label="Order">
+                    <TicketField k={a.side === "long" ? "Buy limit" : "Sell limit"} v={px2(a.entry)} />
+                    <TicketField k="Stop loss" v={px2(a.stop)} cls="text-rose-300" />
+                    <TicketField k="TP1" v={px2(a.tp1)} sub={a.rr == null ? undefined : `${a.rr.toFixed(1)}R`} cls="text-accent-green" />
+                    <TicketField k="TP2 · runner" v={a.tp2 == null ? "—" : px2(a.tp2)} cls="text-accent-green" />
+                  </TicketRow>
+                  <TicketFoot>
                     {a.when && <Updated label="data" at={a.when} cadenceH={12} verb="" />}
-                  </div>
-                </div>
+                    <span className="font-sans text-white/50">{a.strategy} · {a.record}</span>
+                  </TicketFoot>
+                </Ticket>
               ))}
             </div>
           )}
@@ -93,7 +164,7 @@ export function NeedsYou({ trades, live, storedFor, aplus, aplusTotal, flags, ne
           )}
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -106,18 +177,13 @@ export function OpenTradeTile({ t, live, stored }: { t: Trade; live?: LP; stored
   const tp1 = t.current_tp1 ?? t.tp1 ?? t.target;
   const liveProps = { symbol: t.symbol, kind: "crypto" as const, initial: live, stored };
   return (
-    <Tile tone="accent">
-      {/* header: coin + side, the same way the A+ and Woods tickets say it */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <strong className="text-[16px] text-white">{t.symbol}</strong>
-          <span className={`text-[13px] font-semibold ${long ? "text-accent-green" : "text-rose-300"}`}>{long ? "▲ LONG" : "▼ SHORT"}</span>
-          <Badge tone="gray">{num(t.leverage, 0)}x</Badge>
-          {riskFree && <Badge tone="green" dot>risk-free</Badge>}
-          {t.status === "pending" && <Badge tone="amber" dot>pending fill</Badge>}
-        </div>
-        <span className="font-mono text-[12px] tabular-nums text-white/50">plan R:R <strong className="text-white">{fmtRR(m.rr)}</strong></span>
-      </div>
+    <Ticket tone="live">
+      {/* header: coin + side, the same header every ticket on the desk uses */}
+      <TicketHead coin={t.symbol} side={long ? "long" : "short"} right={<span>plan R:R <strong className="text-white">{fmtRR(m.rr)}</strong></span>}>
+        <Badge tone="gray">{num(t.leverage, 0)}x</Badge>
+        {riskFree && <Badge tone="green" dot>risk-free</Badge>}
+        {t.status === "pending" && <Badge tone="amber" dot>pending fill</Badge>}
+      </TicketHead>
       <TradeRail
         className="mt-3"
         {...liveProps}
@@ -137,15 +203,15 @@ export function OpenTradeTile({ t, live, stored }: { t: Trade; live?: LP; stored
         <span className="text-white/35">from the live price</span>
       </div>
       <TradeFacts t={t} />
-      <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 border-t border-white/[0.06] pt-2 font-mono text-[11.5px] tabular-nums text-white/45">
+      <TicketFoot>
         <span>risk {money(t.risk_dollars)} <span className="text-rose-300/80">{fmtPct(m.riskPct)}</span> / <span className="text-accent-green/80">{fmtPct(m.rewardPct)}</span> acct</span>
         <span>open {num(t.qty_open ?? t.quantity, 4)}{t.quantity ? ` (${num((100 * Number(t.qty_open ?? t.quantity)) / Number(t.quantity), 0)}%)` : ""}</span>
         {Number(t.banked_pnl) ? <span className={Number(t.banked_pnl) > 0 ? "text-accent-green" : "text-rose-300"}>banked {Number(t.banked_pnl) > 0 ? "+" : ""}{money(t.banked_pnl)}</span> : null}
         <span>opened {whenShort(t.opened_at)}</span>
         <span className="text-white/35">record {whenShort(t.updated_at)}</span>
         <Id>{t.trade_id}</Id>
-      </div>
-    </Tile>
+      </TicketFoot>
+    </Ticket>
   );
 }
 
@@ -183,21 +249,11 @@ function TradeFacts({ t }: { t: Trade }) {
     ["Liq ≈", liq == null ? "—" : `${px2(liq)}${liqOk ? "" : " ⚠"}`, liqOk ? "text-amber-200" : "text-rose-300", liq == null ? undefined : liqOk ? "beyond 1.25× stop" : "too close to stop"],
     ["Open for", openFor, "text-white"],
   ];
-  const Row = ({ cells, cols }: { cells: [string, string, string, string?][]; cols: string }) => (
-    <div className={`grid gap-1.5 font-mono text-[13px] tabular-nums ${cols}`}>
-      {cells.map(([k, v, c, sub]) => (
-        <span key={k} className="min-w-0 rounded-lg bg-black/20 px-2 py-1.5">
-          <span className="block text-[10.5px] uppercase tracking-wide text-white/40">{k}</span>
-          <span className={`block break-words font-semibold leading-tight ${c}`}>{v}</span>
-          {sub && <span className="block text-[10.5px] text-white/40">{sub}</span>}
-        </span>
-      ))}
-    </div>
-  );
+  const cells = (rows: [string, string, string, string?][]) => rows.map(([k, v, c, sub]) => <TicketField key={k} k={k} v={v} cls={c} sub={sub} />);
   return (
-    <div className="mt-3 space-y-1.5">
-      <Row cells={levels} cols={levels.length > 5 ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"} />
-      <Row cells={position} cols="grid-cols-2 sm:grid-cols-4" />
+    <div className="mt-3 space-y-3">
+      <TicketRow label="Levels" cols={levels.length > 5 ? 6 : 5}>{cells(levels)}</TicketRow>
+      <TicketRow label="Position" cols={4}>{cells(position)}</TicketRow>
     </div>
   );
 }

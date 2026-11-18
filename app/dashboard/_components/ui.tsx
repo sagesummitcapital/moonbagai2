@@ -152,6 +152,67 @@ export function Tile({ title, right, children, className = "", tone }: { title?:
   );
 }
 
+// ------------------------------------------------------------------ the trade ticket (one look for every ticket on the desk)
+// Design direction 2026-11-09, item 4: the A+ card, the open-trade tile, the Sweep-machine ticket and the resting-limit
+// ticket are the same object. They share this shell, this header and this field, so a price is always found in the same
+// place and reads at the same size. Display only — these take finished strings.
+
+export type TicketTone = "live" | "ready" | "caution" | "parked" | "plain";
+const TICKET_RING: Record<TicketTone, string> = {
+  live: "border-accent-green/40 bg-accent-green/[0.05]",     // money is in the market
+  ready: "border-accent-green/25 bg-accent-green/[0.03]",    // worth placing
+  caution: "border-amber-300/30 bg-amber-300/[0.04]",        // needs a look (touched limit)
+  parked: "border-white/[0.06] bg-white/[0.015]",            // blocked — present, quiet
+  plain: "border-white/[0.09] bg-white/[0.025]",
+};
+
+/** The ticket shell: one hairline box, tone says what state the trade is in. */
+export function Ticket({ tone = "plain", children, className = "" }: { tone?: TicketTone; children: ReactNode; className?: string }) {
+  return <div className={`min-w-0 rounded-xl border p-3.5 ${TICKET_RING[tone]} ${className}`}>{children}</div>;
+}
+
+/** Ticket header: COIN ▲ LONG, then badges; `right` holds the one figure that grades it (R:R, confidence). */
+export function TicketHead({ coin, side, children, right }: { coin: ReactNode; side?: string | null; children?: ReactNode; right?: ReactNode }) {
+  const long = side !== "short";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <strong className="text-[17px] font-semibold leading-none tracking-tight text-white">{coin}</strong>
+        {side && <span className={`text-[12.5px] font-semibold tracking-wide ${long ? "text-accent-green" : "text-rose-300"}`}>{long ? "▲ LONG" : "▼ SHORT"}</span>}
+        {children}
+      </div>
+      {right && <div className="flex items-center gap-2 font-mono text-[12px] tabular-nums text-white/50">{right}</div>}
+    </div>
+  );
+}
+
+/** One labelled figure on a ticket, the way an order form shows it: small label, instrument number, optional note under it. */
+export function TicketField({ k, v, sub, cls = "text-white" }: { k: ReactNode; v: ReactNode; sub?: ReactNode; cls?: string }) {
+  return (
+    <div className="min-w-0 border-l border-white/[0.1] py-0.5 pl-2.5">
+      <div className="text-[10.5px] uppercase leading-tight tracking-[0.12em] text-white/40">{k}</div>
+      <div className={`fig mt-1 break-words font-mono text-[15px] font-semibold leading-tight ${cls}`}>{v}</div>
+      {sub && <div className="mt-0.5 break-words font-mono text-[11px] leading-snug tabular-nums text-white/45">{sub}</div>}
+    </div>
+  );
+}
+
+/** A row of ticket fields: 2-up on a phone, `cols` wide from the sm breakpoint. `label` names the row (ORDER / POSITION). */
+export function TicketRow({ children, cols = 4, label, className = "" }: { children: ReactNode; cols?: 3 | 4 | 5 | 6; label?: ReactNode; className?: string }) {
+  const c = { 3: "sm:grid-cols-3", 4: "sm:grid-cols-4", 5: "sm:grid-cols-3 lg:grid-cols-5", 6: "sm:grid-cols-3 lg:grid-cols-6" }[cols];
+  return (
+    <div className={className}>
+      {label && <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">{label}</div>}
+      <div className={`grid grid-cols-2 gap-x-2 gap-y-2.5 ${c}`}>{children}</div>
+    </div>
+  );
+}
+
+/** Ticket footer: the ticket's own clocks and ids, under a hairline. Never optional on a ticket that carries prices. */
+export function TicketFoot({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/[0.06] pt-2 font-mono text-[11.5px] tabular-nums text-white/45 ${className}`}>{children}</div>;
+}
+
 // ------------------------------------------------------------------ figures
 
 const TONE_TEXT: Record<Tone, string> = {

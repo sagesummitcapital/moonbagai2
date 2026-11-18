@@ -18,7 +18,7 @@ import { best, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { FeedStamps } from "../_components/FeedStamps";
 import {
-  Badge, Card, Cell, DocText, Empty, Expander, Fold, KV, LongText, Id, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Tile, Updated,
+  Badge, Card, Cell, DocText, Empty, Expander, Fold, KV, LongText, Id, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Ticket, TicketField, TicketFoot, TicketHead, TicketRow, Tile, Updated,
   ago, biasGlyph, biasTone, gradeTone, list, money, money0, num, px, px2, when, whenShort,
 } from "../_components/ui";
 
@@ -115,6 +115,21 @@ export default async function LeveragePage() {
 
   const openRisk = openTrades.reduce((a, t) => a + Number(t.risk_dollars ?? 0), 0);
   const hasPaperLimits = (limits?.open ?? []).some((o) => o.origin === "paper");
+  // The 3-second read at the top of "Needs you now" (display only): counts of what is already on this page, plus the
+  // open-risk and 2% day-stop dollars the account card prints further down.
+  const sweepRows = machine?.rows ?? [];
+  const deskState = {
+    feedTone: feed?.tone ?? null,
+    sweepLive: sweepRows.filter((r) => !r.blocked).length,
+    sweepTotal: sweepRows.length,
+    sweepTriggers: sweepRows.filter((r) => r.trigger && !r.blocked).length,
+    scanAt: sweepRows.map((r) => r.as_of).sort().pop() ?? null,
+    yourLimits: yourLimits.length,
+    touched: (limits?.open ?? []).filter((o) => o.status === "touched").length,
+    openRisk,
+    dayStop: equity * 0.02,
+    windowOpen: win.open,
+  };
 
   return (
     <div className="space-y-5">
@@ -137,7 +152,7 @@ export default async function LeveragePage() {
       />
 
       {/* ------------------------------------------------ 1. what needs you */}
-      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The Desk Lead checks again a few minutes past each hour; the Sweep machine every 15 minutes." clocks={machine ? <FeedStamps feed={machine.feed} /> : undefined} />
+      <NeedsYou trades={openTrades} live={live} storedFor={storedFor} aplus={aplus} flags={flags} nextCheck="The Desk Lead checks again a few minutes past each hour; the Sweep machine every 15 minutes." clocks={machine ? <FeedStamps feed={machine.feed} /> : undefined} desk={deskState} />
 
       {/* ------------------------------------------------ 1b. the Sweep machine — main strategy, live every 15 min */}
       {machine && machine.rows.length > 0 && <div id="woods"><WoodsMachine m={machine} sizing={sizing} /></div>}
@@ -221,6 +236,43 @@ export default async function LeveragePage() {
             right={yourLimits.length ? <Badge tone="cyan" dot>{yourLimits.length} resting</Badge> : hasPaperLimits ? <span>paper only</span> : <span>none</span>}
             sub="Your resting BloFin limit orders (Grok records them; each has a TradingView alert at its price) and Moonbag's paper limits testing the backtested limit recipe."
           >
+            {/* your own resting limits as tickets — the same object as the open-trade, A+ and Sweep-machine tickets; the full table (with paper rows) stays below */}
+            {yourLimits.length > 0 && (
+              <div className="mb-4 grid gap-3 lg:grid-cols-2">
+                {yourLimits.map((o) => {
+                  const i = inputsFor(o);
+                  const touched = o.status === "touched";
+                  return (
+                    <Ticket key={`tk-${o.limit_id}`} tone={touched ? "caution" : "plain"}>
+                      <TicketHead coin={o.symbol} side={o.direction} right={<span>plan R:R <strong className="text-white">{fmtRR(o.plan_r == null ? null : Number(o.plan_r))}</strong></span>}>
+                        <Badge tone="cyan">{o.origin === "moonbag" ? "Moonbag pick" : "yours"}</Badge>
+                        {o.grade ? <Badge tone={o.grade === "A+" ? "green" : o.grade === "A" ? "cyan" : "amber"}>{o.grade}</Badge> : null}
+                        <Badge tone={touched ? "amber" : "gray"} dot={touched}>{touched ? "touched — filled?" : "working"}</Badge>
+                      </TicketHead>
+                      <TicketRow className="mt-3" label="Order">
+                        <TicketField k={o.direction === "long" ? "Buy limit" : "Sell limit"} v={px2(o.limit_price)} />
+                        <TicketField k="Stop loss" v={px2(o.current_stop ?? o.stop)} cls="text-rose-300" />
+                        <TicketField k="TP1" v={px2(o.tp1)} sub={o.plan_r == null ? undefined : `${num(o.plan_r, 1)}R`} cls="text-accent-green" />
+                        <TicketField k="TP2 · runner" v={o.tp2 == null ? "—" : px2(o.tp2)} cls="text-accent-green" />
+                      </TicketRow>
+                      <TicketRow className="mt-3" label="Position">
+                        <TicketField k="Size" v={o.quantity != null ? `${num(o.quantity, 4)} ${o.symbol}` : i ? `${i.qty} ${o.symbol}` : "—"} sub={o.quantity == null && i ? "suggested — see Trade inputs" : undefined} />
+                        <TicketField k="Leverage" v={o.leverage != null ? `${num(o.leverage, 0)}x` : i ? `${i.leverage}x` : "—"} />
+                        <TicketField k="Margin" v={o.margin != null ? money(o.margin) : i ? money(i.margin) : "—"} />
+                        <TicketField k="Risk" v={o.risk_dollars != null ? money(o.risk_dollars) : i ? money(i.riskUsd) : "—"} sub={o.risk_percent != null ? `${num(o.risk_percent, 2)}% of the account` : o.risk_dollars == null && i ? `${num(i.riskPct, 2)}% of the account` : undefined} cls="text-rose-300" />
+                      </TicketRow>
+                      {o.invalid_if && <div className="mt-3 rounded-md bg-amber-300/[0.06] px-2.5 py-1.5 text-[12.5px] leading-snug text-amber-100/90"><strong className="text-amber-100">Cancel if:</strong> {o.invalid_if}</div>}
+                      <TicketFoot>
+                        <Updated label="order" at={o.updated_at} cadenceH={24} verb="updated" />
+                        <span>cancel by {o.expires_at ? whenShort(o.expires_at) : "— (until cancelled)"}</span>
+                        {o.touched_at && <span className="text-amber-200/80">touched {whenShort(o.touched_at)}</span>}
+                        <Id>{o.limit_id}</Id>
+                      </TicketFoot>
+                    </Ticket>
+                  );
+                })}
+              </div>
+            )}
             <Table
               head={["Coin", "Side", "Limit", "Stop", "TP1", "TP2", "R : R", "Size", "Status", "Expires", "Updated"]}
               align={["l", "l", "r", "r", "r", "r", "r", "r", "l", "l", "l"]}
@@ -377,7 +429,7 @@ export default async function LeveragePage() {
                   <div className="mt-3 text-[12px] leading-relaxed text-white/60">
                     <div className="uppercase tracking-wide text-white/45">Line filters — followed vs ignored</div>
                     {journal.filters.map((f) => (
-                      <div key={f.filter_id}>{f.mentor}: {f.rule} — followed {f.n_followed} ({num(f.r_followed ?? 0)}R) · ignored {f.n_ignored} ({num(f.r_ignored ?? 0)}R)</div>
+                      <div key={f.filter_id}>{f.rule} — followed {f.n_followed} ({num(f.r_followed ?? 0)}R) · ignored {f.n_ignored} ({num(f.r_ignored ?? 0)}R)</div>
                     ))}
                   </div>
                 )}
