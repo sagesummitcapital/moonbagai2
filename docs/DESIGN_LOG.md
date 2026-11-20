@@ -106,3 +106,22 @@ Not a weekly design pass, but it touched the dashboard, so future passes should 
 - Data gaps (for Claude, outside the design pass): there is no "BloFin paused" field, so the verdict can't say "paused". The day-stop figure is the page's existing 2%, but risk_config.daily_loss_stop_pct exists and recent runs mention a 4% daily stop, so check which one is right.
 - Reviewed from code only (live site asked for a sign-in in the Claude browser). npm registry blocked in the sandbox, so typecheck used tsc 7 + shim types: no new errors vs baseline. ~344 changed lines. Built on Fable.
 - Stavros's reaction: (pending)
+
+## 2026-11-19 — Prop page: the 3-second read
+- One panel at the top answers "can I trade, and how much?": the hero is the most you can risk on the next trade (big, green). When the plan is locked it reads LOCKED in rose, with the lock reasons under it.
+- An out-of-date balance says so: when the plan's status is stale, the hero reads "OUT OF DATE — no new trades until a fresh snapshot" with a pulsing rose dot, instead of a plain LOCKED. Same state, same lock reasons.
+- Snapshot time sits in the panel's top line ("balance snapshot · taken … (Xh ago)", green/amber/red by age) and stays on the Balance number too.
+- Firm limits are one instrument row with thin meters: Room today, To the floor, To pass, Balance. Room turns amber when thin and rose when nearly gone (same thresholds). Balance is white, with "+/−$ since start" in green/rose under it.
+- Your plan today is a second instrument row: Trades left, Losses left, Today's result (pnl_today, already loaded), To day stop, To floor (plan, counts open trades at stops) and Open risk at stops. The rules are one short line, with the full 11/13 rules text one tap away, word for word. The 11 checks are a 40px tap and still open by themselves when the plan is open.
+- Open prop trades use the shared ticket look: coin, ▲ LONG / ▼ SHORT, risk, risk % of start, leverage, opened time, firm-flag badge, note and id. A flagged one turns amber.
+- Phone: the 10-column trades table becomes a three-line row per trade under 640px, with every column kept; the desktop table is unchanged. The Daily log fits 375px.
+- Less noise: the three "Evaluation → Passed → Funded" boxes are one slim line, and "What your BloFin data says" folds away with the rules and sizing. The breached note moved to just under the page title.
+- Files: app/dashboard/prop/page.tsx
+- Held back (needs Stavros's OK): a "plan didn't load" notice (today the panel quietly falls back to Balance as the hero); plain-English rewording of raw lock reasons; a tighter snapshot freshness window than 24h while a trade is open.
+- Data gaps (for Claude, outside the design pass):
+  - PropTrade (v_prop_adherence) has no entry, stop, target, size or live price, so the prop ticket says "read them on Breakout". Add those columns to the view and the type.
+  - Firm "to floor" (snapshot) and plan "to floor" (counts open trades at stops) are both shown and labelled; confirm the difference is intended.
+  - GROK_PROP_PLAYBOOK in lib/moonbag/prop.ts names mentors in item 5c, and it shows in the "How Grok handles this account" fold. That file is read-only for the design pass.
+  - Rule numbers ($100, $50 inside $200, 2 trades) are hard-coded in the copy, while p.rules carries live values.
+- Reviewed from code only (the live site asked for a sign-in in the Claude browser). The npm registry was blocked, so the typecheck used global tsc 7 without packages: no new real errors, and only missing-package/key-prop noise vs the baseline. 301 changed lines. Built on Fable.
+- Stavros's reaction: (pending)
