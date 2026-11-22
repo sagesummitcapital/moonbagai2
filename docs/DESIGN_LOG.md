@@ -125,3 +125,18 @@ Not a weekly design pass, but it touched the dashboard, so future passes should 
   - Rule numbers ($100, $50 inside $200, 2 trades) are hard-coded in the copy, while p.rules carries live values.
 - Reviewed from code only (the live site asked for a sign-in in the Claude browser). The npm registry was blocked, so the typecheck used global tsc 7 without packages: no new real errors, and only missing-package/key-prop noise vs the baseline. 301 changed lines. Built on Fable.
 - Stavros's reaction: (pending)
+
+## 2026-11-22 — Tracker: the 3-second read
+- Today's BloFin result is the one hero number (40px phone, up to 56px desktop) with a thin green/rose/grey bar; This week, This month and All time sit beside it as one hairline instrument row instead of four equal boxes. Same numbers; "—" when nothing closed today.
+- The income panel says how fresh it is: footer clocks for last closed trade, trade log last changed and page read (Phoenix), plus "A trade that isn't logged yet isn't in these numbers."
+- The month is one panel instead of seven boxes: net for the month leads, then PnL %, Total R, Win rate and Wins · losses (trade and breakeven counts under it). Every figure kept.
+- 72-hour reviews use the shared ticket look: coin, ▲ LONG / ▼ SHORT, entry time, You made / Best offered / You kept, "Next time" on a green line. Newest three open; older ones (up to five) one tap away.
+- Trade log fits a phone: under 640px each trade is a three-line row with all 12 columns kept; desktop table unchanged.
+- Long-term holds show each "Now" price's source and time, or an amber "no live price — failed to load". On a phone each hold is a ticket instead of an 860px sideways table.
+- "This week's focus" is the line you read in "Getting better?" (white, cyan hairline, last verdict under it) instead of a grey footnote.
+- Consistency: Leverage / Long-term tabs and month picker are 40px taps; amber only means caution (counts, weekly scores and selected month now white); no-open-trade dashed box is one quiet line.
+- Files: app/dashboard/tracker/page.tsx
+- Held back (needs Stavros's OK): a "trade log may be behind" warning (new warning rule); folding the "Getting better?" KPI table on phones; phone rows for the By market / side / setup tables.
+- Data gaps (for Claude, outside the design pass): no "BloFin last synced" timestamp; lev_scorecard / lev_weekly_scorecard have no computed-at time (no stamp on "This week so far"); trade_review_72h select has no reviewed-at; long-term holds have no stored fallback price.
+- Reviewed from code only (the live site asked for a sign-in in the Claude browser). npm registry unreachable, so the typecheck used global tsc 7 without packages: no new real errors, only missing-package/key-prop noise vs baseline. ~290 changed lines. Built on Fable.
+- Stavros's reaction: (pending)

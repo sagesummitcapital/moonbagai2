@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { listTrades } from "@/lib/moonbag/db";
 import { fmtPct, fmtRR, isDeskAlert, tradeMetrics, type LevSignal } from "@/lib/moonbag/desk";
@@ -8,7 +9,7 @@ import { DataNotice } from "../_components/Notice";
 import { OpenTradeTile } from "../_components/Attention";
 import { cryptoSetFrom, loadLive } from "../_components/live";
 import { DivergingBars } from "../_components/charts";
-import { Badge, Card, Empty, Fold, Id, Mono, Note, PageHeader, Quiet, Table, biasGlyph, biasTone, money, num, px2, when } from "../_components/ui";
+import { Badge, Card, Empty, Expander, Fold, Id, Mono, Note, PageHeader, Quiet, Table, Ticket, TicketField, TicketFoot, TicketHead, TicketRow, ago, biasGlyph, biasTone, money, num, px2, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,11 @@ const tradeRow = (t: Trade): Row => ({
 
 const signed = (v: number, d = 2, unit = "") => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}${unit}`;
 const tone = (v: number | null) => (v == null || v === 0 ? "text-white/70" : v > 0 ? "text-accent-green" : "text-rose-300");
+// Instrument look shared with the Command and Prop pages: small caps label, hairline cells, a thin up/down/flat bar.
+const LABEL = "text-[11px] font-medium uppercase tracking-[0.16em] text-white/45";
+const PANEL = "min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]";
+const rail = (v: number) => (v > 0 ? "bg-accent-green" : v < 0 ? "bg-rose-400" : "bg-white/20");
+const sideOf = (direction?: string | null) => (biasTone(direction) === "red" ? "short" : "long");
 
 export default async function TrackerPage({ searchParams }: { searchParams?: { m?: string; book?: string } }) {
   const { data, error } = await load(async () => {
@@ -140,6 +146,13 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
     { label: "This month", ...tally(lev.filter((t) => monthKey(t.closed_at!) === nowKey).map(tradeRow)) },
     { label: "All time", ...tally(lev.map(tradeRow)) },
   ];
+  const today = income[0];
+  const tallyLine = (x: ReturnType<typeof tally>) => (x.trades ? <><span className={tone(x.totalR)}>{signed(x.totalR, 2, "R")}</span> · {x.trades} trade{x.trades === 1 ? "" : "s"}{x.winRate != null ? ` · ${x.winRate.toFixed(0)}% win` : ""}</> : null);
+  // Clocks for the income panel (display only): newest close, newest change to any leverage trade row, and when this page was read.
+  const newest = (xs: (string | null | undefined)[]) => xs.reduce<string | null>((a, x) => (x && (!a || new Date(x).getTime() > new Date(a).getTime()) ? x : a), null);
+  const lastClosed = newest(lev.map((t) => t.closed_at));
+  const lastRecord = newest([...lev, ...data.open.filter((t) => t.venue === "blofin")].map((t) => t.updated_at));
+  const readAt = new Date().toISOString();
   // day-by-day for the selected month (leverage only)
   const days = Array.from(new Set(lev.filter((t) => monthKey(t.closed_at!) === m).map(levDay))).sort().reverse()
     .map((d) => ({ name: new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), ...tally(lev.filter((t) => levDay(t) === d).map(tradeRow)) }));
@@ -172,7 +185,7 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         <span key="a" className="font-mono text-accent-green">{r.wins}</span>,
         <span key="b" className="font-mono text-rose-300">{r.losses}</span>,
         <span key="c" className="font-mono text-white/55">{r.be}</span>,
-        <span key="d" className="font-mono text-amber-200">{r.trades}</span>,
+        <span key="d" className="font-mono text-white/80">{r.trades}</span>,
       ])}
       empty={empty}
     />
@@ -180,86 +193,190 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
     );
   };
 
+  // A 72-hour review in the shared ticket look: what you made, the best price offered, and how much of it you kept.
+  const reviewTicket = (r: Review72) => (
+    <Ticket key={r.trade_id}>
+      <TicketHead coin={r.symbol} side={sideOf(r.direction)} right={<span>entered {when(r.opened_at)}</span>}>
+        {r.verdict && r.verdict !== "backfill" && <Badge tone="gray">{r.verdict.replace(/_/g, " ")}</Badge>}
+      </TicketHead>
+      <TicketRow className="mt-3" cols={3}>
+        <TicketField k="You made" v={r.r_realized == null ? "—" : signed(Number(r.r_realized), 2, "R")} cls={tone(r.r_realized)} />
+        <TicketField k="Best offered" v={r.mfe_r == null ? "—" : signed(Number(r.mfe_r), 2, "R")} sub="within 72h of entry" cls="text-white/85" />
+        <TicketField k="You kept" v={r.capture_pct == null ? "—" : `${Number(r.capture_pct).toFixed(0)}%`} sub="of the best move" cls="text-white/85" />
+      </TicketRow>
+      {(r.what_price_did || r.best_play || r.improve) && (
+        <div className="mt-3 space-y-1 text-[13px] leading-relaxed">
+          {r.what_price_did && <p className="text-white/70">{r.what_price_did}</p>}
+          {r.best_play && <p className="text-white/60"><span className="text-white/40">Best play:</span> {r.best_play}</p>}
+          {r.improve && <p className="border-l-2 border-accent-green/50 pl-2.5 text-white/90"><span className="text-accent-green">Next time:</span> {r.improve}</p>}
+        </div>
+      )}
+    </Ticket>
+  );
+
   const tabs = (
-    <div className="flex gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
+    <div className="flex max-w-full gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] p-1 text-[12.5px]">
       {([["blofin", "Leverage · daily income"], ["longterm", "Long-term holds"]] as const).map(([k, label]) => (
-        <Link key={k} href={href(m, k)} className={`whitespace-nowrap rounded-full px-3 py-1 ${book === k ? "bg-white/[0.1] font-medium text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
+        <Link key={k} href={href(m, k)} className={`inline-flex min-h-[40px] items-center whitespace-nowrap rounded-full px-3 ${book === k ? "bg-white/[0.1] font-medium text-white" : "text-white/55 hover:text-white"}`}>{label}</Link>
       ))}
     </div>
   );
   const monthPicker = (
     <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 text-[13px]">
       {months.map((k) => (
-        <Link key={k} href={href(k)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 ${k === m ? "border border-amber-300/50 bg-amber-300/10 font-medium text-white" : "text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
+        <Link key={k} href={href(k)} className={`inline-flex min-h-[40px] items-center whitespace-nowrap rounded-lg border px-3 ${k === m ? "border-white/25 bg-white/[0.08] font-medium text-white" : "border-transparent text-white/55 hover:text-white"}`}>{monthLabel(k)}</Link>
       ))}
     </div>
   );
   const tradeLog = (
     <Fold count={shown.length} title={`Trade log — ${monthLabel(m)}`} open={book === "blofin"}>
       {shown.length ? (
-        <Table
-          head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
-          align={["l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
-          minWidth={1100}
-          rows={shown.map((t) => {
-            const x = tradeMetrics(t);
-            return [
-              <span key="c"><span className="whitespace-nowrap">{when(t.closed_at)}</span><br /><Id>{t.trade_id}</Id></span>,
-              <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
-              <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
-              <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
-              <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
-              <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
-              <span key="rs" className={`font-mono ${tone(x.resultPct)}`}>{fmtPct(x.resultPct, 2)}</span>,
-              <span key="r" className={`font-mono ${tone(t.r_multiple)}`}>{t.r_multiple == null ? "—" : signed(Number(t.r_multiple), 2, "R")}</span>,
-              <span key="p" className={`font-mono ${tone(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}`}>{money(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}</span>,
-              t.leverage != null ? `${num(t.leverage, 0)}x` : "—",
-              t.holding_period ?? "—",
-              t.exit_reason ?? "—",
-            ];
-          })}
-        />
+        <>
+          {/* Phone: one three-line row per trade, every column kept — no sideways scrolling to find the result. */}
+          <ul className="divide-y divide-white/[0.06] sm:hidden">
+            {shown.map((t) => {
+              const x = tradeMetrics(t);
+              const net = Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0);
+              return (
+                <li key={t.trade_id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0">
+                      <strong className="text-[15px] font-semibold text-white">{t.symbol}</strong>{" "}
+                      <span className={`text-[12px] font-semibold tracking-wide ${sideOf(t.direction) === "short" ? "text-rose-300" : "text-accent-green"}`}>{biasGlyph(t.direction)} {String(t.direction).toUpperCase()}</span>
+                      <span className="text-[12px] text-white/40"> · {t.venue}</span>
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap font-mono tabular-nums">
+                      <span className={`fig text-[15px] font-semibold ${tone(t.r_multiple)}`}>{t.r_multiple == null ? "—" : signed(Number(t.r_multiple), 2, "R")}</span>
+                      <span className={`ml-2 text-[13px] ${tone(net)}`}>{money(net)}</span>
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[12px] tabular-nums text-white/55">
+                    <span>result <span className={tone(x.resultPct)}>{fmtPct(x.resultPct, 2)}</span></span>
+                    <span>risked <span className="text-rose-300">{fmtPct(x.riskPct)}</span></span>
+                    <span>planned <span className="text-white/80">{fmtRR(x.rr)}</span></span>
+                    <span>lev <span className="text-white/80">{t.leverage != null ? `${num(t.leverage, 0)}x` : "—"}</span></span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-white/45">
+                    <span>closed <span className="text-white/70">{when(t.closed_at)}</span></span>
+                    <span>held {t.holding_period ?? "—"}</span>
+                    <span>exit: {t.exit_reason ?? "—"}</span>
+                    <span>call: {t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? ` · ${num(t.moonbag_score, 0)}` : ""}</span>
+                    <Id>{t.trade_id}</Id>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden sm:block">
+          <Table
+            head={["Closed", "Market", "Side", "Call", "Planned R : R", "Risked", "Result %", "R", "P&L (net)", "Lev", "Held", "Exit"]}
+            align={["l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "l", "l"]}
+            minWidth={1100}
+            rows={shown.map((t) => {
+              const x = tradeMetrics(t);
+              return [
+                <span key="c"><span className="whitespace-nowrap">{when(t.closed_at)}</span><br /><Id>{t.trade_id}</Id></span>,
+                <span key="m">{t.symbol} <span className="text-white/40">· {t.venue}</span></span>,
+                <Badge key="d" tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>,
+                <span key="o" className="text-[12.5px]">{t.origin === "moonbag" ? "Moonbag" : t.origin === "own" ? "Own" : "—"}{t.moonbag_score != null ? <span className="text-white/40"> · {num(t.moonbag_score, 0)}</span> : null}</span>,
+                <span key="rr" className="font-mono">{fmtRR(x.rr)}</span>,
+                <span key="rk" className="font-mono text-rose-300">{fmtPct(x.riskPct)}</span>,
+                <span key="rs" className={`font-mono ${tone(x.resultPct)}`}>{fmtPct(x.resultPct, 2)}</span>,
+                <span key="r" className={`font-mono ${tone(t.r_multiple)}`}>{t.r_multiple == null ? "—" : signed(Number(t.r_multiple), 2, "R")}</span>,
+                <span key="p" className={`font-mono ${tone(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}`}>{money(Number(t.realized_pnl ?? 0) - Number(t.fees ?? 0))}</span>,
+                t.leverage != null ? `${num(t.leverage, 0)}x` : "—",
+                t.holding_period ?? "—",
+                t.exit_reason ?? "—",
+              ];
+            })}
+          />
+          </div>
+        </>
       ) : (
         <Empty>No closed trades in {monthLabel(m)}.</Empty>
       )}
     </Fold>
   );
+  // The month in one panel: net result first, then four instrument numbers. Same figures as the seven tiles it replaces.
   const monthTiles = (
-    <>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <Tile label={`Net ${monthLabel(m)}`} value={money(total.pnl)} cls={tone(total.pnl)} wide />
-        <Tile label="PnL %" value={signed(total.pct, 2, "%")} cls={tone(total.pct)} />
-        <Tile label="Total R" value={signed(total.totalR, 2, "R")} cls={tone(total.totalR)} />
-        <Tile label="Win rate" value={total.winRate == null ? "—" : `${total.winRate.toFixed(1)}%`} cls={total.winRate == null ? "text-white/60" : total.winRate >= 50 ? "text-accent-green" : "text-rose-300"} />
-        <Tile label="Wins" value={String(total.wins)} cls="text-accent-green" />
-        <Tile label="Losses" value={String(total.losses)} cls="text-rose-300" />
-        <Tile label="Trades" value={`${total.trades}${total.be ? ` · ${total.be} BE` : ""}`} cls="text-amber-200" />
+    <section aria-label={`Leverage result, ${monthLabel(m)}`} className={PANEL}>
+      <div className="grid lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
+        <div className="relative min-w-0 px-4 py-4 pl-5 md:px-6 md:pl-7">
+          <span className={`absolute inset-y-4 left-0 w-[3px] rounded-r ${rail(total.pnl)}`} aria-hidden />
+          <div className={LABEL}>Net · {monthLabel(m)} · after fees</div>
+          <div className={`fig mt-2 whitespace-nowrap font-mono text-[28px] font-semibold leading-none sm:text-[32px] ${tone(total.pnl)}`}>{money(total.pnl)}</div>
+        </div>
+        <div className="min-w-0 overflow-hidden">
+          <div className="-ml-px grid h-full grid-cols-2 sm:grid-cols-4 lg:-mt-px lg:ml-0">
+            <Readout k="PnL %" v={signed(total.pct, 2, "%")} cls={tone(total.pct)} sub="of the account" />
+            <Readout k="Total R" v={signed(total.totalR, 2, "R")} cls={tone(total.totalR)} sub="result ÷ risk" />
+            <Readout k="Win rate" v={total.winRate == null ? "—" : `${total.winRate.toFixed(1)}%`} cls={total.winRate == null ? "text-white/60" : total.winRate >= 50 ? "text-accent-green" : "text-rose-300"} sub="breakevens left out" />
+            <Readout
+              k="Wins · losses"
+              v={<><span className="text-accent-green">{total.wins}W</span><span className="text-white/25"> · </span><span className="text-rose-300">{total.losses}L</span></>}
+              sub={`${total.trades} trade${total.trades === 1 ? "" : "s"}${total.be ? ` · ${total.be} breakeven` : ""}`}
+            />
+          </div>
+        </div>
       </div>
-      <Note className="-mt-2">
+      <p className="border-t border-white/[0.06] px-4 py-3 text-[12px] leading-snug text-white/45 md:px-5">
         Net = P&amp;L after fees. PnL % = each trade&apos;s result as a share of the account at the time, added up. R = result ÷ the risk to the original stop. Win rate leaves out breakevens (within {BE_BAND}R of zero).
-      </Note>
-    </>
+      </p>
+    </section>
   );
 
   if (book === "longterm") {
-    const holdRows = (venue: string) => openLT.filter((t) => t.venue === venue).map((t) => {
+    // One hold, worked out once (same sums as before) and drawn twice: a table row on desktop, a ticket on a phone.
+    const holds = (venue: string) => openLT.filter((t) => t.venue === venue).map((t) => {
+      const lp = live[t.symbol.toUpperCase()];
       const p = live[t.symbol.toUpperCase()]?.ok ? live[t.symbol.toUpperCase()]?.price ?? null : null;
       const q = Number(t.qty_open ?? t.quantity ?? 0), cost = Number(t.entry) * q;
       const val = p != null ? p * q : null;
       const up = val != null ? val - cost : null;
-      return [
+      const upText = up == null ? "—" : `${money(up)} (${signed((up * 100) / (cost || 1), 1, "%")})`;
+      const line = t.current_stop ?? t.stop;
+      // The price's own clock: bad data is a bad trade, so "Now" never shows without its time (or says it failed to load).
+      const priceAt = p == null ? "no live price — failed to load" : `${lp?.source ?? "live"} · ${whenShort(lp?.asOf, true)}`;
+      return { t, p, q, cost, up, upText, line, priceAt };
+    });
+    const holdRows = (venue: string) => holds(venue).map((h) => { const { t, p, q, cost, up, upText, line, priceAt } = h; return [
         <span key="s"><strong className="text-white">{t.symbol}</strong><br /><Id>{t.trade_id}</Id></span>,
         <span key="e" className="font-mono">{px2(t.entry)}</span>,
         <span key="q" className="font-mono">{num(q, 6)}</span>,
         <span key="c" className="font-mono">{money(cost)}</span>,
-        <span key="p" className="font-mono">{p == null ? "—" : px2(p)}</span>,
-        <span key="u" className={`font-mono ${tone(up)}`}>{up == null ? "—" : `${money(up)} (${signed((up * 100) / (cost || 1), 1, "%")})`}</span>,
-        <span key="w" className="font-mono text-white/60">{t.current_stop ?? t.stop ? `${px2(t.current_stop ?? t.stop)} · warn only` : "no stop"}</span>,
+        <span key="p" className="font-mono">{p == null ? "—" : px2(p)}<br /><span className={`whitespace-nowrap text-[11px] ${p == null ? "text-amber-200" : "text-white/45"}`}>{priceAt}</span></span>,
+        <span key="u" className={`font-mono ${tone(up)}`}>{upText}</span>,
+        <span key="w" className="font-mono text-white/60">{line ? `${px2(line)} · warn only` : "no stop"}</span>,
         <span key="o" className="whitespace-nowrap text-white/60">{when(t.opened_at)}</span>,
-      ];
-    });
+    ]; });
     const holdTable = (venue: string, empty: string) => (
-      <Table head={["Holding", "Avg entry", "Qty", "Cost", "Now", "Unrealised", "Warning line", "Bought"]} align={["l", "r", "r", "r", "r", "r", "r", "l"]} minWidth={860} rows={holdRows(venue)} empty={empty} />
+      <>
+        <div className="space-y-3 sm:hidden">
+          {holds(venue).length === 0 && <Empty>{empty}</Empty>}
+          {holds(venue).map((h) => { const { t, p, q, cost, up, upText, line, priceAt } = h; return (
+            <Ticket key={t.trade_id}>
+              <TicketHead coin={t.symbol} right={<span>bought {when(t.opened_at)}</span>}>
+                <Badge tone="gray">hold</Badge>
+              </TicketHead>
+              <TicketRow className="mt-3" cols={3} label="Position">
+                <TicketField k="Now" v={p == null ? "—" : px2(p)} />
+                <TicketField k="Unrealised" v={upText} cls={tone(up)} />
+                <TicketField k="Avg entry" v={px2(t.entry)} cls="text-white/85" />
+                <TicketField k="Cost" v={money(cost)} cls="text-white/85" />
+                <TicketField k="Qty" v={num(q, 6)} cls="text-white/85" />
+                <TicketField k="Warning line" v={line ? px2(line) : "no stop"} sub={line ? "warn only — never sells" : undefined} cls="text-white/85" />
+              </TicketRow>
+              <TicketFoot>
+                <span className={p == null ? "text-amber-200" : ""}>price · {priceAt}</span>
+                <Id>{t.trade_id}</Id>
+              </TicketFoot>
+            </Ticket>
+          ); })}
+        </div>
+        <div className="hidden sm:block">
+          <Table head={["Holding", "Avg entry", "Qty", "Cost", "Now", "Unrealised", "Warning line", "Bought"]} align={["l", "r", "r", "r", "r", "r", "r", "l"]} minWidth={860} rows={holdRows(venue)} empty={empty} />
+        </div>
+      </>
     );
     return (
       <div className="space-y-5">
@@ -294,18 +411,31 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
         right={tabs}
       />
 
-      {/* ---- 1. income at a glance */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {income.map((x) => (
-          <div key={x.label} className="min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-3.5">
-            <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">{x.label}</div>
-            <div className={`mt-2 break-words font-mono text-[22px] font-semibold leading-none tabular-nums ${tone(x.pnl)}`}>{x.trades ? money(x.pnl) : "—"}</div>
-            <div className="mt-1.5 font-mono text-[12px] tabular-nums text-white/55">
-              {x.trades ? <><span className={tone(x.totalR)}>{signed(x.totalR, 2, "R")}</span> · {x.trades} trade{x.trades === 1 ? "" : "s"}{x.winRate != null ? ` · ${x.winRate.toFixed(0)}% win` : ""}</> : "no closed trades"}
+      {/* ---- 1. income at a glance: today is the one hero number; week / month / all time are instruments beside it */}
+      <section aria-label="Leverage income" className={PANEL}>
+        <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="relative min-w-0 px-4 py-5 pl-5 md:px-6 md:py-6 md:pl-7">
+            <span className={`absolute inset-y-4 left-0 w-[3px] rounded-r ${rail(today.pnl)}`} aria-hidden />
+            <div className={LABEL}>Today · BloFin · after fees</div>
+            <div className={`fig mt-2.5 whitespace-nowrap font-mono text-[40px] font-semibold leading-none sm:text-[48px] lg:text-[44px] xl:text-[56px] ${today.trades ? tone(today.pnl) : "text-white/60"}`}>{today.trades ? money(today.pnl) : "—"}</div>
+            <div className="mt-3 font-mono text-[12.5px] tabular-nums text-white/55">{tallyLine(today) ?? "no closed trades today"}</div>
+          </div>
+          <div className="min-w-0 overflow-hidden">
+            <div className="-ml-px grid h-full grid-cols-2 sm:grid-cols-3 lg:-mt-px lg:ml-0">
+              {income.slice(1).map((x, i) => (
+                <Readout key={x.label} k={x.label} v={x.trades ? money(x.pnl) : "—"} cls={tone(x.pnl)} sub={tallyLine(x) ?? "no closed trades"} className={i === 2 ? "col-span-2 sm:col-span-1" : ""} />
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+        {/* How fresh these results are. They change only when a trade is logged, so the clocks are the trade log's own. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/[0.06] px-4 py-3 font-mono text-[11.5px] tabular-nums text-white/45 md:px-5">
+          <span>last closed trade · <span className="text-white/80">{lastClosed ? whenShort(lastClosed) : "none yet"}</span>{lastClosed ? <span className="text-white/35"> ({ago(lastClosed)})</span> : null}</span>
+          <span>trade log last changed · <span className="text-white/80">{lastRecord ? whenShort(lastRecord) : "—"}</span>{lastRecord ? <span className="text-white/35"> ({ago(lastRecord)})</span> : null}</span>
+          <span>page read · <span className="text-white/80">{whenShort(readAt, true)}</span> Phoenix</span>
+          <span className="font-sans text-white/40">A trade that isn&apos;t logged yet isn&apos;t in these numbers.</span>
+        </div>
+      </section>
 
       {/* ---- 2. open right now */}
       <Card title="Open leverage trades" right={<Mono>{openLev.length} open{openLev.length ? ` · risk ${money(openLev.reduce((a, t) => a + Number(t.risk_dollars ?? 0), 0))}` : ""}</Mono>}>
@@ -314,14 +444,18 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
             {openLev.map((t) => <OpenTradeTile key={t.trade_id} t={t} live={live[t.symbol.toUpperCase()]} />)}
           </div>
         ) : (
-          <Empty>No open leverage trade. When you take one, tell Grok and it shows up here with entry, stop, targets, size, leverage, liquidation and live P&amp;L.</Empty>
+          <p className="text-[13px] leading-snug text-white/50"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-white/30 align-middle" aria-hidden />No open leverage trade. When you take one, tell Grok and it shows up here with entry, stop, targets, size, leverage, liquidation and live P&amp;L.</p>
         )}
       </Card>
 
       {/* ---- 3. getting better? (the weekly feedback loop) */}
       <Card title="Getting better?" sub="Scored every Saturday against the last 4 weeks. One focus a week fixes the biggest miss." right={<Mono>{data.cards[0] ? `last scored ${data.cards[0].score}/${data.cards[0].score_of}` : "first score Saturday"}</Mono>}>
         {data.cards[0]?.focus && (
-          <Note className="mb-3"><strong className="text-white">This week&apos;s focus:</strong> {data.cards[0].focus}{data.cards[0].last_change_verdict ? <span className="text-white/50"> · last focus: {data.cards[0].last_change_verdict}</span> : null}</Note>
+          <div className="mb-4 border-l-2 border-accent-cyan/50 pl-3">
+            <div className={LABEL}>This week&apos;s focus</div>
+            <p className="mt-1 max-w-[70ch] text-[15px] font-medium leading-snug text-white">{data.cards[0].focus}</p>
+            {data.cards[0].last_change_verdict ? <p className="mt-1 max-w-[70ch] text-[12.5px] leading-snug text-white/50">Last focus: {data.cards[0].last_change_verdict}</p> : null}
+          </div>
         )}
         <Table
           head={["", `This week so far`, ...data.cards.slice(0, 5).map((c) => new Date(`${c.week_start}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" }))]}
@@ -336,7 +470,7 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
               };
               return [<span key="l" className="text-white/80">{label}</span>, <span key="t">{cell(data.thisWeek)}</span>, ...data.cards.slice(0, 5).map((c) => <span key={c.week_start}>{cell(c.metrics, c.met?.[k])}</span>)];
             }),
-            [<strong key="s" className="text-white">Score</strong>, <span key="t" className="text-white/40">Saturday</span>, ...data.cards.slice(0, 5).map((c) => <strong key={c.week_start} className="font-mono text-amber-200">{c.score}/{c.score_of}</strong>)],
+            [<strong key="s" className="text-white">Score</strong>, <span key="t" className="text-white/40">Saturday</span>, ...data.cards.slice(0, 5).map((c) => <strong key={c.week_start} className="font-mono text-white">{c.score}/{c.score_of}</strong>)],
           ]}
         />
         <Note className="mt-2">✓ / ✗ = met that week&apos;s target. &quot;Moonbag&apos;s calls&quot; = the grade 4–5 alerts and limit setups it sent you, followed to the end. &quot;Move you kept&quot; = your R ÷ the best R price offered in the 72h after your entry.</Note>
@@ -344,24 +478,16 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
 
       {data.reviews.length > 0 && (
         <Fold title="72-hour reviews — what price did after your entries" count={data.reviews.length} open>
-          <div className="space-y-2">
-            {data.reviews.slice(0, 8).map((r) => (
-              <div key={r.trade_id} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 text-[13px] leading-relaxed">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-white">{r.symbol}</strong>
-                  <Badge tone={biasTone(r.direction)}>{biasGlyph(r.direction)} {r.direction}</Badge>
-                  <span className="font-mono text-white/60">{when(r.opened_at)}</span>
-                  <span className={`font-mono ${tone(r.r_realized)}`}>you {r.r_realized == null ? "—" : signed(Number(r.r_realized), 2, "R")}</span>
-                  <span className="font-mono text-white/60">best {r.mfe_r == null ? "—" : signed(Number(r.mfe_r), 2, "R")}</span>
-                  {r.capture_pct != null && <span className="font-mono text-amber-200">kept {Number(r.capture_pct).toFixed(0)}%</span>}
-                  {r.verdict && r.verdict !== "backfill" && <Badge tone="gray">{r.verdict.replace(/_/g, " ")}</Badge>}
-                </div>
-                {r.what_price_did && <div className="mt-1 text-white/70">{r.what_price_did}</div>}
-                {r.best_play && <div className="mt-1 text-white/60">Best play: {r.best_play}</div>}
-                {r.improve && <div className="mt-1 text-accent-green/90">Next time: {r.improve}</div>}
-              </div>
-            ))}
+          <div className="grid gap-3 md:grid-cols-2">
+            {data.reviews.slice(0, 3).map(reviewTicket)}
           </div>
+          {data.reviews.slice(3, 8).length > 0 && (
+            <Expander className="mt-3" summary={`${data.reviews.slice(3, 8).length} older review${data.reviews.slice(3, 8).length === 1 ? "" : "s"}`}>
+              <div className="-ml-[22px] grid gap-3 md:grid-cols-2">
+                {data.reviews.slice(3, 8).map(reviewTicket)}
+              </div>
+            </Expander>
+          )}
         </Fold>
       )}
 
@@ -398,11 +524,13 @@ export default async function TrackerPage({ searchParams }: { searchParams?: { m
   );
 }
 
-function Tile({ label, value, cls, wide = false }: { label: string; value: string; cls: string; wide?: boolean }) {
+/** One instrument number: label, figure, one quiet line. Hairline top/left, no box of its own (the panel hides the outer lines). */
+function Readout({ k, v, sub, cls = "text-white", className = "" }: { k: ReactNode; v: ReactNode; sub?: ReactNode; cls?: string; className?: string }) {
   return (
-    <div className={`min-w-0 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-3.5 ${wide ? "col-span-2 md:col-span-1" : ""}`}>
-      <div className="text-[12px] uppercase tracking-[0.14em] text-white/45">{label}</div>
-      <div className={`mt-2 break-words font-mono text-[22px] font-semibold leading-none tabular-nums ${cls}`}>{value}</div>
+    <div className={`min-w-0 border-l border-t border-white/[0.06] px-4 py-3.5 md:px-5 ${className}`}>
+      <div className={LABEL}>{k}</div>
+      <div className={`fig mt-1.5 break-words font-mono text-[20px] font-semibold leading-none ${cls}`}>{v}</div>
+      {sub && <div className="mt-1.5 font-mono text-[11.5px] leading-snug tabular-nums text-white/45">{sub}</div>}
     </div>
   );
 }
