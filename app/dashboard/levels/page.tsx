@@ -168,6 +168,8 @@ function Row({ r }: { r: BoardRow }) {
           {!r.market_ok ? ` ${r.market_text}.` : ""}
         </p>
 
+        {r.range_formed && <p className="text-[12px] text-white/45">{r.range_formed}.</p>}
+
         {r.changes.length > 0 && (
           <div className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] px-3 py-2 text-[12.5px] text-amber-100/90">
             Changed since yesterday: {r.changes.join(" · ")}

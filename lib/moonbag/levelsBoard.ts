@@ -37,6 +37,8 @@ export type BoardRow = {
   /** CR-77: his own view for this coin and for the market (null when none on file). */
   my_view: Outlook | null;
   my_market: Outlook | null;
+  /** CR-87: one plain line — has a real range formed (BTC/ETH/SOL only). Context, never a setup. */
+  range_formed?: string | null;
 };
 
 export const LEVEL_NAME: Record<string, string> = {

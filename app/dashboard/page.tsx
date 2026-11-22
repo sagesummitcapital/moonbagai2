@@ -200,8 +200,12 @@ export default async function TodayPage() {
       </Card>
 
       {/* 4 — Setups */}
-      <Card title="A and A+ setups" right={<Link href="/dashboard/setups" className="text-white/70 hover:text-white">All setups and strategies →</Link>}>
-        {setups.length === 0 ? <Empty>No A or A+ setup right now. No trade is the default.</Empty> : <div className="space-y-2">{setups.slice(0, 5).map((s) => <SetupRow key={s.limit_id} s={s} />)}</div>}
+      <Card
+        title="Prop trades to take"
+        right={<Link href="/dashboard/setups" className="text-white/70 hover:text-white">Every trade and its result →</Link>}
+        sub={data?.engine ? `Last 7 days: ${data.engine.sent_7d} sent, ${data.engine.graded_7d} graded, ${data.engine.r_7d == null ? "—" : `${data.engine.r_7d > 0 ? "+" : ""}${data.engine.r_7d}R`}. Sending: ${data.engine.live ?? "nothing yet"}.` : undefined}
+      >
+        {setups.length === 0 ? <Empty>Nothing to take right now. Grok sends each new one to you the moment it fires. No trade is the default.</Empty> : <div className="space-y-2">{setups.slice(0, 5).map((s) => <SetupRow key={s.limit_id} s={s} />)}</div>}
       </Card>
 
       {/* 5 — Open trades */}

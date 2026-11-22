@@ -29,6 +29,9 @@ export type Setup = {
   limit_price: number; stop: number | null; tp1: number | null; tp2: number | null; plan_r: number | null; level?: number | null; level_kind: string | null;
   reasoning?: string | null; bull_case?: string | null; bear_case?: string | null; invalid_if?: string | null;
   created_at: string; expires_at: string | null; touched_at?: string | null;
+  /** CR-91 prop engine: size per prop account at send time, and the strategy key. */
+  sizing?: { account: string; status: string; locks: string[] | null; risk: number | null; qty: number | null; leverage_needed: number | null; leverage_cap: number | null; over_cap: boolean }[] | null;
+  strategy?: string;
 };
 
 export type TodayCoin = {
@@ -48,19 +51,29 @@ export type Today = {
   red_day: { red: boolean; events: unknown } | null;
   top_mistake: { label: string; rule: string; last_7d: number; r_cost: number } | null;
   feed: Record<string, string> | null;
+  /** CR-91: what the prop engine sent in the last 7 days and how it did. */
+  engine?: { live: string | null; sent_7d: number; graded_7d: number; r_7d: number | null } | null;
 };
 
 export type StrategyRow = {
   strategy_key: string; name: string; stage: string; edge_source: string | null; kill_line: string | null; backtest_oos_r: number | null; notes: string | null;
   retired_reason: string | null; updated_at: string; trades: number | null; flags: string[] | null; league: { n: number | null; total_r: number | null; avg_r: number | null } | null;
+  history?: { n: number | null; avg_r: number | null; win_pct: number | null; pf: number | null; from: string | null; to: string | null } | null;
+};
+
+export type LedgerRow = {
+  signal_id: string; coin: string; side: "long" | "short"; strategy: string; pushed: boolean; signal_at: string; entry: number; stop: number; tp: number;
+  status: "pending" | "filled" | "won" | "lost" | "timeout" | "expired" | "ran_away"; r_net: number | null; mfe_r: number | null; exit_at: string | null; taken_trade_id: string | null;
 };
 
 export type SetupsPage = {
   as_of: string;
   live: Setup[] | null;
   recent: { limit_id: string; symbol: string; direction: string; grade: string; source: string | null; limit_price: number; plan_r: number | null; outcome: string | null; outcome_r: number | null; mfe_r: number | null; resolved_at: string }[] | null;
-  record: { grade: string; n: number; resolved: number; avg_r: number | null; win_pct: number | null }[] | null;
+  record: { grade: string; n: number; resolved: number; avg_r: number | null; win_pct: number | null; pushed?: boolean; taken?: number }[] | null;
   strategies: StrategyRow[] | null;
+  testing?: Setup[] | null;
+  ledger?: LedgerRow[] | null;
 };
 
 export type Numbers = {

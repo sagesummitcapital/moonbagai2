@@ -1,21 +1,27 @@
 import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Empty, PageHeader, Stamps, Updated, whenShort } from "../_components/ui";
-import { clean, fmt, getSetupsPage, rr, type Setup, type StrategyRow } from "@/lib/moonbag/site";
+import { clean, fmt, getSetupsPage, rr, type LedgerRow, type Setup, type StrategyRow } from "@/lib/moonbag/site";
 
 export const dynamic = "force-dynamic";
 
 /**
- * SETUPS (CR-78, Stavros 2026-11-13): "a+ trades, and strategies being tested".
- * Top: the A / A+ setups live right now, as order tickets. Middle: how those grades have actually done.
- * Bottom: every strategy, by stage (live → paper → lab → retired), with its real record and what is missing before it counts as proven.
+ * SETUPS — the prop trade engine (CR-91, Stavros 2026-11-21): "focus on getting trades in front of me to take on my prop firm account.
+ * i want you to track the outcome of every trade you give regardless of if i take it or not ... reviewing yourself and making improvements."
+ * Live trades (from strategies that passed the evidence gate) · every trade Moonbag gave and how it ended · each strategy's record, history vs live.
+ * The engine runs in the database every 15 minutes; the gate promotes and demotes strategies by their own results.
  */
 const STAGE: Record<string, { label: string; tone: string }> = {
-  live: { label: "Live", tone: "green" }, paper: { label: "Paper", tone: "cyan" }, lab: { label: "Testing", tone: "amber" },
-  benchmark: { label: "Benchmark", tone: "gray" }, retired: { label: "Retired", tone: "gray" }, graveyard: { label: "Retired", tone: "gray" },
+  live: { label: "Sent to you", tone: "green" }, paper: { label: "Tracked, not sent", tone: "amber" }, lab: { label: "Lab", tone: "gray" },
+  retired: { label: "Off", tone: "gray" },
 };
 
-function Ticket({ s }: { s: Setup }) {
+const OUTCOME: Record<LedgerRow["status"], { label: string; tone: string }> = {
+  pending: { label: "waiting for fill", tone: "gray" }, filled: { label: "in the trade", tone: "cyan" }, won: { label: "target hit", tone: "green" },
+  lost: { label: "stopped", tone: "red" }, timeout: { label: "timed out", tone: "amber" }, expired: { label: "never filled", tone: "gray" }, ran_away: { label: "ran without filling", tone: "gray" },
+};
+
+function Ticket({ s, live }: { s: Setup; live: boolean }) {
   const long = s.direction === "long";
   const row = (k: string, v: string) => (
     <div className="flex items-baseline justify-between gap-3 border-t border-white/[0.05] py-1.5 first:border-t-0">
@@ -24,31 +30,27 @@ function Ticket({ s }: { s: Setup }) {
     </div>
   );
   return (
-    <details className="rounded-2xl border border-white/[0.07] bg-white/[0.02] open:bg-white/[0.035]">
+    <details className="rounded-2xl border border-white/[0.07] bg-white/[0.02] open:bg-white/[0.035]" open={live}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <div className="flex items-center gap-2.5">
-          <Badge tone={s.grade === "A+" ? "green" : "cyan"}>{s.grade}</Badge>
+          <Badge tone={live ? "green" : "amber"}>{live ? "Take-able" : "Test"}</Badge>
           <span className="text-[15px] font-semibold text-white">{s.symbol} <span className={long ? "text-accent-green" : "text-rose-300"}>{long ? "long" : "short"}</span></span>
-          {s.origin === "paper" && <span className="text-[11px] text-white/35">paper-tracked</span>}
-          {s.status === "touched" && <Badge tone="amber">price is at the entry</Badge>}
+          <span className="text-[12px] text-white/40">{clean(s.level_kind)}</span>
+          {s.status === "touched" && <Badge tone="cyan">filled — in the trade</Badge>}
         </div>
-        <span className="font-mono text-[12.5px] tabular-nums text-white/70">entry {fmt(s.limit_price)} · stop {fmt(s.stop)} · target {fmt(s.tp1)} · {s.plan_r != null ? `${Number(s.plan_r).toFixed(1)}R` : "—"}</span>
+        <span className="font-mono text-[12.5px] tabular-nums text-white/70">limit {fmt(s.limit_price)} · stop {fmt(s.stop)} · target {fmt(s.tp1)} · 2R</span>
       </summary>
-      <div className="grid gap-4 border-t border-white/[0.06] px-4 py-3 sm:grid-cols-[240px_minmax(0,1fr)]">
+      <div className="grid gap-4 border-t border-white/[0.06] px-4 py-3 sm:grid-cols-[260px_minmax(0,1fr)]">
         <div>
-          {row("Entry (limit)", fmt(s.limit_price))}
+          {row("Limit entry", fmt(s.limit_price))}
           {row("Stop", fmt(s.stop))}
-          {row("Target 1", fmt(s.tp1))}
-          {s.tp2 != null && row("Target 2", fmt(s.tp2))}
-          {row("Reward to risk", s.plan_r != null ? `${Number(s.plan_r).toFixed(2)}R` : "—")}
+          {row("Target (2R)", fmt(s.tp1))}
           {s.expires_at && row("Good until", whenShort(s.expires_at))}
+          {(s.sizing ?? []).map((z) => row(z.account.replace("BRK-PRO-", ""), z.qty ? `${z.qty} ${s.symbol} · $${z.risk}${z.over_cap ? " · over lev cap" : ""}` : "no room / locked"))}
         </div>
         <div className="space-y-2 text-[12.5px] leading-relaxed text-white/70">
           {s.reasoning && <p><span className="text-white/40">Why: </span>{clean(s.reasoning)}</p>}
-          {s.bull_case && <p><span className="text-white/40">For: </span>{clean(s.bull_case)}</p>}
-          {s.bear_case && <p><span className="text-white/40">Against: </span>{clean(s.bear_case)}</p>}
-          {s.invalid_if && <p><span className="text-white/40">Dead if: </span>{clean(s.invalid_if)}</p>}
-          <p className="text-white/35">Run the prop check with Grok before any order. Size comes from the check, not from this card.</p>
+          <p className="text-white/40">Run the prop check with Grok before placing it. Tracked to the end whether you take it or not.</p>
         </div>
       </div>
     </details>
@@ -57,7 +59,7 @@ function Ticket({ s }: { s: Setup }) {
 
 function Strategy({ s }: { s: StrategyRow }) {
   const st = STAGE[s.stage] ?? { label: s.stage, tone: "gray" };
-  const n = s.league?.n ?? s.trades ?? 0;
+  const h = s.history;
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -65,13 +67,14 @@ function Strategy({ s }: { s: StrategyRow }) {
           <Badge tone={st.tone}>{st.label}</Badge>
           <span className="truncate text-[13.5px] font-medium text-white">{clean(s.name)}</span>
         </div>
-        <span className="font-mono text-[12.5px] tabular-nums text-white/75">
-          {n ? `${n} trades` : "no trades yet"}{s.league?.avg_r != null ? ` · ${rr(s.league.avg_r)} avg · ${rr(s.league.total_r)} total` : ""}
+        <span className="font-mono text-[12px] tabular-nums text-white/70">
+          history {h?.n ?? 0} trades · {rr(h?.avg_r)} avg · {h?.win_pct ?? "—"}% wins · PF {h?.pf ?? "—"}
+          <span className="text-white/35"> | </span>
+          live {s.league?.n ?? 0} · {rr(s.league?.avg_r)}
         </span>
       </div>
-      {(s.flags?.length ?? 0) > 0 && <div className="mt-1 text-[12px] text-amber-200/80">Before it counts as proven: {s.flags!.map(clean).join(" · ")}</div>}
-      {s.retired_reason && <div className="mt-1 text-[12px] text-white/45">Retired: {clean(s.retired_reason)}</div>}
-      {s.kill_line && !s.retired_reason && <div className="mt-1 text-[12px] text-white/40">Stops being used if: {clean(s.kill_line)}</div>}
+      {s.notes && <p className="mt-1 text-[12px] leading-snug text-white/50">{clean(s.notes)}</p>}
+      {s.retired_reason && <p className="mt-1 text-[12px] text-amber-200/75">{clean(s.retired_reason)}</p>}
     </div>
   );
 }
@@ -79,58 +82,66 @@ function Strategy({ s }: { s: StrategyRow }) {
 export default async function SetupsPage() {
   const { data, error } = await load(getSetupsPage);
   const live = data?.live ?? [];
+  const testing = data?.testing ?? [];
+  const ledger = data?.ledger ?? [];
   const strategies = data?.strategies ?? [];
-  const active = strategies.filter((s) => ["live", "paper", "lab"].includes(s.stage));
-  const rest = strategies.filter((s) => !["live", "paper", "lab"].includes(s.stage));
+  const sent = ledger.filter((l) => l.pushed);
+  const graded = sent.filter((l) => l.r_net != null);
+  const totalR = graded.reduce((a, l) => a + Number(l.r_net), 0);
+  const wins = graded.filter((l) => Number(l.r_net) > 0).length;
   return (
     <div className="space-y-6">
-      <PageHeader title="Setups" sub="The A and A+ setups live right now, how those grades have really done, and every strategy being tested. No trade is the default." />
-      <Stamps><Updated at={data?.as_of} label="setups" verb="as of" cadenceH={1} /></Stamps>
+      <PageHeader
+        title="Setups"
+        sub="Prop trades Moonbag finds for you, every one graded to the end whether you take it or not, and the strategies behind them. A strategy only sends you trades while its own record earns it."
+      />
+      <Stamps><Updated at={data?.as_of} label="engine" verb="as of" cadenceH={0.5} /></Stamps>
       <DataNotice error={error} />
 
-      <Card title="Live now" right={<span>{live.length} setup{live.length === 1 ? "" : "s"}</span>}>
-        {live.length === 0 ? <Empty>No A or A+ setup right now. Waiting is a position.</Empty> : <div className="space-y-2">{live.map((s) => <Ticket key={s.limit_id} s={s} />)}</div>}
+      <Card title="Take-able now" right={<span>{live.length} trade{live.length === 1 ? "" : "s"}</span>}>
+        {live.length === 0 ? <Empty>Nothing to take right now. Grok sends each new one to you as it fires.</Empty> : <div className="space-y-2">{live.map((s) => <Ticket key={s.limit_id} s={s} live />)}</div>}
       </Card>
 
-      <Card title="How these grades have done" sub="Last 30 days, every A and A+ setup Moonbag posted, taken or not.">
-        {(data?.record ?? []).length === 0 ? <Empty>No graded setups in the last 30 days.</Empty> : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {data!.record!.map((r) => (
-              <div key={r.grade} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <Badge tone={r.grade === "A+" ? "green" : "cyan"}>{r.grade}</Badge>
-                  <span className="font-mono text-[12px] text-white/45">{r.n} posted · {r.resolved} resolved</span>
-                </div>
-                <div className="mt-1.5 font-mono text-[20px] tabular-nums text-white">{rr(r.avg_r)} <span className="text-[12px] text-white/45">avg · {r.win_pct ?? "—"}% wins</span></div>
-                {r.resolved < 30 && <div className="mt-1 text-[11.5px] text-amber-200/75">Under 30 resolved — too few to trust yet.</div>}
-              </div>
-            ))}
+      <Card
+        title="Every trade Moonbag sent you"
+        right={<span className="font-mono">{graded.length} graded · {wins} won · <span className={totalR >= 0 ? "text-accent-green" : "text-rose-300"}>{rr(totalR)}</span></span>}
+        sub="Graded on BloFin candles with fees. A bar that touches both the stop and the target counts as the stop."
+      >
+        {sent.length === 0 ? <Empty>No trades sent yet. The first ones arrive at the next 4-hour closes.</Empty> : (
+          <div className="-mx-1 overflow-x-auto px-1">
+            <table className="w-full min-w-[640px] text-[12.5px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-white/40">
+                  <th className="pb-2 pr-3 font-medium">Sent</th><th className="pb-2 pr-3 font-medium">Trade</th><th className="pb-2 pr-3 text-right font-medium">Entry / stop / target</th>
+                  <th className="pb-2 pr-3 font-medium">Outcome</th><th className="pb-2 pr-3 text-right font-medium">R</th><th className="pb-2 font-medium">You</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sent.map((l) => (
+                  <tr key={l.signal_id} className="border-t border-white/[0.05]">
+                    <td className="py-1.5 pr-3 font-mono text-white/50">{whenShort(l.signal_at)}</td>
+                    <td className="py-1.5 pr-3 text-white">{l.coin} <span className={l.side === "long" ? "text-accent-green" : "text-rose-300"}>{l.side}</span></td>
+                    <td className="py-1.5 pr-3 text-right font-mono tabular-nums text-white/70">{fmt(l.entry)} / {fmt(l.stop)} / {fmt(l.tp)}</td>
+                    <td className="py-1.5 pr-3"><Badge tone={OUTCOME[l.status].tone}>{OUTCOME[l.status].label}</Badge></td>
+                    <td className={`py-1.5 pr-3 text-right font-mono tabular-nums ${l.r_net == null ? "text-white/30" : Number(l.r_net) > 0 ? "text-accent-green" : "text-rose-300"}`}>{l.r_net == null ? "—" : rr(l.r_net)}</td>
+                    <td className="py-1.5 text-white/60">{l.taken_trade_id ? "took it" : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-        {(data?.recent ?? []).length > 0 && (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-[12.5px] text-white/55 hover:text-white">Last {data!.recent!.length} resolved setups</summary>
-            <div className="mt-2 space-y-1">
-              {data!.recent!.map((r) => (
-                <div key={r.limit_id} className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.05] py-1.5 text-[12.5px]">
-                  <span className="text-white/80">{r.grade} · {r.symbol} {r.direction} @ {fmt(r.limit_price)}</span>
-                  <span className="font-mono tabular-nums text-white/60">{clean((r.outcome ?? "").replace(/_/g, " "))}{r.outcome_r != null ? ` · ${rr(r.outcome_r)}` : ""} · {whenShort(r.resolved_at)}</span>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
       </Card>
 
-      <Card title="Strategies being tested" sub="A strategy is proven only with 30+ trades, a clear reason it makes money, and a clean test. Until then it is paper or testing.">
-        {active.length === 0 ? <Empty>No strategies on file.</Empty> : <div className="space-y-2">{active.map((s) => <Strategy key={s.strategy_key} s={s} />)}</div>}
-        {rest.length > 0 && (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-[12.5px] text-white/55 hover:text-white">Benchmark and retired ({rest.length})</summary>
-            <div className="mt-2 space-y-2">{rest.map((s) => <Strategy key={s.strategy_key} s={s} />)}</div>
-          </details>
-        )}
+      <Card title="Strategies" sub="Sent to you only while: 30+ trades of history, +0.05R or better on average after fees, profit factor 1.1+, and the last 60 days not negative. Pulled automatically if its last 10 live trades average −0.25R or worse. Checked every day after the 5:30 PM reset.">
+        {strategies.length === 0 ? <Empty>No strategies on file.</Empty> : <div className="space-y-2">{strategies.map((s) => <Strategy key={s.strategy_key} s={s} />)}</div>}
       </Card>
+
+      {testing.length > 0 && (
+        <Card title="Being tested (not sent to you)" sub="Strategies that have not earned it yet. Tracked the same way, so they can promote themselves.">
+          <div className="space-y-2">{testing.slice(0, 8).map((s) => <Ticket key={s.limit_id} s={s} live={false} />)}</div>
+        </Card>
+      )}
     </div>
   );
 }
