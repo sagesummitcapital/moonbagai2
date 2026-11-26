@@ -5,7 +5,8 @@ import { LiveMetric, LivePrice, TradeRail, type Stored } from "../_components/Li
 import { NON_TRADABLE, cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
 import { ThesisCard } from "../_components/ThesisCard";
-import { Badge, Card, Empty, Expander, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, px, statusTone, when, whenShort } from "../_components/ui";
+import { BookHero, PriceClock, Readout } from "../_components/Book";
+import { Badge, Card, Empty, Expander, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, RMult, Section, Table, Ticket, TicketField, TicketFoot, TicketHead, TicketRow, Tile, Unit, Updated, biasGlyph, biasTone, money, num, px, statusTone, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,10 @@ export default async function RobinhoodPage() {
     if (p.symbol && Number(p.quantity) > 0 && Number(p.market_value) > 0) snapPx[p.symbol] = storedOf(Number(p.market_value) / Number(p.quantity), snapshot!.reported_at, "account snapshot");
   }
 
+  const priced = [...open.map((t) => t.symbol), ...data.longTerm.sleeve.map((r) => r.symbol)];
+  const readAt = new Date().toISOString();
+  const boxTone = budgetTone(box.limit > 0 ? box.used / box.limit : 0);
+
   return (
     <div className="space-y-5">
       <DataNotice error={error} />
@@ -47,64 +52,74 @@ export default async function RobinhoodPage() {
         right={<Badge tone={halted ? "red" : risk?.auto_execute ? "green" : "amber"} dot>{status}</Badge>}
       />
 
-      {/* ------------------------------------------------ KPIs */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <Stat label="Account" value={snapshot ? money(equity) : "—"} sub={snapshot ? <>Cash {money(snapshot.cash)} · <Updated label="snapshot" at={snapshot.reported_at} cadenceH={30} verb="reported by Grokbot" /></> : "Waiting for Grokbot's account snapshot"} />
-        </Card>
-        <Card>
-          <Stat
-            label="Loss box"
-            size="md"
-            value={<>{money(box.used)}<Unit>of {money(box.limit)}</Unit></>}
-            tone={budgetTone(box.limit > 0 ? box.used / box.limit : 0) === "green" ? undefined : budgetTone(box.limit > 0 ? box.used / box.limit : 0)}
-            meter={<Meter value={box.used} max={box.limit} height={8} labels={[<>{money(boxLeft)} left</>, <>limit {money(box.limit)}</>]} />}
-            sub={<>realised <span className="font-mono tabular-nums">{money(box.realisedLoss)}</span> + at risk <span className="font-mono tabular-nums">{money(box.openRisk)}</span></>}
-          />
-        </Card>
-        <Card>
-          <Stat
-            label="Fills this week"
-            size="md"
-            value={<>{data.fillsThisWeek}<Unit>of {num(maxFills, 0)}</Unit></>}
-            meter={maxFills > 0 ? <Meter value={data.fillsThisWeek} max={maxFills} tone={data.fillsThisWeek >= maxFills ? "amber" : "cyan"} height={8} /> : undefined}
-            sub="Aim: one A-grade fill a week, only if an A exists and its stop fits the box."
-          />
-        </Card>
-        <Card tone={halted ? "warn" : undefined}>
-          <Stat
-            label="Status"
-            size="sm"
-            value={status}
-            tone={halted ? "red" : undefined}
-            sub={`A full size, B half (score ≥ ${num(risk?.min_setup_score, 1)}) · halt at ${money(risk?.soft_halt_equity)} · never ${(risk?.blocked_symbols ?? []).join(", ") || "—"} · no crypto`}
-          />
-        </Card>
-      </div>
-
+      {/* ---- the 3-second read: what the account is worth, how much of the loss box is used, and how old the numbers are */}
+      <BookHero
+        label="Account · Robinhood"
+        value={snapshot ? money(equity) : "—"}
+        state={halted ? "stop" : risk?.auto_execute ? "ok" : "caution"}
+        sub={snapshot ? <>Cash <span className="font-mono tabular-nums text-white/80">{money(snapshot.cash)}</span></> : "Waiting for Grokbot's account snapshot"}
+        foot={<>
+          <Updated label="account snapshot" at={snapshot?.reported_at} cadenceH={30} verb="reported by Grokbot" />
+          <PriceClock live={live} symbols={priced} />
+          <span>page read · <span className="text-white/80">{whenShort(readAt, true)}</span> Phoenix</span>
+          <span className="font-sans text-white/40">Stock quotes can run about 15 minutes behind.</span>
+        </>}
+      >
+        <Readout
+          k="Loss box"
+          v={<>{money(box.used)}<Unit>of {money(box.limit)}</Unit></>}
+          cls={boxTone === "green" ? "text-white" : boxTone === "red" ? "text-rose-300" : "text-amber-200"}
+          meter={<Meter value={box.used} max={box.limit} height={4} />}
+          sub={<>{money(boxLeft)} left · realised <span className="font-mono tabular-nums">{money(box.realisedLoss)}</span> + at risk <span className="font-mono tabular-nums">{money(box.openRisk)}</span></>}
+        />
+        <Readout
+          k="Fills this week"
+          v={<>{data.fillsThisWeek}<Unit>of {num(maxFills, 0)}</Unit></>}
+          meter={maxFills > 0 ? <Meter value={data.fillsThisWeek} max={maxFills} tone={data.fillsThisWeek >= maxFills ? "amber" : "cyan"} height={4} /> : undefined}
+          sub="Aim: one A-grade fill a week, only if an A exists and its stop fits the box."
+        />
+        <Readout
+          k="Status"
+          text
+          className="col-span-2"
+          v={status}
+          cls={halted ? "text-rose-300" : "text-white"}
+          sub={`A full size, B half (score ≥ ${num(risk?.min_setup_score, 1)}) · halt at ${money(risk?.soft_halt_equity)} · never ${(risk?.blocked_symbols ?? []).join(", ") || "—"} · no crypto`}
+        />
+      </BookHero>
 
       {/* ------------------------------------------------ open positions */}
       <Card title="Open positions" right={open.length ? <Mono>{open.length} open · at risk {money(open.reduce((a, t) => a + openRisk(t), 0))}</Mono> : undefined}>
         {open.length > 0 && (
-          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {open.map((t) => (
-              <Tile key={t.trade_id} tone="accent">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <strong className="text-[15px] text-white">{t.symbol}</strong>
-                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
-                    {(t as { sleeve?: string | null }).sleeve === "investments" && <Badge tone="cyan">long-term sleeve</Badge>}
-                    {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
-                  </div>
-                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
-                </div>
-                <TradeRail className="mt-2.5" compact symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1 ?? t.target} qty={t.quantity} equity={equity || null} />
+              <Ticket key={t.trade_id} tone="live">
+                <TicketHead coin={t.symbol} side={biasTone(t.direction) === "red" ? "short" : "long"}>
+                  {(t as { sleeve?: string | null }).sleeve === "investments" && <Badge tone="cyan">long-term sleeve</Badge>}
+                  {t.status === "pending" && <Badge tone="amber">pending fill</Badge>}
+                </TicketHead>
+                <TradeRail className="mt-3" compact symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1 ?? t.target} qty={t.quantity} equity={equity || null} />
                 {t.current_stop ?? t.stop ? null : <p className="mt-1.5 text-[11.5px] text-white/40">No stop on this lot (DCA position) — the rail shows entry → now only.</p>}
-              </Tile>
+                <TicketRow className="mt-3" cols={3} label="Levels">
+                  <TicketField k="Entry" v={num(t.entry)} />
+                  <TicketField k="Stop now" v={num(t.current_stop)} cls="text-rose-300" sub={<>original {num(t.stop)}</>} />
+                  <TicketField k="Targets" v={[t.current_tp1 ?? t.tp1 ?? t.target, t.current_tp2 ?? t.tp2].map((x) => num(x)).join(" · ")} cls="text-accent-green" />
+                </TicketRow>
+                <TicketRow className="mt-3" cols={3} label="Position">
+                  <TicketField k="P&amp;L now" v={<LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pnl" entry={t.entry} qty={t.quantity} direction={t.direction} tag={false} />} sub={<LiveMetric symbol={t.symbol} kind="stock" initial={live[t.symbol]} stored={snapPx[t.symbol]} metric="pct" entry={t.entry} direction={t.direction} />} />
+                  <TicketField k="Risk to the stop" v={money(openRisk(t))} cls="text-white/85" />
+                  <TicketField k="Size" v={num(t.quantity, 4)} sub={money(t.position_value)} cls="text-white/85" />
+                </TicketRow>
+                <TicketFoot>
+                  <span>opened {when(t.opened_at ?? t.created_at)}</span>
+                  <Id>{t.trade_id}</Id>
+                </TicketFoot>
+              </Ticket>
             ))}
           </div>
         )}
-        {open.length > 0 ? <Expander summary={<span className="text-white/70">Every column</span>}>
+        {/* The tickets above carry every column, so the wide table is a desktop extra — it never forces a sideways scroll on a phone. */}
+        {open.length > 0 ? <Expander className="mt-4 hidden sm:block" summary={<span className="text-white/70">Every column, as a table</span>}>
         <Table
           head={["Symbol", "Entry", "Now", "P&L", "Stop (orig / now)", "Targets", "Risk", "Size", "Opened"]}
           align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
@@ -139,6 +154,32 @@ export default async function RobinhoodPage() {
               />
             </Section>
             <Expander className="mt-4" summary={<span><strong className="text-white/85">Every name</strong> <span className="text-white/45">· {data.longTerm.sleeve.length} names · &quot;now&quot; is a live quote · value = shares × now</span></span>}>
+              {/* Phone: one ticket per name (same figures as the table). Desktop: the table. */}
+              <div className="space-y-3 sm:hidden">
+                {data.longTerm.sleeve.map((r) => {
+                  const qty = Number(r.qty ?? 0), cost = Number(r.cost_basis ?? 0);
+                  const avg = qty > 0 && cost > 0 ? cost / qty : null;
+                  return (
+                    <Ticket key={r.symbol}>
+                      <TicketHead coin={r.symbol} right={<span>target {num(r.target_weight_pct, 0)}%</span>} />
+                      <p className="mt-1 text-[12px] text-white/45">{r.name}</p>
+                      <TicketRow className="mt-3" cols={3}>
+                        <TicketField k="Now" v={<LivePrice symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} size="sm" />} />
+                        <TicketField k="Value · P&amp;L" v={qty > 0 && avg != null ? <LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pnl" entry={avg} qty={qty} tag={false} /> : "—"} sub={qty > 0 && avg != null ? <LiveMetric symbol={r.symbol} kind="stock" initial={live[r.symbol]} stored={snapPx[r.symbol]} metric="pct" entry={avg} /> : undefined} cls={qty > 0 && avg != null ? "text-white" : "text-white/40"} />
+                        <TicketField k="Bought $" v={money(r.cost_basis)} sub={avg != null ? `${num(qty, 4)} sh @ ${px(avg)}` : undefined} cls={cost > 0 ? "text-accent-green" : "text-white/50"} />
+                        <TicketField k="Target $" v={money(r.target_dollars)} cls="text-white/85" />
+                        <TicketField k="Pending $" v={money(r.pending_dollars)} cls="text-white/85" />
+                        <TicketField k="Left to buy" v={money(Math.max(0, Number(r.gap_dollars)))} cls="text-white/85" />
+                      </TicketRow>
+                      <TicketFoot>
+                        <Id>{r.theme_id}</Id>
+                        <span>FUD boost · {r.fud_boost ? "yes" : "no"}</span>
+                      </TicketFoot>
+                    </Ticket>
+                  );
+                })}
+              </div>
+              <div className="hidden sm:block">
               <Table
                 head={["Name", "Theme", "Target", "Target $", "Bought $", "Now", "Value · P&L", "Pending $", "Left to buy", "FUD boost"]}
                 align={["l", "l", "r", "r", "r", "r", "r", "r", "r", "l"]}
@@ -161,6 +202,7 @@ export default async function RobinhoodPage() {
                   r.fud_boost ? <Badge key="f" tone="green">yes</Badge> : <span key="f" className="text-white/40">no</span>,
                 ]; })}
               />
+              </div>
             </Expander>
           </>
         ) : (

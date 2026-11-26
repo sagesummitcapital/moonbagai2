@@ -4,7 +4,8 @@ import { DivergingBars, Legend, Meter, Strip } from "../_components/charts";
 import { LiveMetric, LivePrice, TradeRail } from "../_components/LivePrice";
 import { cryptoSetFrom, loadLive, storedOf } from "../_components/live";
 import { DataNotice } from "../_components/Notice";
-import { Badge, Card, Delta, Empty, Expander, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, RMult, Section, Stat, Table, Tile, Unit, Updated, biasGlyph, biasTone, money, num, statusTone, when, whenShort } from "../_components/ui";
+import { BookHero, PriceClock, Readout } from "../_components/Book";
+import { Badge, Card, Delta, Empty, Expander, Fold, Id, LongText, Mono, Note, PageHeader, Quiet, RMult, Section, Table, Ticket, TicketField, TicketFoot, TicketHead, TicketRow, Unit, Updated, biasTone, money, num, statusTone, when, whenShort } from "../_components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,16 @@ export default async function CoinbasePage() {
   const closeOf = (sym: string) => { const u = universe.find((x) => x.symbol === sym); return u ? storedOf(u.close, u.as_of ? `${u.as_of}T00:00:00Z` : u.updated_at, "daily close") : undefined; };
   const closeDay = universe.map((u) => u.as_of).filter(Boolean).sort().reverse()[0] ?? null;
   const closeAt = closeDay ? new Date(Date.parse(`${closeDay}T00:00:00Z`) + 86400_000).toISOString() : null;
+  const readAt = new Date().toISOString();
+  // What each live coin's trade would look like if it triggered today — worked out once, drawn as a table row and a phone ticket.
+  const liveRows = liveCoins.map((u) => {
+    const stop = u.trigger_px != null && u.atr14 != null ? Number(u.trigger_px) - 3 * Number(u.atr14) : null;
+    const tp1 = u.trigger_px != null && stop != null ? Number(u.trigger_px) + 3 * (Number(u.trigger_px) - stop) : null;
+    const dist = u.trigger_px != null && stop != null ? (Number(u.trigger_px) - stop) / Number(u.trigger_px) + 0.012 : null;
+    const size = dist ? Math.min((equity * riskPct * Number(u.risk_mult ?? 1)) / dist, equity) : null;
+    const holding = open.some((t) => t.symbol === u.symbol);
+    return { u, stop, tp1, size, holding };
+  });
 
   return (
     <div className="space-y-5">
@@ -52,58 +63,73 @@ export default async function CoinbasePage() {
         }
       />
 
-      {/* ------------------------------------------------ KPIs */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <Stat label="Account" value={money(equity)} sub={snapshot ? <>Cash {money(snapshot.cash)} · <Updated label="snapshot" at={snapshot.reported_at} cadenceH={30} verb="reported by Grokbot" /></> : `Start ${money(risk?.starting_equity)} · waiting for Grokbot's first snapshot`} />
-        </Card>
-        <Card>
-          <Stat
-            label="Open risk"
-            size="md"
-            value={<>{num(data.openRiskPct, 1)}%<Unit>of {num(maxOpen, 0)}%</Unit></>}
-            meter={<Meter value={data.openRiskPct} max={maxOpen} height={8} labels={[<>{money(data.openRisk)} to the stops</>, <>cap {num(maxOpen, 0)}%</>]} />}
-            sub={`${open.length} open of ${num(risk?.max_open_positions, 0)} positions`}
-          />
-        </Card>
-        <Card>
-          <Stat
-            label="Record"
-            size="md"
-            value={stats.closed ? <Delta v={stats.totalR} d={1} unit="R" arrow={false} className="text-[22px]" /> : "—"}
-            sub={stats.closed ? `${stats.closed} closed · ${stats.wins} won · avg ${num(stats.avgR, 2)}R · ${money(stats.pnl)}` : "No closed trades yet. Backtest 2021–26: avg +1.15R, 52% won."}
-          />
-        </Card>
-        <Card tone={paused ? "warn" : undefined}>
-          <Stat
-            label="Status"
-            size="sm"
-            value={status}
-            tone={paused ? "red" : halfRisk || !risk?.auto_execute ? "amber" : undefined}
-            sub={`${num(riskPct * 100, 0)}% risk/trade${halfRisk ? " → halved (3 losses in a row)" : ""} · pause at ${num(ddPause, 0)}% below the 30-day peak (${money(peak30)})`}
-          />
-        </Card>
-      </div>
+      {/* ---- the 3-second read: what the account is worth, how much is at risk, and how old the numbers are */}
+      <BookHero
+        label="Account · Coinbase"
+        value={money(equity)}
+        state={paused ? "stop" : halfRisk || !risk?.auto_execute ? "caution" : "ok"}
+        sub={snapshot ? <>Cash <span className="font-mono tabular-nums text-white/80">{money(snapshot.cash)}</span></> : `Start ${money(risk?.starting_equity)} · waiting for Grokbot's first snapshot`}
+        foot={<>
+          <Updated label="account snapshot" at={snapshot?.reported_at} cadenceH={30} verb="reported by Grokbot" />
+          <Updated label="regimes" at={closeAt} cadenceH={26} verb={`daily close ${closeDay ?? ""} · processed`} />
+          <PriceClock live={live} symbols={[...universe.map((u) => u.symbol), ...open.map((t) => t.symbol)]} />
+          <span>page read · <span className="text-white/80">{whenShort(readAt, true)}</span> Phoenix</span>
+        </>}
+      >
+        <Readout
+          k="Open risk"
+          v={<>{num(data.openRiskPct, 1)}%<Unit>of {num(maxOpen, 0)}%</Unit></>}
+          meter={<Meter value={data.openRiskPct} max={maxOpen} height={4} />}
+          sub={<>{money(data.openRisk)} to the stops · {open.length} open of {num(risk?.max_open_positions, 0)} positions</>}
+        />
+        <Readout
+          k="Record"
+          v={stats.closed ? <Delta v={stats.totalR} d={1} unit="R" arrow={false} /> : "—"}
+          sub={stats.closed ? `${stats.closed} closed · ${stats.wins} won · avg ${num(stats.avgR, 2)}R · ${money(stats.pnl)}` : "No closed trades yet. Backtest 2021–26: avg +1.15R, 52% won."}
+        />
+        <Readout k="Risk per trade" v={<>{num(riskPct * 100, 0)}%{halfRisk && <Unit>→ halved</Unit>}</>} cls={halfRisk ? "text-amber-200" : "text-white"} sub={halfRisk ? "3 losses in a row" : "of the account, to the stop"} />
+        <Readout
+          k="Status"
+          text
+          v={status}
+          cls={paused ? "text-rose-300" : halfRisk || !risk?.auto_execute ? "text-amber-200" : "text-white"}
+          sub={`pause at ${num(ddPause, 0)}% below the 30-day peak (${money(peak30)})`}
+        />
+      </BookHero>
 
       <Card title="Open positions" right={open.length ? <Mono>{open.length} open</Mono> : undefined}>
         {open.length > 0 && (
-          <div className="mb-4 grid gap-3 md:grid-cols-2">
-            {open.map((t) => (
-              <Tile key={t.trade_id} tone="accent">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <strong className="text-[15px] text-white">{t.symbol}</strong>
-                    <Badge tone={biasTone(t.direction)}>{biasGlyph(t.direction)} {t.direction}</Badge>
-                    {Number(t.current_stop ?? t.stop) >= Number(t.entry) && <Badge tone="green">risk-free</Badge>}
-                  </div>
-                  <span className="text-[11.5px] text-white/40">opened {whenShort(t.opened_at ?? t.created_at)}</span>
-                </div>
-                <TradeRail className="mt-2.5" symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1} qty={t.qty_open ?? t.quantity} equity={equity || null} />
-              </Tile>
-            ))}
+          <div className="grid gap-3 md:grid-cols-2">
+            {open.map((t) => {
+              const r1 = Number(t.entry) - Number(t.stop);
+              const riskFree = Number(t.current_stop ?? t.stop) >= Number(t.entry);
+              return (
+                <Ticket key={t.trade_id} tone="live">
+                  <TicketHead coin={t.symbol} side={biasTone(t.direction) === "red" ? "short" : "long"} >
+                    {riskFree && <Badge tone="green">risk-free</Badge>}
+                  </TicketHead>
+                  <TradeRail className="mt-3" symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} direction={t.direction} entry={t.entry} stop={t.current_stop ?? t.stop} origStop={t.stop} target={t.current_tp1 ?? t.tp1} qty={t.qty_open ?? t.quantity} equity={equity || null} />
+                  <TicketRow className="mt-3" cols={3} label="Levels">
+                    <TicketField k="Entry" v={num(t.entry)} />
+                    <TicketField k="Stop now" v={num(t.current_stop ?? t.stop)} cls="text-rose-300" sub={riskFree ? "at or above entry — risk-free" : undefined} />
+                    <TicketField k="TP1 (sell half)" v={num(t.current_tp1 ?? t.tp1)} cls="text-accent-green" sub={r1 > 0 ? `${num((Number(t.current_tp1 ?? t.tp1) - Number(t.entry)) / r1, 1)}R` : undefined} />
+                  </TicketRow>
+                  <TicketRow className="mt-3" cols={3} label="Position">
+                    <TicketField k="Still open" v={num(t.qty_open ?? t.quantity, 6)} cls="text-white/85" />
+                    <TicketField k="Banked" v={money(t.banked_pnl)} cls="text-white/85" />
+                    <TicketField k="R now" v={<LiveMetric symbol={t.symbol} kind="crypto" initial={live[t.symbol]} stored={closeOf(t.symbol)} metric="r" entry={t.entry} stop={t.stop} direction={t.direction} />} />
+                  </TicketRow>
+                  <TicketFoot>
+                    <span>opened {when(t.opened_at ?? t.created_at)}</span>
+                    <Id>{t.trade_id}</Id>
+                  </TicketFoot>
+                </Ticket>
+              );
+            })}
           </div>
         )}
-        {open.length > 0 ? <Expander summary={<span className="text-white/70">Every column</span>}>
+        {/* The tickets above carry every column, so the wide table is a desktop extra — it never forces a sideways scroll on a phone. */}
+        {open.length > 0 ? <Expander className="mt-4 hidden sm:block" summary={<span className="text-white/70">Every column, as a table</span>}>
         <Table
           head={["Trade", "Entry", "Now", "R now", "Stop now", "TP1 (half)", "Still open", "Banked", "Opened"]}
           align={["l", "r", "r", "r", "r", "r", "r", "r", "l"]}
@@ -142,16 +168,42 @@ export default async function CoinbasePage() {
 
       <Quiet title="Everything else in this book" sub="tap any row to open it">
       <Fold count={liveCoins.length} title="Live coins — regime and triggers" sub="Core coins run at full risk, alts at half. Stop and TP1 are what the trade would get if it triggered at the 55-day high today. Regimes and triggers come from the daily close; 'now' is live Coinbase spot.">
+        {/* Phone: one ticket per coin (same figures as the table). Desktop: the table. */}
+        <div className="space-y-3 sm:hidden">
+          {liveCoins.length === 0 && <Empty>cb_universe is empty.</Empty>}
+          {liveRows.map(({ u, stop, tp1, size, holding }) => {
+            return (
+              <Ticket key={u.symbol} tone={holding ? "live" : "plain"}>
+                <TicketHead coin={u.symbol} right={<span>since {u.regime_since ?? "—"}</span>}>
+                  <Badge tone={regimeTone(u.regime)} dot>{u.regime ?? "—"}</Badge>
+                  <Badge tone={u.tier === "core" ? "cyan" : "gray"}>{u.tier === "core" ? "core · full risk" : "alt · half risk"}</Badge>
+                  {holding && <Badge tone="cyan">holding</Badge>}
+                </TicketHead>
+                <TicketRow className="mt-3" cols={3} label="Price">
+                  <TicketField k="Now" v={<LivePrice symbol={u.symbol} kind="crypto" initial={live[u.symbol]} stored={closeOf(u.symbol)} size="sm" />} />
+                  <TicketField k="Daily close" v={num(u.close)} sub={u.as_of ?? undefined} cls="text-white/85" />
+                  <TicketField k="Buy trigger (55-day high)" v={holding ? "holding" : num(u.trigger_px)} sub={!holding && u.trigger_px != null ? <><LiveMetric symbol={u.symbol} kind="crypto" initial={live[u.symbol]} stored={closeOf(u.symbol)} metric="distPct" level={u.trigger_px} /> to go · {signed(pct(u.trigger_px, u.close))} at close</> : undefined} />
+                  <TicketField k="Bear line (0.97 × 200-day)" v={num(u.bear_line)} sub={<span className="text-rose-300/70">{signed(pct(u.bear_line, u.close))} from close</span>} cls="text-white/85" />
+                </TicketRow>
+                <TicketRow className="mt-3" cols={3} label="If it triggers">
+                  <TicketField k="Stop" v={num(stop)} cls="text-rose-300" />
+                  <TicketField k="TP1" v={num(tp1)} cls="text-accent-green" />
+                  <TicketField k="Size at its risk" v={size ? money(size) : "—"} cls="text-white/85" />
+                </TicketRow>
+                <TicketFoot>
+                  <Id>{u.product_id}</Id>
+                  {u.tier !== "core" && <span>paper {u.paper_n} @ {num(u.paper_avg_r, 2)}R · RS vs BTC {u.rs90 != null ? `${num(u.rs90, 0)}%` : "—"}</span>}
+                </TicketFoot>
+              </Ticket>
+            );
+          })}
+        </div>
+        <div className="hidden sm:block">
         <Table
           head={["Coin", "Regime", "Daily close", "Now", "Bear line (0.97 × 200D)", "Entry trigger (55-day high)", "If it triggers: stop · TP1", "Size at its risk"]}
           align={["l", "l", "r", "r", "r", "r", "r", "r"]}
           minWidth={1040}
-          rows={liveCoins.map((u) => {
-            const stop = u.trigger_px != null && u.atr14 != null ? Number(u.trigger_px) - 3 * Number(u.atr14) : null;
-            const tp1 = u.trigger_px != null && stop != null ? Number(u.trigger_px) + 3 * (Number(u.trigger_px) - stop) : null;
-            const dist = u.trigger_px != null && stop != null ? (Number(u.trigger_px) - stop) / Number(u.trigger_px) + 0.012 : null;
-            const size = dist ? Math.min((equity * riskPct * Number(u.risk_mult ?? 1)) / dist, equity) : null;
-            const holding = open.some((t) => t.symbol === u.symbol);
+          rows={liveRows.map(({ u, stop, tp1, size, holding }) => {
             return [
               <span key="s"><strong className="text-white">{u.symbol}</strong> <Badge tone={u.tier === "core" ? "cyan" : "gray"}>{u.tier === "core" ? "core · full risk" : "alt · half risk"}</Badge><br /><Id>{u.product_id}</Id>{u.tier !== "core" && <div className="text-[11.5px] text-white/40">paper {u.paper_n} @ {num(u.paper_avg_r, 2)}R · RS vs BTC {u.rs90 != null ? `${num(u.rs90, 0)}%` : "—"}</div>}</span>,
               <span key="r"><Badge tone={regimeTone(u.regime)} dot>{u.regime ?? "—"}</Badge><div className="mt-1 text-[11.5px] text-white/45">since {u.regime_since ?? "—"}</div></span>,
@@ -165,6 +217,7 @@ export default async function CoinbasePage() {
           })}
           empty="cb_universe is empty."
         />
+        </div>
         <Note>
           Weekly 20-EMA is shown on the agent runs as an early warning only — as a hard rule it cost return in the backtest. Stavros&apos;s 100–105k BTC zone is a
           profit-taking zone (the runner trails the 10-day low above 100k), not a forecast.

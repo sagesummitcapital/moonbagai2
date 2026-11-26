@@ -2,6 +2,7 @@ import { load } from "../_components/data";
 import { DataNotice } from "../_components/Notice";
 import { Badge, Card, Empty, PageHeader, Stamps, Updated, whenShort } from "../_components/ui";
 import { clean, fmt, getSetupsPage, rr, type LedgerRow, type Setup, type StrategyRow } from "@/lib/moonbag/site";
+import { getPlans, planRecord, STATUS_WORD, type Plan } from "@/lib/moonbag/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,35 @@ function Ticket({ s, live }: { s: Setup; live: boolean }) {
   );
 }
 
+const OPEN_PLAN = ["watching", "armed", "reclaimed"];
+
+/** CR-96: his own conditional setups — watched every 15 minutes, fired only when the structure confirms, graded either way. */
+function PlanRow({ p }: { p: Plan }) {
+  const long = p.side === "long";
+  const zone = Number(p.zone_lo) === Number(p.zone_hi) ? fmt(p.zone_lo) : `${fmt(p.zone_lo)}–${fmt(p.zone_hi)}`;
+  const open = OPEN_PLAN.includes(p.status);
+  const r = p.r_net == null ? null : Number(p.r_net);
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Badge tone={open ? (p.status === "watching" ? "gray" : "cyan") : p.status === "triggered" ? (r == null ? "cyan" : r > 0 ? "green" : "red") : "gray"}>
+            {p.status === "triggered" ? (r == null ? "fired — live" : rr(r)) : STATUS_WORD[p.status]}
+          </Badge>
+          <span className="text-[13.5px] font-medium text-white">#{p.plan_id} {p.coin} <span className={long ? "text-accent-green" : "text-rose-300"}>{p.side}</span></span>
+          <span className="text-[12px] text-white/45">{p.setup}{p.retest ? " + retest" : ""} at {zone} · {p.confirm_tf}</span>
+        </div>
+        <span className="font-mono text-[12px] tabular-nums text-white/60">
+          {p.status === "triggered" ? `entry ${fmt(p.entry)} · stop ${fmt(p.stop)} · target ${fmt(p.tp)}` : `stop ${p.stop_px != null ? fmt(p.stop_px) : "past the wick"} · target ${p.target_px != null ? fmt(p.target_px) : "2R"}`}
+          {p.taken_trade_id ? " · you took it" : ""}
+        </span>
+      </div>
+      {(p.name || (p.status_note && !open)) && <p className="mt-1 text-[12px] leading-snug text-white/50">{clean(p.name ?? "")}{p.name && p.status_note && !open ? " — " : ""}{!open ? clean(p.status_note) : ""}</p>}
+      {open && <p className="mt-1 text-[11.5px] text-white/35">good until {whenShort(p.valid_until)}</p>}
+    </div>
+  );
+}
+
 function Strategy({ s }: { s: StrategyRow }) {
   const st = STAGE[s.stage] ?? { label: s.stage, tone: "gray" };
   const h = s.history;
@@ -81,6 +111,11 @@ function Strategy({ s }: { s: StrategyRow }) {
 
 export default async function SetupsPage() {
   const { data, error } = await load(getSetupsPage);
+  const plansRes = await load(() => getPlans(30));
+  const plans = plansRes.data ?? [];
+  const openPlans = plans.filter((p) => OPEN_PLAN.includes(p.status));
+  const donePlans = plans.filter((p) => !OPEN_PLAN.includes(p.status));
+  const planRec = planRecord(plans);
   const live = data?.live ?? [];
   const testing = data?.testing ?? [];
   const ledger = data?.ledger ?? [];
@@ -100,6 +135,24 @@ export default async function SetupsPage() {
 
       <Card title="Take-able now" right={<span>{live.length} trade{live.length === 1 ? "" : "s"}</span>}>
         {live.length === 0 ? <Empty>Nothing to take right now. Grok sends each new one to you as it fires.</Empty> : <div className="space-y-2">{live.map((s) => <Ticket key={s.limit_id} s={s} live />)}</div>}
+      </Card>
+
+      <Card
+        title="Your plans"
+        right={<span>{openPlans.length} open</span>}
+        sub="Your setups, given to Grok — structure, not predictions. Each fires only when price confirms it, comes to you like any trade, and is graded whether you take it or not."
+      >
+        {plans.length === 0 ? <Empty>No plans yet. Tell Grok a setup, e.g. &ldquo;BTC short if it deviates above 64.5–65.5K, stop above the wick.&rdquo;</Empty> : (
+          <div className="space-y-2">
+            {openPlans.map((p) => <PlanRow key={p.plan_id} p={p} />)}
+            {donePlans.slice(0, 12).map((p) => <PlanRow key={p.plan_id} p={p} />)}
+            {planRec.length > 0 && (
+              <p className="pt-1 text-[12.5px] text-white/60">
+                Your record (30 days): {planRec.map((r) => `${r.setup} — ${r.n} trades, ${rr(r.avg_r)} avg, ${r.win_pct}% wins`).join(" · ")}
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       <Card

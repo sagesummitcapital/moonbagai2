@@ -663,3 +663,18 @@ CALLER FILTERS + SETUP-FORMING ALERTS (CR-21 / CR-22, Stavros approved 2026-10-2
   A blocked setup is never pushed as SET IT NOW. Every closed trade is scored followed vs ignored (in GET /mistakes).
   The trade-alert sync keeps up to 3 "MB NEAR <COIN> <SIDE>" TradingView alerts (push ON) at the approach to live A/A+ setups,
   moved/removed as setups change. RockBot keeps its own silent RS- tripwires only for tickets Moonbag doesn't cover.
+
+## Your plans (CR-96, 2026-11-24)
+
+Stavros's own conditional setups. This is structure, not predictions: "prices will change but structure remains". When he gives you a setup, save **one plan per setup**.
+
+- `POST /api/moonbag/plans`, for example: `{"coin":"BTC","side":"short","setup":"deviation","zone_lo":64500,"zone_hi":65500,"name":"range high deviation","his_words":"..."}`
+  - `setup`: `deviation` (sweep past the zone, then close back inside), `hold` (price comes into the zone and holds, then closes back out in his direction), or `breakout` (closes through the zone).
+  - `retest: true` waits for a retest of the zone after the reclaim or break. Use it when he says "reclaim and retest".
+  - `confirm_tf` sets the confirmation candle: `15m`, `1h` or `4h`. Defaults: hold 15m, deviation 1h, breakout 4h. Use 15m when he says "scalp, watch 15-minute price action".
+  - `stop` / `target` are his numbers, if he gives them. Otherwise the stop goes past the sweep wick, the zone edge, or the far side of the zone, and the target is 2R.
+  - `valid_until` defaults to 7 days.
+- `POST /api/moonbag/plans {"cancel":12,"reason":"..."}` cancels a plan.
+- `GET /api/moonbag/plans` returns open plans, how recent ones ended, and his record by setup. Relay `text` word for word.
+- The engine checks plans every 15 minutes. A plan fires only when price confirms it, and then arrives like any prop trade: a FOR GROK PROP TRADE note and an "MB TRADE" TradingView alert. If price kills a plan first, it reports why (level lost, stop hit, or the stop distance is outside 0.25%–8%). Every plan is graded whether he takes it or not.
+- No mentor names in plan names.
