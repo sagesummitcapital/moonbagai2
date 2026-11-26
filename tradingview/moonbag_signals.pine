@@ -1,0 +1,135 @@
+//@version=6
+// MOONBAG SIGNALS — the live Moonbag prop strategies, firing as TradingView alerts with ZERO API calls.
+// One indicator on one chart scans every coin. Create ONE alert on it: Condition "Moonbag Signals" → "Any alert() function call".
+// The Moonbag database is still the record: it finds the same trades every 15 minutes and grades every one, taken or not.
+// Small differences from the database version: daily averages are approximated from 4H/1H bars (20 days = 120 4H bars, 50 days = 300),
+// and the spot-vs-perp veto on BTC/ETH/SOL breakouts is applied by Moonbag/Grok, not here.
+// Analysis, not financial advice. Stavros places every order.
+indicator("Moonbag Signals", overlay = true, max_labels_count = 50)
+
+// ---------- formatting ----------
+fmt(float x) =>
+    ax = math.abs(x)
+    ax >= 1000 ? str.tostring(x, "#,###.0") : ax >= 10 ? str.tostring(x, "#.00") : ax >= 1 ? str.tostring(x, "#.000") : ax >= 0.01 ? str.tostring(x, "#.0000") : str.tostring(x, "#.########")
+
+ticket(string coin, string side, string strat, float entry, float stop, string good, string rec) =>
+    risk = math.abs(entry - stop)
+    tp = side == "LONG" ? entry + 2 * risk : entry - 2 * risk
+    "MOONBAG TRADE — " + coin + " " + side + " (" + strat + ")\nLimit " + fmt(entry) + " · Stop " + fmt(stop) + " (" + str.tostring(risk / entry * 100, "#.00") + "%) · Target " + fmt(tp) + " (2R)\nGood for " + good + ". Run the prop check with Grok for size. Record: " + rec
+
+// ---------- 1) 4H breakout with the daily trend (wide stop) ----------
+// 4H close beyond the last 30 candles' high/low, daily 20-day avg above (below) the 50-day, stop 3x 4H ATR, target 2R, once per 12 candles per side.
+f4h() =>
+    hi = ta.highest(high, 30)[1]
+    lo = ta.lowest(low, 30)[1]
+    s20 = ta.sma(close, 120)
+    s50 = ta.sma(close, 300)
+    atr = ta.sma(high - low, 14)[1]
+    lc = close > hi and s20 > s50
+    sc = close < lo and s20 < s50
+    lok = lc and nz(ta.barssince(lc[1]), 999) >= 11
+    sok = sc and nz(ta.barssince(sc[1]), 999) >= 11
+    [lok[1], sok[1], close[1], atr[1], time[1]]
+
+REC4 = "120 trades, 54% wins, +0.37R avg"
+
+check4h(string coin, string sym) =>
+    [lok, sok, c, atr, t] = request.security(sym, "240", f4h(), lookahead = barmerge.lookahead_on)
+    isNew = ta.change(t) != 0
+    if isNew and lok
+        alert(ticket(coin, "LONG", "4H breakout with the daily trend", c, c - 3 * atr, "the next 4 hours", REC4), alert.freq_once_per_bar_close)
+    if isNew and sok
+        alert(ticket(coin, "SHORT", "4H breakout with the daily trend", c, c + 3 * atr, "the next 4 hours", REC4), alert.freq_once_per_bar_close)
+    isNew and (lok or sok)
+
+// ---------- 2) Daily 20-day breakout with the trend (BTC/ETH/SOL) ----------
+fD() =>
+    hi = ta.highest(high, 20)[1]
+    lo = ta.lowest(low, 20)[1]
+    s20 = ta.sma(close, 20)[1]
+    s50 = ta.sma(close, 50)[1]
+    atr = ta.sma(high - low, 14)[1]
+    lc = close > hi and s20 > s50
+    sc = close < lo and s20 < s50
+    lok = lc and nz(ta.barssince(lc[1]), 999) >= 9
+    sok = sc and nz(ta.barssince(sc[1]), 999) >= 9
+    [lok[1], sok[1], close[1], atr[1], time[1]]
+
+RECD = "42 trades since 2024, 50% wins, +0.36R avg"
+
+checkD(string coin, string sym) =>
+    [lok, sok, c, atr, t] = request.security(sym, "D", fD(), lookahead = barmerge.lookahead_on)
+    isNew = ta.change(t) != 0
+    if isNew and lok
+        alert(ticket(coin, "LONG", "Daily 20-day breakout", c, c - 2 * atr, "the next day", RECD), alert.freq_once_per_bar_close)
+    if isNew and sok
+        alert(ticket(coin, "SHORT", "Daily 20-day breakout", c, c + 2 * atr, "the next day", RECD), alert.freq_once_per_bar_close)
+    isNew and (lok or sok)
+
+// ---------- 3) Monday range breakout (BTC/ETH) ----------
+// Monday (UTC) sets the range. From Tuesday, the first 1H close outside it in the direction of the 50-day average is the trade.
+// Stop at the other side of the Monday range, target 2R, once per coin per week.
+fMon() =>
+    var float mh = na
+    var float ml = na
+    var bool done = false
+    dow = dayofweek(time, "UTC")
+    newWeek = dow == dayofweek.monday and dayofweek(time[1], "UTC") != dayofweek.monday
+    if newWeek
+        mh := high
+        ml := low
+        done := false
+    else if dow == dayofweek.monday
+        mh := math.max(mh, high)
+        ml := math.min(ml, low)
+    s50 = ta.sma(close, 1200)
+    canTrade = dow != dayofweek.monday and not done and not na(mh)
+    lc = canTrade and close > mh and close > s50
+    sc = canTrade and close < ml and close < s50
+    if lc or sc
+        done := true
+    [lc[1], sc[1], close[1], mh[1], ml[1], time[1]]
+
+RECM = "30 trades, 47% wins, +0.14R avg"
+
+checkMon(string coin, string sym) =>
+    [lc, sc, c, mh, ml, t] = request.security(sym, "60", fMon(), lookahead = barmerge.lookahead_on)
+    isNew = ta.change(t) != 0
+    if isNew and lc
+        alert(ticket(coin, "LONG", "Monday range breakout", c, ml, "the next hour", RECM), alert.freq_once_per_bar_close)
+    if isNew and sc
+        alert(ticket(coin, "SHORT", "Monday range breakout", c, mh, "the next hour", RECM), alert.freq_once_per_bar_close)
+    isNew and (lc or sc)
+
+// ---------- the coins (28 data requests; TradingView allows 40) ----------
+fired = false
+fired := check4h("BTC", "BINANCE:BTCUSDT.P") or fired
+fired := check4h("ETH", "BINANCE:ETHUSDT.P") or fired
+fired := check4h("SOL", "BINANCE:SOLUSDT.P") or fired
+fired := check4h("AVAX", "BINANCE:AVAXUSDT.P") or fired
+fired := check4h("LINK", "BINANCE:LINKUSDT.P") or fired
+fired := check4h("SUI", "BINANCE:SUIUSDT.P") or fired
+fired := check4h("XRP", "BINANCE:XRPUSDT.P") or fired
+fired := check4h("HYPE", "BYBIT:HYPEUSDT.P") or fired
+fired := check4h("AAVE", "BINANCE:AAVEUSDT.P") or fired
+fired := check4h("NEAR", "BINANCE:NEARUSDT.P") or fired
+fired := check4h("LTC", "BINANCE:LTCUSDT.P") or fired
+fired := check4h("BNB", "BINANCE:BNBUSDT.P") or fired
+fired := check4h("INJ", "BINANCE:INJUSDT.P") or fired
+fired := check4h("ENA", "BINANCE:ENAUSDT.P") or fired
+fired := check4h("APT", "BINANCE:APTUSDT.P") or fired
+fired := check4h("ARB", "BINANCE:ARBUSDT.P") or fired
+fired := check4h("OP", "BINANCE:OPUSDT.P") or fired
+fired := check4h("DOT", "BINANCE:DOTUSDT.P") or fired
+fired := check4h("BCH", "BINANCE:BCHUSDT.P") or fired
+fired := check4h("SEI", "BINANCE:SEIUSDT.P") or fired
+fired := check4h("TIA", "BINANCE:TIAUSDT.P") or fired
+fired := check4h("UNI", "BINANCE:UNIUSDT.P") or fired
+fired := check4h("ZEC", "BINANCE:ZECUSDT.P") or fired
+fired := checkD("BTC", "BINANCE:BTCUSDT.P") or fired
+fired := checkD("ETH", "BINANCE:ETHUSDT.P") or fired
+fired := checkD("SOL", "BINANCE:SOLUSDT.P") or fired
+fired := checkMon("BTC", "BINANCE:BTCUSDT.P") or fired
+fired := checkMon("ETH", "BINANCE:ETHUSDT.P") or fired
+
+plotshape(fired, "Moonbag trade", shape.diamond, location.top, color.new(color.lime, 0), size = size.tiny)
